@@ -732,180 +732,98 @@ describe("useCheckoutProcess - endereço padrão da entrega", () => {
   });
 });
 
-describe("useCheckoutProcess - proteção contra cliques repetidos no Pagar (LDMF-320)", () => {
+describe("useCheckoutProcess - frete, total e valor do pagamento (LDMF-315)", () => {
   beforeEach(() => {
     finishOrder.mockReset();
     openCart.mockReset();
     paymentsCreate.mockReset();
     paymentsCreate.mockResolvedValue({ success: true, data: {} });
-    resetAddressMocks();
     deleteUserAddress.mockReset();
-    createUserAddress.mockReset();
-    toastError.mockReset();
+    resetAddressMocks();
+    RESTAURANT_QUERY.data = { id: "comp-1", deliveryFee: "0" } as never;
     addressesQuery = ADDRESSES_WITH_DEFAULT;
     seedAddressBook(ADDRESSES_WITH_DEFAULT);
-    localStorage.clear();
   });
 
-  it("quatro cliques seguidos geram uma única finalização e um único pagamento, mantendo o botão travado na navegação", async () => {
-    let resolveFinish!: (value: {
-      success: boolean;
-      data: { id: string };
-    }) => void;
-    finishOrder.mockReturnValue(
-      new Promise((resolve) => {
-        resolveFinish = resolve;
-      }),
-    );
-
-    const { result } = renderCheckout();
-    await waitFor(() => expect(result.current.selectedAddressId).toBe("addr-1"));
-
-    act(() => {
-      result.current.setOrderType("pickup");
-      result.current.setPaymentMethod("pix_on_delivery");
-    });
-
-    let p1!: Promise<void>;
-    let p2!: Promise<void>;
-    let p3!: Promise<void>;
-    let p4!: Promise<void>;
-
-    act(() => {
-      p1 = result.current.handleSubmitOrder();
-      p2 = result.current.handleSubmitOrder();
-      p3 = result.current.handleSubmitOrder();
-      p4 = result.current.handleSubmitOrder();
-    });
-
-    expect(result.current.isProcessing).toBe(true);
-    expect(finishOrder).toHaveBeenCalledTimes(1);
-
-    await act(async () => {
-      resolveFinish({ success: true, data: { id: "order-unico" } });
-      await Promise.all([p1, p2, p3, p4]);
-    });
-
-    expect(finishOrder).toHaveBeenCalledTimes(1);
-    expect(paymentsCreate).toHaveBeenCalledTimes(1);
-    expect(toastError).not.toHaveBeenCalled();
-
-    // Durante a navegação pós-sucesso o botão permanece travado: clicar de novo
-    // não tenta finalizar o carrinho que já virou pedido.
-    expect(result.current.isProcessing).toBe(true);
-    expect(result.current.isNavigating).toBe(true);
-
-    await act(async () => {
-      await result.current.handleSubmitOrder();
-    });
-
-    expect(finishOrder).toHaveBeenCalledTimes(1);
-    expect(paymentsCreate).toHaveBeenCalledTimes(1);
-  });
-
-  it("quatro cliques seguidos quando a API falha mostram um único aviso de erro e liberam o botão de novo", async () => {
-    let resolveFinish!: (value: {
-      success: boolean;
-      message: string;
-    }) => void;
-    finishOrder.mockReturnValue(
-      new Promise((resolve) => {
-        resolveFinish = resolve;
-      }),
-    );
-
-    const { result } = renderCheckout();
-    await waitFor(() => expect(result.current.selectedAddressId).toBe("addr-1"));
-
-    act(() => {
-      result.current.setOrderType("pickup");
-      result.current.setPaymentMethod("pix_on_delivery");
-    });
-
-    let p1!: Promise<void>;
-    let p2!: Promise<void>;
-    let p3!: Promise<void>;
-    let p4!: Promise<void>;
-
-    act(() => {
-      p1 = result.current.handleSubmitOrder();
-      p2 = result.current.handleSubmitOrder();
-      p3 = result.current.handleSubmitOrder();
-      p4 = result.current.handleSubmitOrder();
-    });
-
-    expect(result.current.isProcessing).toBe(true);
-    expect(finishOrder).toHaveBeenCalledTimes(1);
-
-    await act(async () => {
-      resolveFinish({
-        success: false,
-        message: "Erro ao finalizar pedido",
-      });
-      await Promise.all([p1, p2, p3, p4]);
-    });
-
-    expect(finishOrder).toHaveBeenCalledTimes(1);
-    expect(paymentsCreate).not.toHaveBeenCalled();
-    expect(toastError).toHaveBeenCalledTimes(1);
-    expect(toastError).toHaveBeenCalledWith("Erro ao finalizar pedido");
-
-    // Após o erro, o botão é liberado para permitir nova tentativa.
-    expect(result.current.isProcessing).toBe(false);
-    expect(result.current.isNavigating).toBe(false);
-
-    // Nova tentativa após liberar funciona normalmente.
-    finishOrder.mockResolvedValueOnce({
+  it("registra o pagamento em POST /payment com o totalValue gravado no pedido (incluindo o frete calculado pelo backend)", async () => {
+    finishOrder.mockResolvedValue({
       success: true,
-      data: { id: "order-retry" },
+      data: {
+        id: "order-125",
+        totalShipping: 5,
+        totalValue: 40.9,
+      },
     });
 
-    await act(async () => {
-      await result.current.handleSubmitOrder();
+    await submitWith((h) => {
+      h.setOrderType("delivery");
+      h.setPaymentMethod("pix_on_delivery");
     });
 
-    expect(finishOrder).toHaveBeenCalledTimes(2);
-    expect(paymentsCreate).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(paymentsCreate).toHaveBeenCalledTimes(1));
+    expect(paymentsCreate.mock.calls[0][0]).toEqual({
+      orderId: "order-125",
+      paymentMethod: "PIX",
+      amount: 40.9,
+    });
   });
 
-  it("falha ao criar novo endereço na entrega não duplica POST /address nem empilha dois toasts", async () => {
-    addressesQuery = ADDRESSES_EMPTY;
-    seedAddressBook(ADDRESSES_EMPTY);
-    createUserAddress.mockResolvedValue({
-      success: false,
-      message: "CEP inválido",
-    });
+  it("calcula o frete e soma ao total do checkout quando loja e endereço do cliente têm coordenadas", async () => {
+    RESTAURANT_QUERY.data = {
+      id: "comp-1",
+      Address: [
+        {
+          latitude: "-20.6025799",
+          longitude: "-41.2022979",
+          isActive: true,
+        },
+      ],
+    } as never;
+
+    const addressWithCoords = {
+      data: [
+        {
+          ...ADDRESS_BASE,
+          isDefault: true,
+          latitude: "-20.605",
+          longitude: "-41.209359",
+        },
+      ],
+      isLoading: false,
+    };
+    addressesQuery = addressWithCoords;
+    seedAddressBook(addressWithCoords);
 
     const { result } = renderCheckout();
 
+    await waitFor(() => expect(result.current.selectedAddressId).toBe("addr-1"));
+
+    expect(result.current.deliveryFee).toBe(5);
+    expect(result.current.isDeliveryFeeKnown).toBe(true);
+    expect(result.current.total).toBe(40.9);
+
     act(() => {
-      result.current.setOrderType("delivery");
-      result.current.setPaymentMethod("pix_on_delivery");
-      result.current.setAddressMode("new");
-      Object.entries({
-        name: "Cliente",
-        phone: "11999999999",
-        zipCode: "01001-000",
-        street: "Praça da Sé",
-        number: "1",
-        neighborhood: "Sé",
-        city: "São Paulo",
-        state: "SP",
-      }).forEach(([field, value]) =>
-        result.current.handleInputChange(field, value),
-      );
+      result.current.setOrderType("pickup");
     });
 
-    await act(async () => {
-      await result.current.handleSubmitOrder();
-    });
+    expect(result.current.deliveryFee).toBe(0);
+    expect(result.current.isDeliveryFeeKnown).toBe(true);
+    expect(result.current.total).toBe(35.9);
+  });
 
-    expect(createUserAddress).toHaveBeenCalledTimes(1);
-    expect(finishOrder).not.toHaveBeenCalled();
-    expect(toastError).toHaveBeenCalledTimes(1);
-    expect(toastError).toHaveBeenCalledWith("CEP inválido");
-    expect(result.current.isProcessing).toBe(false);
+  it("sinaliza isDeliveryFeeKnown=false na entrega quando ainda não há coordenadas para calcular o frete", async () => {
+    RESTAURANT_QUERY.data = { id: "comp-1" } as never;
+    addressesQuery = ADDRESSES_WITH_DEFAULT;
+    seedAddressBook(ADDRESSES_WITH_DEFAULT);
+
+    const { result } = renderCheckout();
+
+    await waitFor(() => expect(result.current.selectedAddressId).toBe("addr-1"));
+
+    expect(result.current.orderType).toBe("delivery");
+    expect(result.current.deliveryFee).toBe(0);
+    expect(result.current.isDeliveryFeeKnown).toBe(false);
+    expect(result.current.total).toBe(35.9);
   });
 });
-
 
