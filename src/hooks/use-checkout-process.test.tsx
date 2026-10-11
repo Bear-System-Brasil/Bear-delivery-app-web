@@ -732,3 +732,98 @@ describe("useCheckoutProcess - endereço padrão da entrega", () => {
   });
 });
 
+describe("useCheckoutProcess - frete, total e valor do pagamento (LDMF-315)", () => {
+  beforeEach(() => {
+    finishOrder.mockReset();
+    openCart.mockReset();
+    paymentsCreate.mockReset();
+    paymentsCreate.mockResolvedValue({ success: true, data: {} });
+    deleteUserAddress.mockReset();
+    resetAddressMocks();
+    RESTAURANT_QUERY.data = { id: "comp-1", deliveryFee: "0" } as never;
+    addressesQuery = ADDRESSES_WITH_DEFAULT;
+    seedAddressBook(ADDRESSES_WITH_DEFAULT);
+  });
+
+  it("registra o pagamento em POST /payment com o totalValue gravado no pedido (incluindo o frete calculado pelo backend)", async () => {
+    finishOrder.mockResolvedValue({
+      success: true,
+      data: {
+        id: "order-125",
+        totalShipping: 5,
+        totalValue: 40.9,
+      },
+    });
+
+    await submitWith((h) => {
+      h.setOrderType("delivery");
+      h.setPaymentMethod("pix_on_delivery");
+    });
+
+    await waitFor(() => expect(paymentsCreate).toHaveBeenCalledTimes(1));
+    expect(paymentsCreate.mock.calls[0][0]).toEqual({
+      orderId: "order-125",
+      paymentMethod: "PIX",
+      amount: 40.9,
+    });
+  });
+
+  it("calcula o frete e soma ao total do checkout quando loja e endereço do cliente têm coordenadas", async () => {
+    RESTAURANT_QUERY.data = {
+      id: "comp-1",
+      Address: [
+        {
+          latitude: "-20.6025799",
+          longitude: "-41.2022979",
+          isActive: true,
+        },
+      ],
+    } as never;
+
+    const addressWithCoords = {
+      data: [
+        {
+          ...ADDRESS_BASE,
+          isDefault: true,
+          latitude: "-20.605",
+          longitude: "-41.209359",
+        },
+      ],
+      isLoading: false,
+    };
+    addressesQuery = addressWithCoords;
+    seedAddressBook(addressWithCoords);
+
+    const { result } = renderCheckout();
+
+    await waitFor(() => expect(result.current.selectedAddressId).toBe("addr-1"));
+
+    expect(result.current.deliveryFee).toBe(5);
+    expect(result.current.isDeliveryFeeKnown).toBe(true);
+    expect(result.current.total).toBe(40.9);
+
+    act(() => {
+      result.current.setOrderType("pickup");
+    });
+
+    expect(result.current.deliveryFee).toBe(0);
+    expect(result.current.isDeliveryFeeKnown).toBe(true);
+    expect(result.current.total).toBe(35.9);
+  });
+
+  it("sinaliza isDeliveryFeeKnown=false na entrega quando ainda não há coordenadas para calcular o frete", async () => {
+    RESTAURANT_QUERY.data = { id: "comp-1" } as never;
+    addressesQuery = ADDRESSES_WITH_DEFAULT;
+    seedAddressBook(ADDRESSES_WITH_DEFAULT);
+
+    const { result } = renderCheckout();
+
+    await waitFor(() => expect(result.current.selectedAddressId).toBe("addr-1"));
+
+    expect(result.current.orderType).toBe("delivery");
+    expect(result.current.deliveryFee).toBe(0);
+    expect(result.current.isDeliveryFeeKnown).toBe(false);
+    expect(result.current.total).toBe(35.9);
+  });
+});
+
