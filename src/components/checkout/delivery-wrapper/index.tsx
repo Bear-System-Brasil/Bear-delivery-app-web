@@ -55,10 +55,12 @@ export function DeliveryWrapper() {
     setNeedsChange,
     subtotal,
     deliveryFee,
+    isDeliveryFeeKnown,
     discount,
     total,
     cartItems,
     restaurant,
+    resolveDeliveryCoords,
     handleSubmitOrder,
     setSelectedAddressId,
     isFormValid,
@@ -84,6 +86,10 @@ export function DeliveryWrapper() {
           : "Preencha nome, telefone e endereço para continuar.",
       );
       return;
+    }
+
+    if (orderType === "delivery") {
+      void resolveDeliveryCoords?.();
     }
 
     setStep(2);
@@ -292,6 +298,7 @@ export function DeliveryWrapper() {
         handleSubmitOrder={handleSubmit}
         isProcessing={isProcessing}
         deliveryFee={deliveryFee}
+        isDeliveryFeeKnown={isDeliveryFeeKnown}
         discount={discount}
         cartItems={cartItems}
         subtotal={subtotal}

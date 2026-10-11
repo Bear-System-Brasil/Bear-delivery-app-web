@@ -20,6 +20,7 @@ import { AnimatedBackground } from "@/components/ui/animated-background";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { DEFAULT_DELIVERY_FEE } from "@/constants/delivery-defaults";
 import { useCartActions, useRestaurant } from "@/hooks";
 import {
   getDeliveryDiscount,
@@ -76,18 +77,25 @@ export default function CartPage() {
     restaurant?.tradeName || items[0]?.restaurantName || "Restaurante";
   const restaurantImage = restaurant?.logo_url || getItemImage(items[0]);
   const restaurantTime = restaurant?.time || "30-40 min";
+  const rawDeliveryFeeString = String(restaurant?.deliveryFee ?? "").trim();
   const rawDeliveryFee = Number.parseFloat(
-    String(restaurant?.deliveryFee ?? "0").replace(",", "."),
+    rawDeliveryFeeString.replace(",", "."),
   );
-  const deliveryFee = Number.isFinite(rawDeliveryFee) ? rawDeliveryFee : 0;
+  const hasExplicitDeliveryFee =
+    rawDeliveryFeeString.length > 0 &&
+    rawDeliveryFeeString !== DEFAULT_DELIVERY_FEE &&
+    Number.isFinite(rawDeliveryFee) &&
+    rawDeliveryFee > 0;
+  const deliveryFee = hasExplicitDeliveryFee ? rawDeliveryFee : 0;
   const deliveryDiscount = getDeliveryDiscount(appliedPromo, deliveryFee);
 
   const subtotal = totalPrice || 0;
   const promoDiscount = getPromoDiscount(appliedPromo, subtotal);
   const total = subtotal + deliveryFee - deliveryDiscount - promoDiscount;
 
-  const deliveryLabel =
-    deliveryFee - deliveryDiscount > 0
+  const deliveryLabel = !hasExplicitDeliveryFee
+    ? "Calculado no checkout"
+    : deliveryFee - deliveryDiscount > 0
       ? formatCurrency(deliveryFee - deliveryDiscount)
       : "Grátis";
 
