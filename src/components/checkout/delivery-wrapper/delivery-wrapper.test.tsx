@@ -143,6 +143,36 @@ describe("DeliveryWrapper", () => {
     expect(checkout.handleSubmitOrder).toHaveBeenCalledTimes(1);
   });
 
+  it("quatro cliques seguidos em confirmar durante o envio disparam handleSubmitOrder apenas uma vez", async () => {
+    const user = userEvent.setup();
+    let releaseSubmit!: () => void;
+    const handleSubmitOrder = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          releaseSubmit = resolve;
+        }),
+    );
+    setCheckout({ handleSubmitOrder });
+
+    render(<DeliveryWrapper />);
+    await user.click(screen.getByRole("button", { name: "Continuar" }));
+
+    const confirmButton = screen.getByRole("button", {
+      name: "Confirmar pedido",
+    });
+
+    await user.click(confirmButton);
+    await user.click(confirmButton);
+    await user.click(confirmButton);
+    await user.click(confirmButton);
+
+    expect(handleSubmitOrder).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      releaseSubmit();
+    });
+  });
+
   it("voltar no pagamento volta para a entrega; voltar na entrega vai para o carrinho", async () => {
     const user = userEvent.setup();
     render(<DeliveryWrapper />);

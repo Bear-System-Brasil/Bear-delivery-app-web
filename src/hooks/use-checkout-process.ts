@@ -26,10 +26,15 @@ import { parseCoords } from "@/lib/geocode";
 import { Coords } from "@/types/restaurant";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useRestaurant } from "./use-restaurants";
 import { useUserAddresses } from "./use-addresses";
+
+function showCheckoutError(message: string) {
+  toast.dismiss?.();
+  toast.error(message);
+}
 
 /**
  * Opção escolhida no checkout -> forma gravada no pagamento. Crédito e débito
@@ -197,6 +202,7 @@ export const useCheckoutProcess = () => {
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false);
+  const submittingRef = useRef(false);
 
   // Calculated values - mesma fórmula da tela /cart, pra nunca cobrar um
   // total diferente do que o cliente viu antes de finalizar o pedido.
@@ -288,53 +294,43 @@ export const useCheckoutProcess = () => {
   };
 
   /**
-   * Salva novo endereço do usuário
+   * Salva novo endereço do usuário (lança erro se falhar para não duplicar
+   * requisição nem empilhar toasts no fluxo de finalização).
    */
-  const saveNewAddress = async (
-    coords: Coords | null,
-  ): Promise<string | null> => {
-    try {
-      const hasDefault = Boolean(userAddresses?.some((a) => a.isDefault));
-      const shouldBeDefault =
-        saveAddress && (!hasDefault || userAddresses.length === 0);
+  const saveNewAddress = async (coords: Coords | null): Promise<string> => {
+    const hasDefault = Boolean(userAddresses?.some((a) => a.isDefault));
+    const shouldBeDefault =
+      saveAddress && (!hasDefault || userAddresses.length === 0);
 
-      const addressData = {
-        zipCode: onlyNumbers(deliveryInfo.zipCode),
-        state: deliveryInfo.state,
-        city: deliveryInfo.city,
-        neighborhood: deliveryInfo.neighborhood,
-        longitude: coords?.lng,
-        latitude: coords?.lat,
-        street: deliveryInfo.street,
-        number: deliveryInfo.number,
-        complement: deliveryInfo.complement || undefined,
-        reference: deliveryInfo.reference || undefined,
-        isDefault: shouldBeDefault,
-      };
+    const addressData = {
+      zipCode: onlyNumbers(deliveryInfo.zipCode),
+      state: deliveryInfo.state,
+      city: deliveryInfo.city,
+      neighborhood: deliveryInfo.neighborhood,
+      longitude: coords?.lng,
+      latitude: coords?.lat,
+      street: deliveryInfo.street,
+      number: deliveryInfo.number,
+      complement: deliveryInfo.complement || undefined,
+      reference: deliveryInfo.reference || undefined,
+      isDefault: shouldBeDefault,
+    };
 
-      const response = await apiService.address.createUserAddress(addressData);
+    const response = await apiService.address.createUserAddress(addressData);
 
-      if (response.success && response.data) {
-        const created = response.data;
-        const id = created.id;
-        setSelectedAddressId(id);
-        queryClient.setQueryData(
-          ["addresses", "user", user?.id],
-          (old: Address[] | undefined) => [...(old || []), created],
-        );
-        toast.success("Endereço salvo com sucesso!");
-        return id;
-      }
-
-      if (!response.success && response.message) {
-        toast.error(response.message);
-      }
-
-      return null;
-    } catch (error) {
-      console.error("Error saving address:", error);
-      return null;
+    if (response.success && response.data?.id) {
+      const created = response.data;
+      const id = created.id;
+      setSelectedAddressId(id);
+      queryClient.setQueryData(
+        ["addresses", "user", user?.id],
+        (old: Address[] | undefined) => [...(old || []), created],
+      );
+      toast.success("Endereço salvo com sucesso!");
+      return id;
     }
+
+    throw new Error(response.message || "Erro ao criar endereço de entrega");
   };
 
   /**
@@ -401,6 +397,13 @@ export const useCheckoutProcess = () => {
    * 6. Limpa carrinho local (após delay para evitar redirect indesejado)
    */
   const handleSubmitOrder = async () => {
+    // Trava síncrona: cliques repetidos antes do re-render do React (ou
+    // enquanto a navegação pós-sucesso ainda está em andamento) são ignorados
+    // no ato, evitando finalizações/pagamentos duplicados e toasts empilhados.
+    if (submittingRef.current || isProcessing || isNavigating) {
+      return;
+    }
+
     // Este clique é o único gesto garantido antes de a tela de acompanhamento
     // começar a tocar sozinha, no polling. Destravar o áudio aqui é o que faz
     // "em preparo" e "chegou" saírem depois — sem isso o navegador bloqueia
@@ -408,19 +411,19 @@ export const useCheckoutProcess = () => {
     unlock();
 
     if (cartItems.length === 0) {
-      toast.error("Seu carrinho está vazio!");
+      showCheckoutError("Seu carrinho está vazio!");
       router.push("/#lojas");
       return;
     }
 
     if (!user?.id) {
-      toast.error("Você precisa estar logado para finalizar o pedido");
+      showCheckoutError("Você precisa estar logado para finalizar o pedido");
       router.push("/#lojas");
       return;
     }
 
     if (!restaurant?.id) {
-      toast.error(
+      showCheckoutError(
         "Erro ao identificar o restaurante. Por favor, adicione os itens novamente ao carrinho.",
       );
       clearCart();
@@ -428,12 +431,14 @@ export const useCheckoutProcess = () => {
       return;
     }
 
+    submittingRef.current = true;
     setIsProcessing(true);
 
     // Preenchido quando o endereço do pedido não é o padrão do cliente. O
     // `finally` devolve o padrão anterior em qualquer saída - inclusive
     // quando o pedido falha no meio.
     let defaultAddressSwap: PendingDefaultSwap | null = null;
+    let orderCompleted = false;
 
     try {
       // --------------------------------------------------
@@ -443,51 +448,12 @@ export const useCheckoutProcess = () => {
       let deliveryAddressId = selectedAddressId;
 
       if (orderType === "delivery") {
-        // Uma resolução só para os dois caminhos de criação abaixo: o segundo
-        // é fallback do primeiro, e geocodificação de novo seria uma ida à rede
-        // repetida bem no clique de finalizar o pedido.
+        // Uma resolução só para a criação de endereço abaixo: geocodificar de
+        // novo seria uma ida à rede repetida bem no clique de finalizar.
         const coords = deliveryAddressId ? null : await resolveDeliveryCoords();
 
-        // For "new" address mode: always create address (delivery needs an addressId)
-        if (addressMode === "new" && !deliveryAddressId) {
-          deliveryAddressId = await saveNewAddress(coords);
-        }
-
-        // Fallback: if we still don't have an address, create one
         if (!deliveryAddressId) {
-          const hasDefault = Boolean(userAddresses?.some((a) => a.isDefault));
-          const shouldBeDefault =
-            saveAddress && (!hasDefault || userAddresses.length === 0);
-
-          const newAddressData = {
-            zipCode: onlyNumbers(deliveryInfo.zipCode),
-            street: deliveryInfo.street,
-            number: deliveryInfo.number,
-            neighborhood: deliveryInfo.neighborhood,
-            city: deliveryInfo.city,
-            state: deliveryInfo.state,
-            latitude: coords?.lat,
-            longitude: coords?.lng,
-            isDefault: shouldBeDefault,
-          };
-
-          const addressResponse =
-            await apiService.address.createUserAddress(newAddressData);
-
-          if (addressResponse.success && addressResponse.data?.id) {
-            deliveryAddressId = addressResponse.data.id;
-            queryClient.setQueryData(
-              ["addresses", "user", user?.id],
-              (old: Address[] | undefined) => [
-                ...(old || []),
-                addressResponse.data,
-              ],
-            );
-          } else {
-            throw new Error(
-              addressResponse.message || "Erro ao criar endereço de entrega",
-            );
-          }
+          deliveryAddressId = await saveNewAddress(coords);
         }
 
         // O backend monta a entrega a partir do endereço PADRÃO do cliente
@@ -643,7 +609,7 @@ export const useCheckoutProcess = () => {
           // `apiRequest` não lança exceção em 4xx - sem checar `success` a falha
           // de pagamento passava batida e o cliente via "pedido realizado".
           if (!paymentResponse.success) {
-            toast.error(
+            showCheckoutError(
               paymentResponse.message ||
               "Pedido criado, mas falhou ao registrar o pagamento.",
             );
@@ -654,7 +620,7 @@ export const useCheckoutProcess = () => {
           }
         } catch (error) {
           console.error("Erro no pagamento:", error);
-          toast.error("Pedido criado, mas falhou ao registrar o pagamento.");
+          showCheckoutError("Pedido criado, mas falhou ao registrar o pagamento.");
         }
       };
 
@@ -689,6 +655,7 @@ export const useCheckoutProcess = () => {
       play("order-confirmed");
       toast.success("Pedido realizado com sucesso!");
 
+      orderCompleted = true;
       setIsNavigating(true);
 
       if (isClientRole(user?.role)) {
@@ -702,13 +669,18 @@ export const useCheckoutProcess = () => {
       setTimeout(() => {
         clearCart();
         setIsNavigating(false);
+        setIsProcessing(false);
+        submittingRef.current = false;
       }, 1500);
     } catch (error) {
-      toast.error(
+      showCheckoutError(
         getErrorMessage(error, "Erro ao processar pedido. Tente novamente."),
       );
     } finally {
-      setIsProcessing(false);
+      if (!orderCompleted) {
+        submittingRef.current = false;
+        setIsProcessing(false);
+      }
 
       // Só sobra troca aqui quando o pedido não chegou ao fim. O padrão do
       // cliente não pode ficar trocado por causa de um pedido que falhou.

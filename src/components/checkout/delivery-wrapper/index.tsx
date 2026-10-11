@@ -28,6 +28,7 @@ export function DeliveryWrapper() {
   const { syncCartFromBackend } = useCartActions();
   const [isSyncing, setIsSyncing] = useState(false);
   const syncAttemptedRef = useRef(false);
+  const submitLockRef = useRef(false);
   const [step, setStep] = useState<1 | 2>(1);
   const [detailsOpen, setDetailsOpen] = useState(false);
 
@@ -66,6 +67,8 @@ export function DeliveryWrapper() {
     isNavigating,
   } = useCheckoutProcess();
 
+  const isSubmittingOrder = isProcessing || isNavigating;
+
   const handleBack = () => {
     if (step === 2) {
       setStep(1);
@@ -78,6 +81,7 @@ export function DeliveryWrapper() {
 
   const handleContinue = () => {
     if (!isDeliveryValid()) {
+      toast.dismiss?.();
       toast.error(
         orderType === "pickup"
           ? "Preencha nome e telefone para continuar."
@@ -91,12 +95,22 @@ export function DeliveryWrapper() {
   };
 
   const handleSubmit = async () => {
+    if (isSubmittingOrder || submitLockRef.current) {
+      return;
+    }
+
     if (!isFormValid()) {
+      toast.dismiss?.();
       toast.error("Verifique os dados de pagamento antes de confirmar.");
       return;
     }
 
-    await handleSubmitOrder();
+    submitLockRef.current = true;
+    try {
+      await handleSubmitOrder();
+    } finally {
+      submitLockRef.current = false;
+    }
   };
 
   // Tenta sincronizar o carrinho apenas UMA vez por montagem.
@@ -290,7 +304,7 @@ export function DeliveryWrapper() {
 
       <OrderSummary
         handleSubmitOrder={handleSubmit}
-        isProcessing={isProcessing}
+        isProcessing={isSubmittingOrder}
         deliveryFee={deliveryFee}
         discount={discount}
         cartItems={cartItems}
