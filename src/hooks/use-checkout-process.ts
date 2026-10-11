@@ -23,13 +23,22 @@ import {
 } from "@/lib/default-address";
 import { isClientRole } from "@/utils/role-helpers";
 import { parseCoords } from "@/lib/geocode";
+import {
+  parseShippingCoords,
+  resolveCheckoutShipping,
+} from "@/lib/shipping-fee";
 import { Coords } from "@/types/restaurant";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useRestaurant } from "./use-restaurants";
 import { useUserAddresses } from "./use-addresses";
+
+function showCheckoutError(message: string) {
+  toast.dismiss?.();
+  toast.error(message);
+}
 
 /**
  * Opção escolhida no checkout -> forma gravada no pagamento. Crédito e débito
@@ -83,33 +92,50 @@ function isPersistedOrderId(value: unknown): value is string {
   );
 }
 
+function parsePositiveOrderTotal(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = Number(String(value).replace(",", "."));
+  return Number.isFinite(parsed) && parsed > 0
+    ? Math.round(parsed * 100) / 100
+    : null;
+}
+
 /**
- * Descobre o id do pedido gravado no banco depois do finishOrder.
+ * Descobre o id e o totalValue do pedido gravado no banco depois do finishOrder.
  *
  * O carrinho vive no Redis sob `cart:<customerId>` e o pedido concluído ganha
- * UUID próprio. Pagamento e entrega validam UUID, então mandar a chave do
+ * UUID próprio e `totalValue` definitivo (já com o `totalShipping` calculado
+ * pelo backend). Pagamento e entrega validam UUID, então mandar a chave do
  * carrinho faz o backend responder 400/403. Quando a resposta do finishOrder
  * vem com a chave do carrinho, buscamos o pedido recém-gravado na listagem
  * do cliente.
  */
-async function resolveFinalOrderId(
+async function resolveFinalOrder(
   finishedOrder: unknown,
   companyId: string,
-): Promise<string | null> {
+): Promise<{ id: string | null; totalValue: number | null }> {
   const record = (finishedOrder ?? {}) as {
     id?: unknown;
     orderId?: unknown;
-    order?: { id?: unknown };
+    totalValue?: unknown;
+    order?: { id?: unknown; totalValue?: unknown };
   };
   const fromResponse = [record.id, record.orderId, record.order?.id].find(
     isPersistedOrderId,
   );
+  const totalFromResponse =
+    parsePositiveOrderTotal(record.totalValue) ??
+    parsePositiveOrderTotal(record.order?.totalValue);
 
-  if (fromResponse) return fromResponse;
+  if (fromResponse) {
+    return { id: fromResponse, totalValue: totalFromResponse };
+  }
 
   const response = await apiService.orders.getCustomerOrders();
 
-  if (!response.success || !Array.isArray(response.data)) return null;
+  if (!response.success || !Array.isArray(response.data)) {
+    return { id: null, totalValue: totalFromResponse };
+  }
 
   const [mostRecent] = response.data
     .filter(
@@ -124,7 +150,11 @@ async function resolveFinalOrderId(
         new Date(first.created_at).getTime(),
     );
 
-  return mostRecent?.id ?? null;
+  return {
+    id: mostRecent?.id ?? null,
+    totalValue:
+      totalFromResponse ?? parsePositiveOrderTotal(mostRecent?.totalValue),
+  };
 }
 
 /**
@@ -149,9 +179,8 @@ export const useCheckoutProcess = () => {
   } = cartStore;
 
   // O cart-store só guarda {id, name} do restaurante (ver cart-store.ts) -
-  // a taxa de entrega de verdade vem do mesmo catálogo que a tela /cart usa,
-  // senão o checkout sempre cobra frete R$0 mesmo quando o carrinho mostrou
-  // um valor de frete real.
+  // buscamos os detalhes da loja (endereço/coordenadas e eventual deliveryFee)
+  // para calcular o mesmo frete que o backend grava na finalização (LDMF-315).
   const { data: restaurantDetails } = useRestaurant(restaurant?.id ?? null);
 
   // Address management
@@ -197,19 +226,43 @@ export const useCheckoutProcess = () => {
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false);
+  const submittingRef = useRef(false);
 
-  // Calculated values - mesma fórmula da tela /cart, pra nunca cobrar um
-  // total diferente do que o cliente viu antes de finalizar o pedido.
+  // Calculated values:
+  // - Em retirada (`pickup`), frete é R$ 0,00 ("Grátis").
+  // - Em entrega (`delivery`), calcula o frete pela distância entre a loja e o
+  //   endereço do cliente (mesma regra de POST /order/:id no backend) ou usa
+  //   `restaurantDetails.deliveryFee` quando disponível.
+  // - Se as coordenadas ainda não estão disponíveis, `isDeliveryFeeKnown` fica
+  //   `false` para o checkout avisar que o frete é calculado na finalização em
+  //   vez de exibir "Grátis" (LDMF-315).
   const subtotal = getSubtotal();
-  const rawDeliveryFee = Number.parseFloat(
-    String(restaurantDetails?.deliveryFee ?? "0").replace(",", "."),
-  );
-  const deliveryFee = Number.isFinite(rawDeliveryFee) ? rawDeliveryFee : 0;
+  const customerCoords =
+    addressCoords &&
+    !(
+      addressMode === "new" &&
+      !selectedAddressId &&
+      addressCoords.source === "stored"
+    )
+      ? addressCoords.coords
+      : null;
+  const { deliveryFee, isDeliveryFeeKnown } = resolveCheckoutShipping({
+    orderType,
+    restaurant: restaurantDetails,
+    customerCoords,
+  });
   const deliveryDiscount = getDeliveryDiscount(appliedPromo, deliveryFee);
   const promoDiscount = getPromoDiscount(appliedPromo, subtotal);
+  const rawCartTotal = getTotal(deliveryFee);
+  const totalBeforeDiscounts =
+    rawCartTotal >= subtotal + deliveryFee
+      ? rawCartTotal
+      : subtotal + deliveryFee;
   const total = Math.max(
     0,
-    getTotal(deliveryFee) - deliveryDiscount - promoDiscount,
+    Math.round(
+      (totalBeforeDiscounts - deliveryDiscount - promoDiscount) * 100,
+    ) / 100,
   );
 
   /**
@@ -231,7 +284,9 @@ export const useCheckoutProcess = () => {
     // A coordenada do endereço salvo vale enquanto o cliente não mexer no
     // texto dele - `handleInputChange` descarta quando isso acontece, para o
     // endereço novo não herdar o ponto do antigo.
-    const coords = parseCoords(address.latitude, address.longitude);
+    const coords =
+      parseCoords(address.latitude, address.longitude) ??
+      parseShippingCoords(address.latitude, address.longitude);
 
     setAddressCoords(coords ? { coords, source: "stored" } : null);
   };
@@ -288,53 +343,43 @@ export const useCheckoutProcess = () => {
   };
 
   /**
-   * Salva novo endereço do usuário
+   * Salva novo endereço do usuário (lança erro se falhar para não duplicar
+   * requisição nem empilhar toasts no fluxo de finalização).
    */
-  const saveNewAddress = async (
-    coords: Coords | null,
-  ): Promise<string | null> => {
-    try {
-      const hasDefault = Boolean(userAddresses?.some((a) => a.isDefault));
-      const shouldBeDefault =
-        saveAddress && (!hasDefault || userAddresses.length === 0);
+  const saveNewAddress = async (coords: Coords | null): Promise<string> => {
+    const hasDefault = Boolean(userAddresses?.some((a) => a.isDefault));
+    const shouldBeDefault =
+      saveAddress && (!hasDefault || userAddresses.length === 0);
 
-      const addressData = {
-        zipCode: onlyNumbers(deliveryInfo.zipCode),
-        state: deliveryInfo.state,
-        city: deliveryInfo.city,
-        neighborhood: deliveryInfo.neighborhood,
-        longitude: coords?.lng,
-        latitude: coords?.lat,
-        street: deliveryInfo.street,
-        number: deliveryInfo.number,
-        complement: deliveryInfo.complement || undefined,
-        reference: deliveryInfo.reference || undefined,
-        isDefault: shouldBeDefault,
-      };
+    const addressData = {
+      zipCode: onlyNumbers(deliveryInfo.zipCode),
+      state: deliveryInfo.state,
+      city: deliveryInfo.city,
+      neighborhood: deliveryInfo.neighborhood,
+      longitude: coords?.lng,
+      latitude: coords?.lat,
+      street: deliveryInfo.street,
+      number: deliveryInfo.number,
+      complement: deliveryInfo.complement || undefined,
+      reference: deliveryInfo.reference || undefined,
+      isDefault: shouldBeDefault,
+    };
 
-      const response = await apiService.address.createUserAddress(addressData);
+    const response = await apiService.address.createUserAddress(addressData);
 
-      if (response.success && response.data) {
-        const created = response.data;
-        const id = created.id;
-        setSelectedAddressId(id);
-        queryClient.setQueryData(
-          ["addresses", "user", user?.id],
-          (old: Address[] | undefined) => [...(old || []), created],
-        );
-        toast.success("Endereço salvo com sucesso!");
-        return id;
-      }
-
-      if (!response.success && response.message) {
-        toast.error(response.message);
-      }
-
-      return null;
-    } catch (error) {
-      console.error("Error saving address:", error);
-      return null;
+    if (response.success && response.data?.id) {
+      const created = response.data;
+      const id = created.id;
+      setSelectedAddressId(id);
+      queryClient.setQueryData(
+        ["addresses", "user", user?.id],
+        (old: Address[] | undefined) => [...(old || []), created],
+      );
+      toast.success("Endereço salvo com sucesso!");
+      return id;
     }
+
+    throw new Error(response.message || "Erro ao criar endereço de entrega");
   };
 
   /**
@@ -401,6 +446,13 @@ export const useCheckoutProcess = () => {
    * 6. Limpa carrinho local (após delay para evitar redirect indesejado)
    */
   const handleSubmitOrder = async () => {
+    // Trava síncrona: cliques repetidos antes do re-render do React (ou
+    // enquanto a navegação pós-sucesso ainda está em andamento) são ignorados
+    // no ato, evitando finalizações/pagamentos duplicados e toasts empilhados.
+    if (submittingRef.current || isProcessing || isNavigating) {
+      return;
+    }
+
     // Este clique é o único gesto garantido antes de a tela de acompanhamento
     // começar a tocar sozinha, no polling. Destravar o áudio aqui é o que faz
     // "em preparo" e "chegou" saírem depois — sem isso o navegador bloqueia
@@ -408,19 +460,19 @@ export const useCheckoutProcess = () => {
     unlock();
 
     if (cartItems.length === 0) {
-      toast.error("Seu carrinho está vazio!");
+      showCheckoutError("Seu carrinho está vazio!");
       router.push("/#lojas");
       return;
     }
 
     if (!user?.id) {
-      toast.error("Você precisa estar logado para finalizar o pedido");
+      showCheckoutError("Você precisa estar logado para finalizar o pedido");
       router.push("/#lojas");
       return;
     }
 
     if (!restaurant?.id) {
-      toast.error(
+      showCheckoutError(
         "Erro ao identificar o restaurante. Por favor, adicione os itens novamente ao carrinho.",
       );
       clearCart();
@@ -428,12 +480,14 @@ export const useCheckoutProcess = () => {
       return;
     }
 
+    submittingRef.current = true;
     setIsProcessing(true);
 
     // Preenchido quando o endereço do pedido não é o padrão do cliente. O
     // `finally` devolve o padrão anterior em qualquer saída - inclusive
     // quando o pedido falha no meio.
     let defaultAddressSwap: PendingDefaultSwap | null = null;
+    let orderCompleted = false;
 
     try {
       // --------------------------------------------------
@@ -443,51 +497,12 @@ export const useCheckoutProcess = () => {
       let deliveryAddressId = selectedAddressId;
 
       if (orderType === "delivery") {
-        // Uma resolução só para os dois caminhos de criação abaixo: o segundo
-        // é fallback do primeiro, e geocodificação de novo seria uma ida à rede
-        // repetida bem no clique de finalizar o pedido.
+        // Uma resolução só para a criação de endereço abaixo: geocodificar de
+        // novo seria uma ida à rede repetida bem no clique de finalizar.
         const coords = deliveryAddressId ? null : await resolveDeliveryCoords();
 
-        // For "new" address mode: always create address (delivery needs an addressId)
-        if (addressMode === "new" && !deliveryAddressId) {
-          deliveryAddressId = await saveNewAddress(coords);
-        }
-
-        // Fallback: if we still don't have an address, create one
         if (!deliveryAddressId) {
-          const hasDefault = Boolean(userAddresses?.some((a) => a.isDefault));
-          const shouldBeDefault =
-            saveAddress && (!hasDefault || userAddresses.length === 0);
-
-          const newAddressData = {
-            zipCode: onlyNumbers(deliveryInfo.zipCode),
-            street: deliveryInfo.street,
-            number: deliveryInfo.number,
-            neighborhood: deliveryInfo.neighborhood,
-            city: deliveryInfo.city,
-            state: deliveryInfo.state,
-            latitude: coords?.lat,
-            longitude: coords?.lng,
-            isDefault: shouldBeDefault,
-          };
-
-          const addressResponse =
-            await apiService.address.createUserAddress(newAddressData);
-
-          if (addressResponse.success && addressResponse.data?.id) {
-            deliveryAddressId = addressResponse.data.id;
-            queryClient.setQueryData(
-              ["addresses", "user", user?.id],
-              (old: Address[] | undefined) => [
-                ...(old || []),
-                addressResponse.data,
-              ],
-            );
-          } else {
-            throw new Error(
-              addressResponse.message || "Erro ao criar endereço de entrega",
-            );
-          }
+          deliveryAddressId = await saveNewAddress(coords);
         }
 
         // O backend monta a entrega a partir do endereço PADRÃO do cliente
@@ -603,10 +618,14 @@ export const useCheckoutProcess = () => {
         });
       }
 
-      const finalOrderId = await resolveFinalOrderId(
-        finishOrderResponse.data,
-        restaurant.id,
-      );
+      const { id: finalOrderId, totalValue: finalOrderTotal } =
+        await resolveFinalOrder(finishOrderResponse.data, restaurant.id);
+
+      // O pagamento precisa ser registrado com o total real gravado no pedido
+      // (que já inclui `totalShipping` calculado pelo backend em POST /order/:id).
+      // Se a resposta do finalizar não trouxer `totalValue` (ex.: mocks de teste),
+      // cai para o `total` calculado no checkout (LDMF-315).
+      const paymentAmount = finalOrderTotal ?? total;
 
       // Chegando aqui o pedido ja esta gravado no banco. Sem o UUID não da para
       // registrar pagamento e entrega, mas cancelar o fluxo seria mentira - o
@@ -634,7 +653,7 @@ export const useCheckoutProcess = () => {
             // customerId: user.id,
             paymentMethod:
               CHECKOUT_PAYMENT_METHODS[paymentMethod] ?? PaymentMethod.CASH,
-            amount: total,
+            amount: paymentAmount,
             // status: PaymentStatus.PENDING,
           };
 
@@ -643,7 +662,7 @@ export const useCheckoutProcess = () => {
           // `apiRequest` não lança exceção em 4xx - sem checar `success` a falha
           // de pagamento passava batida e o cliente via "pedido realizado".
           if (!paymentResponse.success) {
-            toast.error(
+            showCheckoutError(
               paymentResponse.message ||
               "Pedido criado, mas falhou ao registrar o pagamento.",
             );
@@ -654,7 +673,7 @@ export const useCheckoutProcess = () => {
           }
         } catch (error) {
           console.error("Erro no pagamento:", error);
-          toast.error("Pedido criado, mas falhou ao registrar o pagamento.");
+          showCheckoutError("Pedido criado, mas falhou ao registrar o pagamento.");
         }
       };
 
@@ -689,6 +708,7 @@ export const useCheckoutProcess = () => {
       play("order-confirmed");
       toast.success("Pedido realizado com sucesso!");
 
+      orderCompleted = true;
       setIsNavigating(true);
 
       if (isClientRole(user?.role)) {
@@ -702,13 +722,18 @@ export const useCheckoutProcess = () => {
       setTimeout(() => {
         clearCart();
         setIsNavigating(false);
+        setIsProcessing(false);
+        submittingRef.current = false;
       }, 1500);
     } catch (error) {
-      toast.error(
+      showCheckoutError(
         getErrorMessage(error, "Erro ao processar pedido. Tente novamente."),
       );
     } finally {
-      setIsProcessing(false);
+      if (!orderCompleted) {
+        submittingRef.current = false;
+        setIsProcessing(false);
+      }
 
       // Só sobra troca aqui quando o pedido não chegou ao fim. O padrão do
       // cliente não pode ficar trocado por causa de um pedido que falhou.
@@ -809,12 +834,14 @@ export const useCheckoutProcess = () => {
     // Calculated values
     subtotal,
     deliveryFee,
+    isDeliveryFeeKnown,
     discount: deliveryDiscount + promoDiscount,
     total,
     cartItems,
     restaurant,
 
     // Actions
+    resolveDeliveryCoords,
     handleSubmitOrder,
     isFormValid,
     isProcessing,

@@ -249,12 +249,25 @@ export const useDeliveryDriver = () => {
   const acceptMutation = useMutation({
     mutationFn: ({ id, coords }: { id: string; coords: Coords }) =>
       apiService.deliveries.updateStatus(id, "ACCEPTED", coords),
-    onSuccess: (response) => {
+    onSuccess: (response, { coords }) => {
       invalidate();
       if (response.success) {
         play("success");
         toast.success("Entrega aceita!");
       } else {
+        // Posição digitada que o backend recusou não pode ficar em cache: o
+        // próximo aceite a reusaria sem perguntar e daria o mesmo erro em
+        // laço, por até POSITION_MAX_AGE_MS (LDMF-314). Só a manual e só se
+        // for a mesma que foi enviada - GPS e rastreamento se renovam
+        // sozinhos, e uma posição corrigida no meio do caminho fica.
+        const { position, clearPosition } = useCourierPositionStore.getState();
+        if (
+          position?.source === "manual" &&
+          position.coords.lat === coords.lat &&
+          position.coords.lng === coords.lng
+        ) {
+          clearPosition();
+        }
         toast.error(
           response.message ||
             "Não foi possível aceitar - talvez outro entregador já tenha pegado essa.",

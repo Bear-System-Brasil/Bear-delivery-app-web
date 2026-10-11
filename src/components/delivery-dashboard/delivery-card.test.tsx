@@ -103,3 +103,13 @@ describe("DeliveryCard - coleta só com o pedido pronto", () => {
     expect(screen.getByRole("button", { name: /Entreguei o pedido/ })).toBeInTheDocument();
   });
 });
+
+describe("DeliveryCard - um aceite por vez", () => {
+  it("com outra entrega sendo aceita, o Aceitar trava sem dizer Aceitando", () => {
+    render(
+      <DeliveryCard delivery={delivery("PENDING")} onAccept={vi.fn()} acceptLocked />,
+    );
+
+    expect(screen.getByRole("button", { name: /Aceitar entrega/ })).toBeDisabled();
+  });
+});

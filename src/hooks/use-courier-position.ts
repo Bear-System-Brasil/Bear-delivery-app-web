@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
-import { geocodeAddress } from "@/lib/geocode";
+import { parseCoords } from "@/lib/geocode";
 import {
   isPositionFresh,
   useCourierPositionStore,
@@ -20,6 +20,84 @@ import type { Coords } from "@/types/restaurant";
  */
 const GPS_TIMEOUT_MS = 8_000;
 
+/**
+ * Teto do próprio app, acima do `timeout` do navegador.
+ *
+ * O `timeout` da Geolocation API só começa a contar depois que a permissão
+ * é concedida: com o pedido de permissão aberto e sem resposta, nenhum
+ * callback chega e o aceite ficava em "Aceitando..." indefinidamente
+ * (medido no LDMF-314). Folgado de propósito, pra dar tempo de o entregador
+ * ler e responder o pedido; passando disso, abre o campo de digitar.
+ */
+const GPS_HARD_TIMEOUT_MS = 20_000;
+
+const NOMINATIM_SEARCH_URL = "https://nominatim.openstreetmap.org/search";
+
+/**
+ * O que o Nominatim achou pro texto digitado. Ainda não é a posição: o
+ * entregador confirma antes (ver `findFromText`).
+ */
+export type TextMatch = {
+  coords: Coords;
+  /** Endereço que o Nominatim devolveu, encurtado pra caber na tela. */
+  found: string;
+};
+
+/**
+ * O endereço vem em português (`accept-language=pt-BR` na busca, senão o
+ * Nominatim segue o idioma do navegador e devolve "Northeast Region").
+ *
+ * "1000, Avenida Paulista, Bela Vista, São Paulo, Região Imediata de São
+ * Paulo, ..., 01310-100, Brasil" vira "1000, Avenida Paulista, Bela Vista,
+ * São Paulo": regiões, CEP e país não ajudam o entregador a reconhecer o
+ * lugar.
+ */
+function shortAddress(displayName: unknown): string | null {
+  if (typeof displayName !== "string") return null;
+  const parts = displayName
+    .split(",")
+    .map((part) => part.trim())
+    .filter(
+      (part) =>
+        part &&
+        !/^Região/i.test(part) &&
+        !/^Brasil$/i.test(part) &&
+        !/^\d{5}-?\d{3}$/.test(part),
+    );
+  return parts.length ? parts.slice(0, 5).join(", ") : null;
+}
+
+/**
+ * Busca a linha livre que o entregador digitou, sem plano B.
+ *
+ * Não usa `geocodeAddress`: com só a rua preenchida, a busca de reserva
+ * dele (bairro/cidade/estado) vira só "Brasil" e devolve o centro do país.
+ * Medido no LDMF-314 - o aceite saía com -10.33, -53.2 e a tela dizia
+ * "Localização registrada". Aqui, não achou = não achou: o entregador
+ * corrige o texto.
+ */
+async function searchFreeText(query: string): Promise<TextMatch | null> {
+  try {
+    const response = await fetch(
+      `${NOMINATIM_SEARCH_URL}?q=${encodeURIComponent(
+        `${query}, Brasil`,
+      )}&format=jsonv2&limit=1&accept-language=pt-BR`,
+    );
+    if (!response.ok) return null;
+
+    const results = await response.json();
+    const result = Array.isArray(results) ? results[0] : null;
+    if (!result) return null;
+
+    const coords = parseCoords(result.lat, result.lon);
+    if (!coords) return null;
+
+    return { coords, found: shortAddress(result.display_name) ?? query };
+  } catch {
+    return null;
+  }
+}
+
 /** Por que o GPS não respondeu - decide a mensagem, não o caminho. */
 export type PositionFailure =
   | "denied"
@@ -36,11 +114,24 @@ type GpsReading =
   | { ok: false; reason: PositionFailure };
 
 function readGps(): Promise<GpsReading> {
-  return new Promise((resolve) => {
+  return new Promise((done) => {
     if (typeof navigator === "undefined" || !navigator.geolocation) {
-      resolve({ ok: false, reason: "unsupported" });
+      done({ ok: false, reason: "unsupported" });
       return;
     }
+
+    // Quem chegar primeiro decide: resposta do navegador ou o teto.
+    let settled = false;
+    const resolve = (reading: GpsReading) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      done(reading);
+    };
+    const timer = setTimeout(
+      () => resolve({ ok: false, reason: "timeout" }),
+      GPS_HARD_TIMEOUT_MS,
+    );
 
     navigator.geolocation.getCurrentPosition(
       (position) =>
@@ -66,6 +157,53 @@ function readGps(): Promise<GpsReading> {
       { enableHighAccuracy: true, timeout: GPS_TIMEOUT_MS, maximumAge: 0 },
     );
   });
+}
+
+export type GeolocationPermission = PermissionState | "unknown";
+
+/**
+ * Estado da permissão de localização, acompanhando mudanças.
+ *
+ * Com a permissão negada o navegador nem pergunta de novo: tocar em "tentar
+ * pelo GPS" falha na hora, e o entregador fica sem saber o que fazer
+ * (LDMF-314). Saber o estado deixa a tela explicar como liberar e reabilitar
+ * o GPS sozinha quando ele liberar nas configurações.
+ *
+ * `unknown` quando o navegador não tem a Permissions API (Safari antigo) -
+ * aí a tela segue como antes, sem travar o botão.
+ */
+export function useGeolocationPermission(enabled = true): GeolocationPermission {
+  const [state, setState] = useState<GeolocationPermission>("unknown");
+
+  useEffect(() => {
+    if (!enabled) return;
+    if (typeof navigator === "undefined" || !navigator.permissions?.query) return;
+
+    let status: PermissionStatus | null = null;
+    let cancelled = false;
+    const onChange = () => {
+      if (status) setState(status.state);
+    };
+
+    navigator.permissions
+      .query({ name: "geolocation" })
+      .then((result) => {
+        if (cancelled) return;
+        status = result;
+        setState(result.state);
+        result.addEventListener("change", onChange);
+      })
+      .catch(() => {
+        // Alguns navegadores recusam o nome "geolocation": fica `unknown`.
+      });
+
+    return () => {
+      cancelled = true;
+      status?.removeEventListener("change", onChange);
+    };
+  }, [enabled]);
+
+  return state;
 }
 
 /**
@@ -125,27 +263,33 @@ export function useCourierPosition() {
   }, [setStorePosition]);
 
   /**
-   * Converte o texto digitado em coordenada pelo Nominatim - o mesmo
-   * `geocodeAddress` que o cadastro de loja e o de endereço usam.
+   * Procura o texto digitado no Nominatim, sem gravar nada.
+   *
+   * O Nominatim não diz "não existe": devolve o lugar mais parecido que
+   * conhece, às vezes em outra cidade ("ai delícia" virou um endereço real
+   * e a entrega foi aceita com ele - LDMF-314). Quem chama mostra o que foi
+   * achado e só grava com `confirmTextMatch`, depois que o entregador
+   * reconhece o lugar.
    */
-  const setFromText = useCallback(
-    async (text: string): Promise<boolean> => {
+  const findFromText = useCallback(
+    async (text: string): Promise<TextMatch | null> => {
       const query = text.trim();
-      if (!query) return false;
+      if (!query) return null;
 
       setIsGeocoding(true);
       try {
-        // `geocodeAddress` monta a busca a partir dos campos do endereço;
-        // aqui só há uma linha livre, então ela entra como `street` e o
-        // helper completa com ", Brasil".
-        const coords = await geocodeAddress({ street: query });
-        if (!coords) return false;
-
-        setStorePosition(coords, "manual", query);
-        return true;
+        return await searchFreeText(query);
       } finally {
         setIsGeocoding(false);
       }
+    },
+    [],
+  );
+
+  /** O entregador reconheceu o endereço achado: vira a posição manual. */
+  const confirmTextMatch = useCallback(
+    (match: TextMatch) => {
+      setStorePosition(match.coords, "manual", match.found);
     },
     [setStorePosition],
   );
@@ -157,6 +301,7 @@ export function useCourierPosition() {
     isGeocoding,
     resolvePosition,
     refreshFromGps,
-    setFromText,
+    findFromText,
+    confirmTextMatch,
   };
 }

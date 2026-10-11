@@ -24,7 +24,14 @@ import { formatCurrency } from "@/utils";
 type Props = {
   /** A entrega sendo aceita, ou null com o diálogo fechado. */
   delivery: Delivery | null;
+  /** O request do aceite está no backend: não dá mais pra desistir. */
   isAccepting: boolean;
+  /**
+   * Procurando a posição, antes de o request sair. Voltar continua livre e
+   * cancela o aceite - o aviso de permissão do navegador pode ficar sem
+   * resposta, e travar aqui prendia o entregador na tela (LDMF-314).
+   */
+  isLocating?: boolean;
   onClose: () => void;
   /** `skipNext` = marcou "não pedir confirmação nas próximas". */
   onConfirm: (skipNext: boolean) => void;
@@ -33,6 +40,7 @@ type Props = {
 export function AcceptConfirmDialog({
   delivery,
   isAccepting,
+  isLocating = false,
   onClose,
   onConfirm,
 }: Props) {
@@ -186,10 +194,14 @@ export function AcceptConfirmDialog({
           <Button
             type="button"
             onClick={() => onConfirm(skipNext)}
-            disabled={isAccepting}
+            disabled={isAccepting || isLocating}
             className="h-12 rounded-xl bg-brand-500 text-[15px] font-bold text-white hover:bg-brand-600"
           >
-            {isAccepting ? "Aceitando..." : "Aceitar entrega"}
+            {isLocating
+              ? "Buscando localização..."
+              : isAccepting
+                ? "Aceitando..."
+                : "Aceitar entrega"}
           </Button>
         </DialogFooter>
       </DialogContent>

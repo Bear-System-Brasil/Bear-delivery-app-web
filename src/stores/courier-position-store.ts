@@ -11,7 +11,7 @@ import type { Coords } from "@/types/restaurant";
  *   medindo, então aceitar outra corrida no meio da rua não custa GPS novo.
  * - `gps`: leitura pontual, pedida na hora de aceitar.
  * - `manual`: o entregador digitou onde está e o endereço foi geocodificado
- *   (Nominatim, o mesmo caminho do cadastro de loja e de endereço).
+ *   (Nominatim, sem a busca de reserva por cidade - ver LDMF-314).
  */
 export type CourierPositionSource = "tracking" | "gps" | "manual";
 

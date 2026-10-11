@@ -473,6 +473,45 @@ describe("useDeliveryDriver", () => {
       expect(sound.play).not.toHaveBeenCalledWith("success");
     });
 
+    it("aceite recusado descarta a posição digitada que foi enviada (LDMF-314)", async () => {
+      useCourierPositionStore.getState().setPosition({ lat: 1, lng: 2 }, "manual", "Rua X");
+      deliveries.updateStatus.mockResolvedValue({ success: false, message: "recusado" });
+      const { result } = await renderDriver();
+
+      act(() => result.current.acceptDelivery({ id: "n1", coords: { lat: 1, lng: 2 } }));
+
+      await waitFor(() => expect(toast.error).toHaveBeenCalledWith("recusado"));
+      expect(useCourierPositionStore.getState().position).toBeNull();
+    });
+
+    it("aceite recusado mantém posição do GPS e posição manual diferente da enviada", async () => {
+      deliveries.updateStatus.mockResolvedValue({ success: false });
+      const { result } = await renderDriver();
+
+      useCourierPositionStore.getState().setPosition({ lat: 1, lng: 2 }, "gps");
+      act(() => result.current.acceptDelivery({ id: "n1", coords: { lat: 1, lng: 2 } }));
+      await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1));
+      expect(useCourierPositionStore.getState().position?.source).toBe("gps");
+
+      useCourierPositionStore.getState().setPosition({ lat: 3, lng: 4 }, "manual", "Outra");
+      act(() => result.current.acceptDelivery({ id: "n1", coords: { lat: 1, lng: 2 } }));
+      await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(2));
+      expect(useCourierPositionStore.getState().position?.label).toBe("Outra");
+    });
+
+    it("erro de conexão no aceite não descarta a posição digitada", async () => {
+      useCourierPositionStore.getState().setPosition({ lat: 1, lng: 2 }, "manual", "Rua X");
+      deliveries.updateStatus.mockRejectedValue(new Error("offline"));
+      const { result } = await renderDriver();
+
+      act(() => result.current.acceptDelivery({ id: "n1", coords: { lat: 1, lng: 2 } }));
+
+      await waitFor(() =>
+        expect(toast.error).toHaveBeenCalledWith("Erro de conexão ao aceitar entrega"),
+      );
+      expect(useCourierPositionStore.getState().position?.source).toBe("manual");
+    });
+
     it("aceite com exceção de rede avisa erro de conexão", async () => {
       deliveries.updateStatus.mockRejectedValue(new Error("offline"));
       const { result } = await renderDriver();

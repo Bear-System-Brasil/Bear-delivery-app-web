@@ -13,6 +13,7 @@ type Props = {
   cartItems: CartItem[];
   subtotal: number;
   deliveryFee: number;
+  isDeliveryFeeKnown?: boolean;
   discount?: number;
   total: number;
   isProcessing: boolean;
@@ -27,6 +28,7 @@ export function OrderSummary({
   cartItems,
   subtotal,
   deliveryFee,
+  isDeliveryFeeKnown = true,
   discount = 0,
   total,
   isProcessing,
@@ -84,8 +86,19 @@ export function OrderSummary({
                 <Bike className="h-4 w-4 text-brand-500" />
                 Taxa de entrega
               </span>
-              <span className="font-extrabold text-emerald-700 dark:text-emerald-400">
-                {deliveryFee === 0 ? "Gratis" : formatCurrency(deliveryFee)}
+              <span
+                className={cn(
+                  "font-extrabold",
+                  !isDeliveryFeeKnown
+                    ? "text-amber-700 dark:text-amber-400"
+                    : "text-emerald-700 dark:text-emerald-400",
+                )}
+              >
+                {!isDeliveryFeeKnown
+                  ? "Calculado na finalização"
+                  : deliveryFee === 0
+                    ? "Grátis"
+                    : formatCurrency(deliveryFee)}
               </span>
             </div>
 
@@ -109,6 +122,7 @@ export function OrderSummary({
             </span>
             <span className="text-xs font-semibold text-muted-foreground">
               {totalItems} {totalItems === 1 ? "item" : "itens"}
+              {!isDeliveryFeeKnown ? " · + frete na finalização" : ""}
             </span>
           </div>
           <button

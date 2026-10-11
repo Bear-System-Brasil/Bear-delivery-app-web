@@ -53,6 +53,11 @@ type Props = {
   changePaymentLabel?: string;
   /** Esta entrega tem um request em andamento - só ela trava, não a tela. */
   busy?: boolean;
+  /**
+   * Outra entrega está sendo aceita: o Aceitar desta espera, sem dizer
+   * "Aceitando..." - um aceite por vez (LDMF-314).
+   */
+  acceptLocked?: boolean;
   /** Entregas fechadas: sem ações, só o registro do que aconteceu. */
   compact?: boolean;
 };
@@ -185,6 +190,7 @@ export function DeliveryCard({
   onChangePayment,
   changePaymentLabel,
   busy = false,
+  acceptLocked = false,
   compact = false,
 }: Props) {
   // Antes do aceite, só a região: sem rua, nome, foto, telefone nem Maps.
@@ -361,7 +367,7 @@ export function DeliveryCard({
           <Button
             type="button"
             onClick={() => onAccept(delivery.id)}
-            disabled={busy}
+            disabled={busy || acceptLocked}
             className="h-14 w-full rounded-xl bg-brand-500 text-[16px] font-extrabold text-white hover:bg-brand-600"
           >
             <Package className="mr-2 h-5 w-5" />
