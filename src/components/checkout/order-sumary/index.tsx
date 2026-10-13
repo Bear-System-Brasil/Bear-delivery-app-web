@@ -21,6 +21,8 @@ type Props = {
   detailsOpen: boolean;
   onToggleDetails: () => void;
   onContinue: () => void;
+  isRestaurantOpen?: boolean;
+  closedReason?: string;
 };
 
 export function OrderSummary({
@@ -36,6 +38,8 @@ export function OrderSummary({
   detailsOpen,
   onToggleDetails,
   onContinue,
+  isRestaurantOpen = true,
+  closedReason,
 }: Props) {
   const totalItems = cartItems.reduce((sum, item) => sum + item.quantity, 0);
 
@@ -114,6 +118,15 @@ export function OrderSummary({
         </div>
       )}
 
+      {!isRestaurantOpen && (
+        <div
+          role="alert"
+          className="border-t border-amber-500/20 bg-amber-500/10 px-4 py-2 text-center text-xs font-semibold text-amber-700 dark:text-amber-300"
+        >
+          {closedReason || "Restaurante fechado no momento."}
+        </div>
+      )}
+
       <div className="mx-auto flex max-w-[640px] flex-wrap items-center gap-3 px-4 py-3 sm:px-5">
         <div className="min-w-0">
           <div className="flex items-baseline gap-2">
@@ -144,15 +157,17 @@ export function OrderSummary({
         <button
           type="button"
           onClick={step === 1 ? onContinue : handleSubmitOrder}
-          disabled={step === 2 && isProcessing}
+          disabled={!isRestaurantOpen || (step === 2 && isProcessing)}
           className={cn(
             "flex h-11 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-brand-500 px-5 text-sm font-extrabold text-white shadow-[0_4px_12px_var(--tw-shadow-color)] shadow-brand-500/28 transition-colors sm:flex-none",
-            step === 2 && isProcessing
+            !isRestaurantOpen || (step === 2 && isProcessing)
               ? "cursor-not-allowed opacity-60"
               : "hover:bg-brand-600",
           )}
         >
-          {step === 2 && isProcessing ? (
+          {!isRestaurantOpen ? (
+            "Restaurante fechado"
+          ) : step === 2 && isProcessing ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
               Processando...

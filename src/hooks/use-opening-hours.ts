@@ -22,14 +22,11 @@ const OPENING_HOURS_KEY = ["opening-hours"] as const;
 const STATUS_STALE_TIME = 5 * 60 * 1000;
 
 /**
- * Horário de funcionamento da empresa autenticada, como a tela de perfil
- * usa: a grade editável vem de GET /opening-hours/me e o status
- * Aberto/Fechado vem da rota pública, que é quem devolve `isOpen`.
+ * Hook público para obter os horários de funcionamento e status de uma loja.
+ * Usado pelas telas de cliente: vitrine do restaurante, modal do prato, carrinho e checkout.
  */
-export function useCompanyOpeningHours(companyId?: string | null) {
-  const queryClient = useQueryClient();
-
-  const statusQuery = useQuery({
+export function useRestaurantOpeningHours(companyId?: string | null) {
+  return useQuery({
     queryKey: [...OPENING_HOURS_KEY, "public", companyId],
     queryFn: async () => {
       const response = await apiService.openingHours.getByCompany(
@@ -38,14 +35,22 @@ export function useCompanyOpeningHours(companyId?: string | null) {
       if (!response.success) {
         throw new Error(response.message || "Erro ao carregar o status");
       }
-      return {
-        isOpen: Boolean(response.data?.isOpen),
-        linkedToCashRegister: Boolean(response.data?.linkedToCashRegister),
-      };
+      return response.data;
     },
-    enabled: !!companyId,
+    enabled: Boolean(companyId),
     staleTime: STATUS_STALE_TIME,
   });
+}
+
+/**
+ * Horário de funcionamento da empresa autenticada, como a tela de perfil
+ * usa: a grade editável vem de GET /opening-hours/me e o status
+ * Aberto/Fechado vem da rota pública, que é quem devolve `isOpen`.
+ */
+export function useCompanyOpeningHours(companyId?: string | null) {
+  const queryClient = useQueryClient();
+
+  const statusQuery = useRestaurantOpeningHours(companyId);
 
   const hoursQuery = useQuery({
     queryKey: [...OPENING_HOURS_KEY, "me"],

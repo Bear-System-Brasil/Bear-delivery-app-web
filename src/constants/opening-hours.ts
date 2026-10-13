@@ -1,5 +1,6 @@
 import type {
   OpeningHourDay,
+  OpeningHoursResponse,
   UpdateOpeningHoursDay,
 } from "@/services/api";
 
@@ -104,7 +105,10 @@ export function toDayHours(raw: unknown): DayHours[] {
     if (!entry || typeof entry !== "object") continue;
     const item = entry as Partial<OpeningHourDay>;
 
-    const key = DAY_KEY_BY_NUMBER[Number(item.day)];
+    const rawDay = String(
+      (item as Record<string, unknown>).day ?? "",
+    ).trim().toLowerCase();
+    const key = DAY_ALIASES[rawDay] ?? DAY_KEY_BY_NUMBER[Number(rawDay)];
     if (!key) continue;
 
     const openTime = readTime(item.openTime);
@@ -287,4 +291,157 @@ export function parseOpeningHours(raw: unknown): DayHours[] | null {
         closeTime: "",
       },
   );
+}
+
+function parseTimeToMinutes(timeStr: string): number | null {
+  if (!TIME_PATTERN.test(timeStr)) return null;
+  const [h, m] = timeStr.split(":").map(Number);
+  return h * 60 + m;
+}
+
+/**
+ * Descobre o próximo horário de abertura a partir da grade de horários da semana.
+ * Retorna uma string amigável (ex: "Abre hoje às 18:00", "Abre amanhã às 11:30") ou null.
+ */
+export function getNextOpeningLabel(
+  hours: DayHours[] | undefined | null,
+  now = new Date(),
+): string | null {
+  if (!hours || hours.length === 0) return null;
+
+  const currentDayNum = now.getDay(); // 0 = sun, 1 = mon, ...
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+  for (let offset = 0; offset < 7; offset++) {
+    const targetDayNum = (currentDayNum + offset) % 7;
+    const targetDayKey = DAY_KEY_BY_NUMBER[targetDayNum];
+    const dayEntry = hours.find((h) => h.day === targetDayKey);
+
+    if (
+      !dayEntry ||
+      !dayEntry.isOpen ||
+      !dayEntry.openTime ||
+      !dayEntry.closeTime
+    ) {
+      continue;
+    }
+
+    const openMin = parseTimeToMinutes(dayEntry.openTime);
+    const closeMin = parseTimeToMinutes(dayEntry.closeTime);
+    if (openMin === null || closeMin === null) continue;
+
+    const breakStartMin = dayEntry.breakStart
+      ? parseTimeToMinutes(dayEntry.breakStart)
+      : null;
+    const breakEndMin = dayEntry.breakEnd
+      ? parseTimeToMinutes(dayEntry.breakEnd)
+      : null;
+    const hasBreak = breakStartMin !== null && breakEndMin !== null;
+
+    if (offset === 0) {
+      // Hoje: pode abrir no início do expediente ou após o intervalo
+      if (currentMinutes < openMin) {
+        return `Abre hoje às ${dayEntry.openTime}`;
+      }
+      if (
+        hasBreak &&
+        currentMinutes >= breakStartMin &&
+        currentMinutes < breakEndMin
+      ) {
+        return `Abre hoje às ${dayEntry.breakEnd}`;
+      }
+      // Se o fechamento for no mesmo dia e já passou:
+      if (closeMin > openMin && currentMinutes >= closeMin) {
+        continue;
+      }
+      // Se passa da meia-noite (ex: 18:00 às 02:00)
+      if (closeMin <= openMin) {
+        if (currentMinutes >= closeMin && currentMinutes < openMin) {
+          return `Abre hoje às ${dayEntry.openTime}`;
+        }
+      }
+    } else if (offset === 1) {
+      return `Abre amanhã às ${dayEntry.openTime}`;
+    } else {
+      return `Abre ${dayEntry.label.toLowerCase()} às ${dayEntry.openTime}`;
+    }
+  }
+
+  return null;
+}
+
+export interface RestaurantOpenStatus {
+  isOpen: boolean;
+  reason?: string;
+  nextOpeningLabel?: string | null;
+  hasNoSchedule?: boolean;
+}
+
+/**
+ * Resolve o status de aberto/fechado da loja considerando:
+ * 1. Resposta da rota pública /opening-hours/:companyId (prioridade)
+ * 2. Ausência de horários cadastrados (loja sem horário e sem caixa = fechada)
+ * 3. Fallback para restaurant.isOpen quando a rota de horários não estiver disponível
+ */
+export function resolveRestaurantOpenStatus(
+  openingHoursResponse?: OpeningHoursResponse | null,
+  restaurantFallback?: { isOpen?: boolean } | object | null,
+  now = new Date(),
+): RestaurantOpenStatus {
+  if (openingHoursResponse) {
+    const days = toDayHours(openingHoursResponse);
+    const hasConfiguredDays = days.some(
+      (d) => d.isOpen && d.openTime && d.closeTime,
+    );
+
+    // Se a loja não segue o caixa e não tem nenhum horário configurado, ela não pode estar aberta
+    if (!openingHoursResponse.linkedToCashRegister && !hasConfiguredDays) {
+      return {
+        isOpen: false,
+        hasNoSchedule: true,
+        reason:
+          "Restaurante fechado no momento (nenhum horário de funcionamento cadastrado).",
+        nextOpeningLabel: null,
+      };
+    }
+
+    const isOpen = Boolean(openingHoursResponse.isOpen);
+    if (!isOpen) {
+      const nextOpening = getNextOpeningLabel(days, now);
+      return {
+        isOpen: false,
+        hasNoSchedule: false,
+        nextOpeningLabel: nextOpening,
+        reason: nextOpening
+          ? `Restaurante fechado no momento. ${nextOpening}.`
+          : "Restaurante fechado no momento.",
+      };
+    }
+
+    return {
+      isOpen: true,
+      hasNoSchedule: false,
+      nextOpeningLabel: null,
+    };
+  }
+
+  // Fallback quando a rota de horários não respondeu ou não foi chamada:
+  if (
+    restaurantFallback &&
+    "isOpen" in restaurantFallback &&
+    typeof (restaurantFallback as { isOpen?: unknown }).isOpen === "boolean"
+  ) {
+    const isOpen = (restaurantFallback as { isOpen: boolean }).isOpen;
+    return {
+      isOpen,
+      reason: isOpen ? undefined : "Restaurante fechado no momento.",
+      nextOpeningLabel: null,
+    };
+  }
+
+  // Sem dado nenhum, padrão tolerante aberto
+  return {
+    isOpen: true,
+    nextOpeningLabel: null,
+  };
 }

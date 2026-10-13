@@ -12,7 +12,9 @@ import {
   usePublicProductAddOns,
   usePublicProductVariations,
   useRestaurant,
+  useRestaurantOpeningHours,
 } from "@/hooks";
+import { resolveRestaurantOpenStatus } from "@/constants/opening-hours";
 import { useAuth } from "@/contexts/auth-provider";
 import { isSellableVariation } from "@/lib/product-variation";
 import { cn } from "@/lib/utils";
@@ -23,12 +25,15 @@ import type { ProductCategory } from "@/types/restaurant";
 
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import { SelectOptions } from "../select-options";
 
 type Props = {
   productData: Product;
   isModalOpen: boolean;
   setIsModalOpen: (val: boolean) => void;
+  isRestaurantOpen?: boolean;
+  closedReason?: string;
 };
 
 export type ExtraOption = {
@@ -63,6 +68,8 @@ export function CustomizeOrder({
   productData,
   isModalOpen,
   setIsModalOpen,
+  isRestaurantOpen: isRestaurantOpenProp,
+  closedReason: closedReasonProp,
 }: Props) {
   const [isAddingToCart, setIsAddingToCart] = useState(false);
   const [quantity, setQuantity] = useState(1);
@@ -114,6 +121,19 @@ export function CustomizeOrder({
   const { data: restaurant, isLoading: restaurantLoading } = useRestaurant(
     productData.companyId,
   );
+  const { data: openingHoursData } = useRestaurantOpeningHours(
+    productData.companyId,
+  );
+
+  const computedOpenStatus = resolveRestaurantOpenStatus(
+    openingHoursData,
+    restaurant,
+  );
+  const isStoreOpen = isRestaurantOpenProp ?? computedOpenStatus.isOpen;
+  const closedReasonText =
+    closedReasonProp ||
+    computedOpenStatus.reason ||
+    "Restaurante fechado no momento.";
 
   const { handleAddToCart: addToCart } = useCartActions();
 
@@ -271,6 +291,11 @@ export function CustomizeOrder({
   const handleConfirmAddToCart = async () => {
     if (!productData || !restaurant || isCustomizationLoading) return;
     if (pendingRequiredGroup || hasNoSellableVariation) return;
+
+    if (!isStoreOpen) {
+      toast.error(closedReasonText);
+      return;
+    }
 
     // Visitante: pede o login aqui, sem fechar o modal nem descartar o que
     // ele montou. Checar antes de `addToCart` evita o toast de "precisa
@@ -494,13 +519,22 @@ export function CustomizeOrder({
           </div>
         </div>
 
+        {!isStoreOpen && (
+          <div
+            role="alert"
+            className="border-t border-orange-200 bg-orange-50 px-4 py-2.5 text-center text-xs font-semibold text-orange-800 dark:border-orange-800 dark:bg-orange-950/40 dark:text-orange-300"
+          >
+            {closedReasonText}
+          </div>
+        )}
+
         {/* Quantity and Add button */}
         <div className="flex shrink-0 items-center gap-3 border-t border-border bg-card px-[18px] py-3">
           <div className="flex h-10 shrink-0 items-center gap-0.5 rounded-[10px] bg-muted px-1">
             <button
               type="button"
               onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-              disabled={quantity <= 1}
+              disabled={quantity <= 1 || !isStoreOpen}
               className="flex h-8 w-[30px] items-center justify-center rounded-lg text-foreground disabled:opacity-40"
               aria-label="Diminuir quantidade"
             >
@@ -512,7 +546,8 @@ export function CustomizeOrder({
             <button
               type="button"
               onClick={() => setQuantity((q) => q + 1)}
-              className="flex h-8 w-[30px] items-center justify-center rounded-lg text-foreground"
+              disabled={!isStoreOpen}
+              className="flex h-8 w-[30px] items-center justify-center rounded-lg text-foreground disabled:opacity-40"
               aria-label="Aumentar quantidade"
             >
               <Plus className="h-3.5 w-3.5" />
@@ -522,6 +557,7 @@ export function CustomizeOrder({
           <Button
             onClick={handleConfirmAddToCart}
             disabled={
+              !isStoreOpen ||
               isAddingToCart ||
               isCustomizationLoading ||
               !!pendingRequiredGroup ||
@@ -534,6 +570,8 @@ export function CustomizeOrder({
                 <span className="h-4 w-4 animate-spin rounded-full border-b-2 border-white" />
                 Carregando...
               </span>
+            ) : !isStoreOpen ? (
+              <span>Restaurante fechado</span>
             ) : isAddingToCart ? (
               <span className="flex items-center justify-center gap-2">
                 <span className="h-4 w-4 animate-spin rounded-full border-b-2 border-white" />

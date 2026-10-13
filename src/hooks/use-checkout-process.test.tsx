@@ -152,6 +152,15 @@ vi.mock("./use-restaurants", () => ({
   useRestaurant: () => RESTAURANT_QUERY,
 }));
 
+let openingHoursQuery: { data: unknown; isLoading: boolean } = {
+  data: undefined,
+  isLoading: false,
+};
+
+vi.mock("./use-opening-hours", () => ({
+  useRestaurantOpeningHours: () => openingHoursQuery,
+}));
+
 // Endereço já salvo e marcado como padrão: o hook auto-seleciona, e o
 // caminho de entrega pula geocodificação e criação de endereço.
 vi.mock("./use-addresses", () => ({
@@ -826,4 +835,50 @@ describe("useCheckoutProcess - frete, total e valor do pagamento (LDMF-315)", ()
     expect(result.current.total).toBe(35.9);
   });
 });
+
+describe("useCheckoutProcess - restaurante fechado", () => {
+  beforeEach(() => {
+    openingHoursQuery = { data: undefined, isLoading: false };
+    addressesQuery = ADDRESSES_WITH_DEFAULT;
+    seedAddressBook(ADDRESSES_WITH_DEFAULT);
+    RESTAURANT_QUERY.data = { id: "comp-1", deliveryFee: "0" };
+    finishOrder.mockReset();
+    openCart.mockReset();
+  });
+
+  it("invalida o formulário e bloqueia o envio quando o restaurante está fechado", async () => {
+    openingHoursQuery = {
+      data: {
+        isOpen: false,
+        linkedToCashRegister: false,
+        days: [
+          {
+            day: "mon",
+            isOpen: false,
+            openTime: "18:00",
+            closeTime: "23:00",
+          },
+        ],
+      },
+      isLoading: false,
+    };
+
+    const { result } = renderCheckout();
+    await waitFor(() => expect(result.current.selectedAddressId).toBe("addr-1"));
+
+    expect(result.current.isRestaurantOpen).toBe(false);
+    expect(result.current.isFormValid()).toBe(false);
+
+    await act(async () => {
+      await result.current.handleSubmitOrder();
+    });
+
+    expect(toastError).toHaveBeenCalledWith(
+      expect.stringContaining("Restaurante fechado"),
+    );
+    expect(finishOrder).not.toHaveBeenCalled();
+    expect(openCart).not.toHaveBeenCalled();
+  });
+});
+
 

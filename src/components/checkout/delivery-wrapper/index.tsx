@@ -67,9 +67,12 @@ export function DeliveryWrapper() {
     isFormValid,
     isProcessing,
     isNavigating,
+    isRestaurantOpen,
+    closedReason,
   } = useCheckoutProcess();
 
   const isSubmittingOrder = isProcessing || isNavigating;
+  const isStoreOpen = isRestaurantOpen !== false;
 
   const handleBack = () => {
     if (step === 2) {
@@ -82,6 +85,14 @@ export function DeliveryWrapper() {
   };
 
   const handleContinue = () => {
+    if (!isStoreOpen) {
+      toast.dismiss?.();
+      toast.error(
+        closedReason || "Este restaurante está fechado no momento.",
+      );
+      return;
+    }
+
     if (!isDeliveryValid()) {
       toast.dismiss?.();
       toast.error(
@@ -102,6 +113,14 @@ export function DeliveryWrapper() {
 
   const handleSubmit = async () => {
     if (isSubmittingOrder || submitLockRef.current) {
+      return;
+    }
+
+    if (!isStoreOpen) {
+      toast.dismiss?.();
+      toast.error(
+        closedReason || "Este restaurante está fechado no momento.",
+      );
       return;
     }
 
@@ -311,6 +330,8 @@ export function DeliveryWrapper() {
       <OrderSummary
         handleSubmitOrder={handleSubmit}
         isProcessing={isSubmittingOrder}
+        isRestaurantOpen={isStoreOpen}
+        closedReason={closedReason}
         deliveryFee={deliveryFee}
         isDeliveryFeeKnown={isDeliveryFeeKnown}
         discount={discount}

@@ -51,6 +51,7 @@ vi.mock("@/hooks", () => ({
   }),
   usePublicProductVariations: () => variationsResult,
   usePublicProductAddOns: () => ({ data: [ADD_ON], isLoading: false }),
+  useRestaurantOpeningHours: () => ({ data: undefined, isLoading: false }),
 }));
 
 vi.mock("@/contexts/auth-provider", () => ({
@@ -356,3 +357,23 @@ describe("CustomizeOrder - tamanhos vendáveis", () => {
     expect(increaseBtn).toBeDisabled();
   });
 });
+
+describe("CustomizeOrder - restaurante fechado", () => {
+  it("desabilita o botão de adicionar e exibe o motivo de fechamento", () => {
+    render(
+      <CustomizeOrder
+        productData={product}
+        isModalOpen
+        setIsModalOpen={vi.fn()}
+        isRestaurantOpen={false}
+        closedReason="Restaurante fechado no momento. Abre hoje às 18:00."
+      />,
+    );
+
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("Restaurante fechado no momento. Abre hoje às 18:00.");
+    const addButton = screen.getByRole("button", { name: /Restaurante fechado/i });
+    expect(addButton).toBeDisabled();
+  });
+});
+

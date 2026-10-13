@@ -27,9 +27,10 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { withDeliveryDefaults } from "@/constants/delivery-defaults";
 import {
-  DEFAULT_OPENING_HOURS,
   getTodayKey,
-  parseOpeningHours,
+  resolveRestaurantOpenStatus,
+  toDayHours,
+  type RestaurantOpenStatus,
 } from "@/constants/opening-hours";
 import {
   useAllCategories,
@@ -37,13 +38,14 @@ import {
   useCompanyProducts,
   usePublicCompanyProductVariations,
   useRestaurant,
+  useRestaurantOpeningHours,
 } from "@/hooks";
 import { useFavoritesStore } from "@/stores";
 import { useAuthStore } from "@/stores/auth-store";
 import { formatCurrency } from "@/utils/format-currency";
 import { formatDeliveryFee } from "@/utils/format-delivery-fee";
 import { toast } from "sonner";
-import type { Category, Product } from "@/services/api";
+import type { Category, OpeningHoursResponse, Product } from "@/services/api";
 import type { ProductCategory, Restaurant } from "@/types/restaurant";
 
 // Função para gerar IDs seguros e sem colisão
@@ -99,6 +101,7 @@ export default function RestaurantPage() {
   const { data: allCategories } = useAllCategories();
   const { data: companyVariations = [] } =
     usePublicCompanyProductVariations(companyId);
+  const { data: openingHoursData } = useRestaurantOpeningHours(companyId);
 
   const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [infoOpen, setInfoOpen] = useState(false);
@@ -248,8 +251,8 @@ export default function RestaurantPage() {
   const deliveryTime = delivery.time;
   const deliveryLabel = formatDeliveryFee(delivery.deliveryFee) ?? "Grátis";
   const isFreeDelivery = deliveryLabel === "Grátis";
-  const isOpen =
-    typeof restaurant?.isOpen === "boolean" ? restaurant.isOpen : null;
+  const openStatus = resolveRestaurantOpenStatus(openingHoursData, restaurant);
+  const isOpen = openStatus.isOpen;
   const restaurantDescription = restaurant?.description?.trim();
 
   // Visitante deslogado abre o modal normalmente - descrição, tamanhos e
@@ -435,6 +438,8 @@ export default function RestaurantPage() {
                 onOpenChange={setInfoOpen}
                 restaurant={restaurant}
                 isOpen={isOpen}
+                openingHoursData={openingHoursData}
+                openStatus={openStatus}
               />
 
               {/* === BARRA DE NAVEGAÇÃO DE CATEGORIAS FIXA === */}
@@ -581,6 +586,8 @@ export default function RestaurantPage() {
           isModalOpen={isModalOpen}
           setIsModalOpen={setIsModalOpen}
           productData={selectedItem}
+          isRestaurantOpen={isOpen}
+          closedReason={openStatus.reason}
         />
       )}
 
@@ -659,6 +666,8 @@ type RestaurantInfoSheetProps = {
   onOpenChange: (open: boolean) => void;
   restaurant: Restaurant;
   isOpen: boolean | null;
+  openingHoursData?: OpeningHoursResponse | null;
+  openStatus?: RestaurantOpenStatus;
 };
 
 /** "Informações": endereço, telefone e descrição da loja. */
@@ -667,6 +676,8 @@ function RestaurantInfoSheet({
   onOpenChange,
   restaurant,
   isOpen,
+  openingHoursData,
+  openStatus,
 }: RestaurantInfoSheetProps) {
   const address = restaurant.Address?.[0];
   const addressLine = address
@@ -679,9 +690,10 @@ function RestaurantInfoSheet({
         .join(" · ")
     : null;
   const description = restaurant.description?.trim();
-  // Horário real quando a API mandar; até lá, o padrão de vitrine.
-  const openingHours =
-    parseOpeningHours(restaurant.openingHours) ?? DEFAULT_OPENING_HOURS;
+  // Horário real quando a API mandar; se não houver horário cadastrado, exibe semana vazia sem mock
+  const openingHours = openingHoursData
+    ? toDayHours(openingHoursData)
+    : toDayHours(null);
   const todayKey = getTodayKey();
 
   return (
@@ -705,7 +717,11 @@ function RestaurantInfoSheet({
                     : "text-orange-600 dark:text-orange-400"
                 }`}
               >
-                {isOpen ? "Aberto agora" : "Fechado no momento"}
+                {isOpen
+                  ? "Aberto agora"
+                  : openStatus?.nextOpeningLabel
+                    ? `Fechado no momento · ${openStatus.nextOpeningLabel}`
+                    : "Fechado no momento"}
               </p>
             )}
           </div>
@@ -758,39 +774,45 @@ function RestaurantInfoSheet({
                 Horário de funcionamento
               </p>
             </div>
-            <ul className="divide-y divide-border">
-              {openingHours.map((day) => {
-                const isToday = day.day === todayKey;
-                return (
-                  <li
-                    key={day.day}
-                    className={`flex items-center justify-between gap-3 px-4 py-2 text-sm ${
-                      isToday
-                        ? "bg-orange-50/60 font-bold dark:bg-orange-950/30"
-                        : ""
-                    }`}
-                  >
-                    <span className="flex items-center gap-2 text-foreground">
-                      {day.label}
-                      {isToday && (
-                        <span className="rounded-full bg-orange-500 px-1.5 py-0.5 text-[9.5px] font-extrabold uppercase leading-none tracking-wide text-white">
-                          Hoje
-                        </span>
-                      )}
-                    </span>
-                    <span
-                      className={
-                        day.isOpen ? "text-foreground" : "text-muted-foreground"
-                      }
+            {openStatus?.hasNoSchedule ? (
+              <div className="p-4 text-center text-xs text-muted-foreground">
+                A loja ainda não cadastrou horários de funcionamento.
+              </div>
+            ) : (
+              <ul className="divide-y divide-border">
+                {openingHours.map((day) => {
+                  const isToday = day.day === todayKey;
+                  return (
+                    <li
+                      key={day.day}
+                      className={`flex items-center justify-between gap-3 px-4 py-2 text-sm ${
+                        isToday
+                          ? "bg-orange-50/60 font-bold dark:bg-orange-950/30"
+                          : ""
+                      }`}
                     >
-                      {day.isOpen
-                        ? `${day.openTime} – ${day.closeTime}`
-                        : "Fechado"}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
+                      <span className="flex items-center gap-2 text-foreground">
+                        {day.label}
+                        {isToday && (
+                          <span className="rounded-full bg-orange-500 px-1.5 py-0.5 text-[9.5px] font-extrabold uppercase leading-none tracking-wide text-white">
+                            Hoje
+                          </span>
+                        )}
+                      </span>
+                      <span
+                        className={
+                          day.isOpen ? "text-foreground" : "text-muted-foreground"
+                        }
+                      >
+                        {day.isOpen
+                          ? `${day.openTime} – ${day.closeTime}`
+                          : "Fechado"}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </div>
         </div>
       </SheetContent>
