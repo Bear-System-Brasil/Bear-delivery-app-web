@@ -1,5 +1,7 @@
-import type { Product } from "@/services/api";
+import type { Product, ProductAddOn, ProductVariation } from "@/services/api";
 import { apiService } from "@/services/api";
+
+export type MenuModalTab = "details" | "variations" | "addons";
 import { useAuthStore } from "@/stores";
 import { getErrorMessage } from "@/utils";
 import { useQueryClient } from "@tanstack/react-query";
@@ -152,6 +154,9 @@ export const useMenuManagement = () => {
     available: true,
     stockQuantity: undefined,
   });
+  const [activeTab, setActiveTab] = useState<MenuModalTab>("details");
+  const [draftVariations, setDraftVariations] = useState<ProductVariation[]>([]);
+  const [draftAddOns, setDraftAddOns] = useState<ProductAddOn[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [isSaving, setIsSaving] = useState(false);
@@ -233,7 +238,7 @@ export const useMenuManagement = () => {
     return matchesSearch && matchesCategory;
   });
 
-  const handleOpenCreateModal = () => {
+  const handleOpenCreateModal = (tab: MenuModalTab = "details") => {
     setEditingProduct(null);
     setFormData({
       name: "",
@@ -245,10 +250,16 @@ export const useMenuManagement = () => {
       available: true,
       stockQuantity: undefined,
     });
+    setDraftVariations([]);
+    setDraftAddOns([]);
+    setActiveTab(tab);
     setIsModalOpen(true);
   };
 
-  const handleOpenEditModal = (product: Product) => {
+  const handleOpenEditModal = (
+    product: Product,
+    tab: MenuModalTab = "details",
+  ) => {
     setEditingProduct(product);
     setFormData({
       name: product.name,
@@ -266,6 +277,9 @@ export const useMenuManagement = () => {
       available: product.isAvailable,
       stockQuantity: product.stockQuantity || 0,
     });
+    setDraftVariations([]);
+    setDraftAddOns([]);
+    setActiveTab(tab);
     setIsModalOpen(true);
   };
 
@@ -274,6 +288,9 @@ export const useMenuManagement = () => {
     setEditingProduct(null);
     setIsCreatingCategory(false);
     setNewCategoryName("");
+    setDraftVariations([]);
+    setDraftAddOns([]);
+    setActiveTab("details");
     setFormData({
       name: "",
       description: "",
@@ -356,14 +373,22 @@ export const useMenuManagement = () => {
     return true;
   };
 
-  const handleSaveProduct = async (selectedImages?: File[]) => {
-    if (!validateForm()) return;
+  const handleSaveProduct = async (
+    selectedImages?: File[],
+    overrideDraftVariations?: ProductVariation[],
+    overrideDraftAddOns?: ProductAddOn[],
+  ) => {
+    if (!validateForm()) {
+      setActiveTab("details");
+      return;
+    }
 
     setIsSaving(true);
 
     try {
       let productId: string | null = null;
       let finalCategoryId = formData.categoryId;
+      const isCreating = !editingProduct;
 
       if (isCreatingCategory) {
         const newCategoryResponse = await apiService.createCategory({
@@ -562,6 +587,86 @@ export const useMenuManagement = () => {
         }
       }
 
+      if (isCreating && productId) {
+        const variationsToSave =
+          overrideDraftVariations ?? draftVariations;
+        const addOnsToSave = overrideDraftAddOns ?? draftAddOns;
+
+        if (variationsToSave.length > 0) {
+          const variationErrors: string[] = [];
+          for (const variation of variationsToSave) {
+            try {
+              const res = await apiService.productVariations.create(
+                productId,
+                {
+                  name: variation.name,
+                  priceModifier: variation.priceModifier,
+                  stockQuantity: variation.stockQuantity ?? 0,
+                  isAvailable: variation.isAvailable,
+                },
+              );
+              if (!res.success) {
+                variationErrors.push(
+                  `"${variation.name}": ${res.message || "Erro ao salvar"}`,
+                );
+              }
+            } catch (err) {
+              variationErrors.push(
+                `"${variation.name}": ${getErrorMessage(err, "Erro ao salvar")}`,
+              );
+            }
+          }
+
+          if (variationErrors.length > 0) {
+            toast.error(
+              `Prato criado, mas houve erro ao salvar tamanho(s): ${variationErrors.join("; ")}`,
+            );
+          }
+
+          queryClient.invalidateQueries({
+            queryKey: ["product-variations", productId],
+          });
+          queryClient.invalidateQueries({
+            queryKey: ["product-variations", "public"],
+          });
+        }
+
+        if (addOnsToSave.length > 0) {
+          const addOnErrors: string[] = [];
+          for (const addOn of addOnsToSave) {
+            try {
+              const res = await apiService.productAddOns.create(productId, {
+                name: addOn.name,
+                priceModifier: addOn.priceModifier,
+                isAvailable: addOn.isAvailable,
+              });
+              if (!res.success) {
+                addOnErrors.push(
+                  `"${addOn.name}": ${res.message || "Erro ao salvar"}`,
+                );
+              }
+            } catch (err) {
+              addOnErrors.push(
+                `"${addOn.name}": ${getErrorMessage(err, "Erro ao salvar")}`,
+              );
+            }
+          }
+
+          if (addOnErrors.length > 0) {
+            toast.error(
+              `Prato criado, mas houve erro ao salvar complemento(s): ${addOnErrors.join("; ")}`,
+            );
+          }
+
+          queryClient.invalidateQueries({
+            queryKey: ["product-add-ons", productId],
+          });
+          queryClient.invalidateQueries({
+            queryKey: ["product-add-ons", "public"],
+          });
+        }
+      }
+
       handleCloseModal();
     } catch (error) {
       console.error("Erro detalhado ao salvar produto:", error);
@@ -730,5 +835,11 @@ export const useMenuManagement = () => {
     isSaving,
     isDeleting,
     deleteTarget,
+    activeTab,
+    setActiveTab,
+    draftVariations,
+    setDraftVariations,
+    draftAddOns,
+    setDraftAddOns,
   };
 };
