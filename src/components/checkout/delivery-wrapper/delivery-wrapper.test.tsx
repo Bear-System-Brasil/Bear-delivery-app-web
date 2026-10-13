@@ -243,4 +243,19 @@ describe("DeliveryWrapper", () => {
     expect(auth.showAuthModal).toHaveBeenCalledTimes(2);
     expect(cart.syncCartFromBackend).not.toHaveBeenCalled();
   });
+
+  it("bloqueia o avanço da entrega quando o restaurante está fechado", async () => {
+    const user = userEvent.setup();
+    setCheckout({
+      isRestaurantOpen: false,
+      closedReason: "Restaurante fechado no momento.",
+    });
+
+    render(<DeliveryWrapper />);
+
+    await user.click(screen.getByRole("button", { name: "Continuar" }));
+
+    expect(toast.error).toHaveBeenCalledWith("Restaurante fechado no momento.");
+    expect(screen.queryByText("etapa-pagamento")).not.toBeInTheDocument();
+  });
 });

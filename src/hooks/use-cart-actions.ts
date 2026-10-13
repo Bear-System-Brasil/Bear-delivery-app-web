@@ -1,3 +1,4 @@
+import { resolveRestaurantOpenStatus } from "@/constants/opening-hours";
 import { useConfirm } from "@/contexts/confirm-provider";
 import { useSound } from "@/hooks/use-sound";
 import { apiService } from "@/services/api";
@@ -500,6 +501,33 @@ export const useCartActions = () => {
     try {
       setLoading(true);
 
+      // Validação: verificar se o restaurante está aberto
+      try {
+        if (apiService.openingHours?.getByCompany) {
+          const openingHoursRes = await queryClient.fetchQuery({
+            queryKey: ["opening-hours", "public", item.restaurantId],
+            queryFn: () =>
+              apiService.openingHours.getByCompany(item.restaurantId),
+            staleTime: 60 * 1000,
+          });
+
+          if (openingHoursRes?.data) {
+            const openStatus = resolveRestaurantOpenStatus(
+              openingHoursRes.data,
+            );
+            if (!openStatus.isOpen) {
+              toast.error(
+                openStatus.reason || "Este restaurante está fechado no momento.",
+              );
+              setLoading(false);
+              return false;
+            }
+          }
+        }
+      } catch {
+        // Ignora falha de requisição de horários para não travar indevidamente
+      }
+
       // Flag para saber se precisamos criar um novo carrinho
       let needsNewCart = !orderId;
 
@@ -983,6 +1011,25 @@ export const useCartActions = () => {
     if (items.length === 0) {
       toast.error("Seu carrinho está vazio");
       return;
+    }
+
+    const targetRestaurantId = restaurant?.id || items[0]?.restaurantId;
+    if (targetRestaurantId) {
+      const cachedOpeningHours = queryClient.getQueryData<{
+        data?: Parameters<typeof resolveRestaurantOpenStatus>[0];
+      }>(["opening-hours", "public", targetRestaurantId]);
+
+      if (cachedOpeningHours?.data) {
+        const openStatus = resolveRestaurantOpenStatus(
+          cachedOpeningHours.data,
+        );
+        if (!openStatus.isOpen) {
+          toast.error(
+            openStatus.reason || "Este restaurante está fechado no momento.",
+          );
+          return;
+        }
+      }
     }
 
     router.push("/checkout");

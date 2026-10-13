@@ -34,6 +34,8 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useRestaurant } from "./use-restaurants";
 import { useUserAddresses } from "./use-addresses";
+import { useRestaurantOpeningHours } from "./use-opening-hours";
+import { resolveRestaurantOpenStatus } from "@/constants/opening-hours";
 
 function showCheckoutError(message: string) {
   toast.dismiss?.();
@@ -182,6 +184,13 @@ export const useCheckoutProcess = () => {
   // buscamos os detalhes da loja (endereço/coordenadas e eventual deliveryFee)
   // para calcular o mesmo frete que o backend grava na finalização (LDMF-315).
   const { data: restaurantDetails } = useRestaurant(restaurant?.id ?? null);
+  const { data: openingHoursData } = useRestaurantOpeningHours(
+    restaurant?.id ?? null,
+  );
+  const openStatus = resolveRestaurantOpenStatus(
+    openingHoursData,
+    restaurantDetails ?? restaurant,
+  );
 
   // Address management
   const { data: userAddresses = [], isLoading: loadingAddresses } =
@@ -414,6 +423,8 @@ export const useCheckoutProcess = () => {
    * Valida formulário antes de submeter
    */
   const isFormValid = () => {
+    if (!openStatus.isOpen) return false;
+
     const requiredFields = isDeliveryValid();
 
     // Só pagamento na entrega é aceito
@@ -477,6 +488,13 @@ export const useCheckoutProcess = () => {
       );
       clearCart();
       router.push("/#lojas");
+      return;
+    }
+
+    if (!openStatus.isOpen) {
+      showCheckoutError(
+        openStatus.reason || "Este restaurante está fechado no momento.",
+      );
       return;
     }
 
@@ -839,6 +857,9 @@ export const useCheckoutProcess = () => {
     total,
     cartItems,
     restaurant,
+    isRestaurantOpen: openStatus.isOpen,
+    closedReason: openStatus.reason,
+    restaurantOpenStatus: openStatus,
 
     // Actions
     resolveDeliveryCoords,

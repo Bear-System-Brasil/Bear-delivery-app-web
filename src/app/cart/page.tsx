@@ -21,7 +21,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { DEFAULT_DELIVERY_FEE } from "@/constants/delivery-defaults";
-import { useCartActions, useRestaurant } from "@/hooks";
+import { useCartActions, useRestaurant, useRestaurantOpeningHours } from "@/hooks";
+import { resolveRestaurantOpenStatus } from "@/constants/opening-hours";
 import {
   getDeliveryDiscount,
   getPromoDiscount,
@@ -62,6 +63,8 @@ export default function CartPage() {
 
   const restaurantId = items[0]?.restaurantId || null;
   const { data: restaurant } = useRestaurant(restaurantId);
+  const { data: openingHoursData } = useRestaurantOpeningHours(restaurantId);
+  const openStatus = resolveRestaurantOpenStatus(openingHoursData, restaurant);
 
   useEffect(() => {
     setIsMounted(true);
@@ -402,12 +405,31 @@ export default function CartPage() {
                   </span>
                 </div>
 
+                {!openStatus.isOpen && (
+                  <div
+                    role="alert"
+                    className="mt-4 flex items-start gap-2.5 rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-300"
+                  >
+                    <Clock3 className="mt-0.5 h-4 w-4 shrink-0" />
+                    <div>
+                      <p className="font-semibold">Restaurante fechado</p>
+                      <p className="mt-0.5">
+                        {openStatus.reason ||
+                          "Este restaurante não está aceitando pedidos no momento."}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 <Button
                   type="button"
                   onClick={handleGoToCheckout}
-                  className="mt-4 h-11 w-full rounded-lg bg-brand-500 text-sm font-extrabold hover:bg-brand-600"
+                  disabled={!openStatus.isOpen}
+                  className="mt-4 h-11 w-full rounded-lg bg-brand-500 text-sm font-extrabold hover:bg-brand-600 disabled:opacity-60"
                 >
-                  Finalizar pedido
+                  {!openStatus.isOpen
+                    ? "Restaurante fechado"
+                    : "Finalizar pedido"}
                 </Button>
 
                 <p className="mt-3 text-center text-[11px] font-semibold text-muted-foreground">
