@@ -138,7 +138,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const isRestaurantStaff = (): boolean => {
-    return hasPermission(["owner", "admin", "manager"]);
+    return hasPermission(["owner", "admin", "manager", "cook", "financial"]);
   };
 
   return (

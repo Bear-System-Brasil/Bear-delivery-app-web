@@ -71,6 +71,6 @@ export type SoundBundle = keyof typeof SOUND_BUNDLES;
  * bastante para não virar sirene contínua — que o cérebro aprende a filtrar.
  */
 export const ALERT_LOOP_MS: Partial<Record<SoundName, number>> = {
-  "new-order": 2800,
+  "new-order": 30_000,
   "new-job": 3200,
 };

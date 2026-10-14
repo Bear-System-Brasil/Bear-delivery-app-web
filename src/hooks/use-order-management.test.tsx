@@ -175,30 +175,10 @@ describe("useOrderManagement", () => {
   });
 
   describe("alarme de pedido novo", () => {
-    it("pedido novo que chega depois liga o alarme em loop", async () => {
+    it("não dispara loop contínuo de 2,8s (alerta global cuida do som LDMF-329)", async () => {
       const { result } = await renderLoaded();
 
       await serverNow(result, [order("n1", "ORDERED")]);
-
-      expect(sound.loop).toHaveBeenCalledWith("new-order");
-    });
-
-    it("com o som mudo, não liga o alarme", async () => {
-      sound.muted = true;
-      const { result } = await renderLoaded();
-
-      await serverNow(result, [order("n1", "ORDERED")]);
-
-      expect(sound.loop).not.toHaveBeenCalled();
-      expect(result.current.soundEnabled).toBe(false);
-    });
-
-    it("pedido que só sai de Novos não liga o alarme", async () => {
-      const { result } = await renderLoaded();
-      await serverNow(result, [order("n1", "ORDERED"), order("n2", "ORDERED")]);
-      sound.loop.mockClear();
-
-      await serverNow(result, [order("n1", "ORDERED"), order("n2", "IN_PRODUCTION")]);
 
       expect(sound.loop).not.toHaveBeenCalled();
     });

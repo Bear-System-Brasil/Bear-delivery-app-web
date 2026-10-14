@@ -547,6 +547,7 @@ describe("useKitchenOrders", () => {
     });
 
     it("com o som desligado, pisca mas não toca", async () => {
+      usePreferencesStore.setState({ kitchenSoundEnabled: false });
       const { result } = await renderLoaded();
 
       act(() => fakeSocket.fire("orderCreated", order("o9", "ORDERED")));
@@ -575,6 +576,7 @@ describe("useKitchenOrders", () => {
     });
 
     it("ligar o som destrava o áudio no gesto; desligar não", async () => {
+      usePreferencesStore.setState({ kitchenSoundEnabled: false });
       const { result } = await renderLoaded();
 
       act(() => result.current.toggleSound());
