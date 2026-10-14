@@ -12,6 +12,7 @@ interface StockQuantityInputProps {
   className?: string
   minValue?: number
   maxValue?: number
+  disabled?: boolean
 }
 
 /**
@@ -69,6 +70,7 @@ export function StockQuantityInput({
   className,
   minValue = 1,
   maxValue,
+  disabled,
 }: StockQuantityInputProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [displayValue, setDisplayValue] = useState("")
@@ -163,6 +165,7 @@ export function StockQuantityInput({
       onFocus={handleFocus}
       placeholder={placeholder}
       className={cn(className)}
+      disabled={disabled}
     />
   )
 }
