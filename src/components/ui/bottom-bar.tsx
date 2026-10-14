@@ -45,7 +45,6 @@ type Tab = {
 const managementRoutes = [
   "/menu-management",
   "/category-management",
-  "/order-management",
   "/financial-management",
 ];
 

@@ -171,7 +171,6 @@ like-delivery-app/
 │   │   ├── restaurant-register/  # Restaurant self-registration
 │   │   ├── menu-management/      # Management: Menu management
 │   │   ├── category-management/  # Management: Category management
-│   │   ├── order-management/     # Management: Order management
 │   │   ├── kitchen/               # Cook: Kitchen Display System (KDS)
 │   │   ├── financial-management/ # Financial: dashboard, cash-register, finance, orders, customers, settings
 │   │   ├── team-management/      # Management: staff & roles
@@ -186,7 +185,6 @@ like-delivery-app/
 │   │   ├── customize-order/      # Product variations/add-ons customization
 │   │   ├── kitchen/              # Kitchen Display System components
 │   │   ├── financial-dashboard/  # Financial dashboard widgets
-│   │   ├── order-management/     # Order management dashboard
 │   │   ├── order-detail-sheet/   # Order detail side sheet
 │   │   ├── delivery/             # Delivery list/tracking components
 │   │   ├── notifications/        # Notification bell/panel
@@ -201,7 +199,6 @@ like-delivery-app/
 │   │   ├── use-cart-actions.ts   # Cart management
 │   │   ├── use-restaurants.ts    # Restaurant data
 │   │   ├── use-kitchen-orders.ts # KDS real-time order queue
-│   │   ├── use-order-management.ts # Order management dashboard logic
 │   │   ├── use-financial-dashboard.ts # Financial dashboard data
 │   │   ├── use-cash-register.ts / use-cash-movement.ts # Cash register
 │   │   ├── use-delivery-driver.ts # Delivery dashboard logic
