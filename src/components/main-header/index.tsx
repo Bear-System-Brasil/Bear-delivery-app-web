@@ -509,10 +509,11 @@ export function MainHeader({
 
             {resolvedShowNotifications &&
               canShowAuthUI &&
-              isAuthenticated &&
-              user?.role === "client" && (
+              isAuthenticated && (
                 <div className={clsx(searchOpen && "max-sm:hidden")}>
-                  <NotificationBell audience="customer" />
+                  <NotificationBell
+                    audience={user?.role === "client" ? "customer" : "management"}
+                  />
                 </div>
               )}
 

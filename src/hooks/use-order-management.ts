@@ -5,10 +5,11 @@ import {
   ORDER_POLL_INTERVAL,
 } from '@/constants/order-management'
 import { useSound } from '@/hooks/use-sound'
+import { acknowledgeOrder, stopOrderAlerts } from '@/lib/order-alerts'
 import { apiService, MAX_PAGE_LIMIT } from '@/services/api'
 import { useAuthStore } from '@/stores'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -55,19 +56,19 @@ export const useOrderManagement = () => {
 
   // Identidade sonora. O mute vive no localStorage: antes ele era estado local
   // e voltava a apitar a cada F5, mesmo depois de o restaurante desligar.
-  const { play, loop, stopLoop, muted, toggleMuted } = useSound('restaurant')
+  const { play, stopLoop, muted, toggleMuted } = useSound('restaurant')
   const soundEnabled = !muted
 
   // UI state
   const [activeTab, setActiveTab] = useState<ColumnId>('new')
-  const [selectedOrder, setSelectedOrder] = useState<CompanyOrder | null>(null)
+  const [selectedOrder, setSelectedOrderState] = useState<CompanyOrder | null>(null)
+  const setSelectedOrder = useCallback((order: CompanyOrder | null) => {
+    if (order) acknowledgeOrder(order.id)
+    setSelectedOrderState(order)
+  }, [])
   const [cancelTarget, setCancelTarget] = useState<CompanyOrder | null>(null)
   const [actionTarget, setActionTarget] = useState<CompanyOrder | null>(null)
   const [showCompleted, setShowCompleted] = useState(false)
-
-  // Tracking para detecção de novos pedidos
-  const prevNewOrderIdsRef = useRef<Set<string>>(new Set())
-  const initialLoadRef = useRef(true)
 
   // Timer tick para atualizar tempo decorrido nos cards
   useElapsedTimer(30_000)
@@ -149,30 +150,10 @@ export const useOrderManagement = () => {
     [columns, orders],
   )
 
-  // ─── Notificação sonora para novos pedidos ─────────────────────────────────
-
-  useEffect(() => {
-    if (initialLoadRef.current) {
-      initialLoadRef.current = false
-      prevNewOrderIdsRef.current = new Set(columns.new.map((o) => o.id))
-      return
-    }
-
-    const currentNewIds = new Set(columns.new.map((o) => o.id))
-    const prevIds = prevNewOrderIdsRef.current
-
-    const hasNewOrders = [...currentNewIds].some((id) => !prevIds.has(id))
-
-    if (hasNewOrders && columns.new.length > 0 && soundEnabled) {
-      loop('new-order')
-    }
-
-    if (columns.new.length === 0) {
-      stopLoop('new-order')
-    }
-
-    prevNewOrderIdsRef.current = currentNewIds
-  }, [columns.new, soundEnabled, loop, stopLoop])
+  // ─── Silenciamento ao esvaziar Novos ─────────────────────────────────────
+  // O alerta sonoro inicial e repetições espaçadas (30s) são gerenciados
+  // globalmente pelo NotificationsProvider/ManagementOrderWatcher (LDMF-329),
+  // sem nenhum loop infinito a cada 2,8s.
 
   // ─── Controle de som ──────────────────────────────────────────────────────
 
@@ -180,8 +161,15 @@ export const useOrderManagement = () => {
   const toggleSound = toggleMuted
 
   const stopAlert = useCallback(() => {
+    stopOrderAlerts()
     stopLoop('new-order')
   }, [stopLoop])
+
+  useEffect(() => {
+    if (columns.new.length === 0) {
+      stopAlert()
+    }
+  }, [columns.new.length, stopAlert])
 
   // ─── Mutation: Avançar status do pedido ───────────────────────────────────
 
@@ -226,6 +214,7 @@ export const useOrderManagement = () => {
 
   const advanceOrder = useCallback(
     (orderId: string, nextStatus: string) => {
+      acknowledgeOrder(orderId)
       // Só cala o alarme de vez se esse pedido era o único ainda em "Novos" -
       // dois pedidos podem chegar juntos tocando o mesmo loop, e avançar um
       // não pode silenciar o aviso do outro que continua sem nenhuma ação.
@@ -241,6 +230,7 @@ export const useOrderManagement = () => {
 
   const cancelOrder = useCallback(
     (orderId: string, reason: string) => {
+      acknowledgeOrder(orderId)
       cancelMutation.mutate({ orderId, reason })
     },
     [cancelMutation],
@@ -251,9 +241,9 @@ export const useOrderManagement = () => {
 
   useEffect(() => {
     return () => {
-      stopLoop('new-order')
+      stopAlert()
     }
-  }, [stopLoop])
+  }, [stopAlert])
 
   // ─── Retorno ───────────────────────────────────────────────────────────────
 

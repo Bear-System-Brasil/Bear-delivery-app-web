@@ -7,6 +7,7 @@
  * Persiste em localStorage
  */
 
+import { soundManager } from '@/lib/sound'
 import { STORAGE_KEYS } from '@/utils/storage-manager'
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
@@ -37,7 +38,7 @@ interface Preferences {
   showOnboarding: boolean
   lastViewedRestaurant?: string
 
-  /** Alerta sonoro da tela da cozinha. Desligado por padrão. */
+  /** Alerta sonoro de pedidos no painel. Ligado por padrão (LDMF-329). */
   kitchenSoundEnabled: boolean
 }
 
@@ -68,7 +69,7 @@ const defaultPreferences: Preferences = {
   saveOrderHistory: true,
   compactMode: false,
   showOnboarding: true,
-  kitchenSoundEnabled: false,
+  kitchenSoundEnabled: true,
 }
 
 export const usePreferencesStore = create<PreferencesState>()(
@@ -114,12 +115,14 @@ export const usePreferencesStore = create<PreferencesState>()(
             'preferences/setCompactMode'
           ),
 
-        setKitchenSound: (enabled) =>
-          set(
+        setKitchenSound: (enabled) => {
+          soundManager.setMuted(!enabled)
+          return set(
             { kitchenSoundEnabled: enabled },
             false,
             'preferences/setKitchenSound'
-          ),
+          )
+        },
 
         dismissOnboarding: () =>
           set(
@@ -135,20 +138,22 @@ export const usePreferencesStore = create<PreferencesState>()(
             'preferences/setLastViewedRestaurant'
           ),
 
-        resetPreferences: () =>
-          set(
+        resetPreferences: () => {
+          soundManager.setMuted(!defaultPreferences.kitchenSoundEnabled)
+          return set(
             defaultPreferences,
             false,
             'preferences/reset'
-          ),
+          )
+        },
       }),
       {
         name: STORAGE_KEYS.PREFERENCES,
-        version: 2,
+        version: 3,
         migrate: (persistedState, version) => {
           const state = persistedState as PreferencesState
-          if (version < 2) {
-            state.kitchenSoundEnabled = false
+          if (version < 3) {
+            state.kitchenSoundEnabled = true
           }
           return state
         },
@@ -157,3 +162,13 @@ export const usePreferencesStore = create<PreferencesState>()(
     { name: 'preferences-store', enabled: process.env.NODE_ENV !== 'production' }
   )
 )
+
+if (typeof window !== 'undefined' && typeof soundManager?.subscribe === 'function') {
+  soundManager.subscribe(() => {
+    const soundEnabled = !soundManager.isMuted()
+    if (usePreferencesStore.getState().kitchenSoundEnabled !== soundEnabled) {
+      usePreferencesStore.setState({ kitchenSoundEnabled: soundEnabled })
+    }
+  })
+}
+

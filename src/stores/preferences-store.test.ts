@@ -15,7 +15,7 @@ describe("usePreferencesStore", () => {
     expect(state.theme).toBe("system");
     expect(state.language).toBe("pt-BR");
     expect(state.currency).toBe("BRL");
-    expect(state.kitchenSoundEnabled).toBe(false);
+    expect(state.kitchenSoundEnabled).toBe(true);
     expect(state.showOnboarding).toBe(true);
     expect(state.notifications).toEqual({
       push: true,
@@ -56,6 +56,8 @@ describe("usePreferencesStore", () => {
   });
 
   it("setKitchenSound liga/desliga o som da cozinha", () => {
+    act(() => usePreferencesStore.getState().setKitchenSound(false));
+    expect(usePreferencesStore.getState().kitchenSoundEnabled).toBe(false);
     act(() => usePreferencesStore.getState().setKitchenSound(true));
     expect(usePreferencesStore.getState().kitchenSoundEnabled).toBe(true);
   });
@@ -74,7 +76,7 @@ describe("usePreferencesStore", () => {
     act(() => {
       usePreferencesStore.getState().setTheme("dark");
       usePreferencesStore.getState().setLanguage("en-US");
-      usePreferencesStore.getState().setKitchenSound(true);
+      usePreferencesStore.getState().setKitchenSound(false);
       usePreferencesStore.getState().dismissOnboarding();
       usePreferencesStore.getState().resetPreferences();
     });
@@ -82,7 +84,7 @@ describe("usePreferencesStore", () => {
     const state = usePreferencesStore.getState();
     expect(state.theme).toBe("system");
     expect(state.language).toBe("pt-BR");
-    expect(state.kitchenSoundEnabled).toBe(false);
+    expect(state.kitchenSoundEnabled).toBe(true);
     expect(state.showOnboarding).toBe(true);
   });
 });
