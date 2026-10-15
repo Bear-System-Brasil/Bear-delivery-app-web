@@ -22,6 +22,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useTeamManagement, type StaffMember, type StaffRole } from "@/hooks";
+import { useAuthStore } from "@/stores/auth-store";
+import { canRemoveStaffMember, isManagementRole } from "@/utils/role-helpers";
 import {
   Mail,
   Search,
@@ -48,28 +50,20 @@ const ROLE_BADGE_CLASSES: Record<StaffRole, string> = {
   financial: "bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400",
 };
 
-/**
- * Remover membro está escondido até existir DELETE no backend (LDMF-231).
- *
- * Não há rota de remoção: o fluxo só apagava a linha da tela naquela sessão
- * enquanto a pessoa seguia com a role e com acesso ao painel - e o diálogo
- * ainda prometia que ela "vai perder o acesso". O código fica inteiro,
- * só não renderiza; quando o DELETE existir, é virar esta chave e ligar
- * `handleConfirmRemove` na rota.
- */
-const CAN_REMOVE_MEMBER: boolean = false;
-
-// As duas variantes precisam aparecer literais no código: o Tailwind gera a
-// classe lendo o fonte, então template interpolado não viraria CSS.
-const HEADER_GRID = CAN_REMOVE_MEMBER
-  ? "grid-cols-[minmax(0,1fr)_130px_56px]"
-  : "grid-cols-[minmax(0,1fr)_130px]";
-
-const ROW_GRID = CAN_REMOVE_MEMBER
-  ? "md:grid-cols-[minmax(0,1fr)_130px_56px]"
-  : "md:grid-cols-[minmax(0,1fr)_130px]";
-
 function TeamManagementContent() {
+  const currentUser = useAuthStore((state) => state.user);
+  const canManageTeam = isManagementRole(currentUser?.role);
+
+  // As duas variantes precisam aparecer literais no código: o Tailwind gera a
+  // classe lendo o fonte, então template interpolado não viraria CSS.
+  const headerGridClass = canManageTeam
+    ? "grid-cols-[minmax(0,1fr)_130px_56px]"
+    : "grid-cols-[minmax(0,1fr)_130px]";
+
+  const rowGridClass = canManageTeam
+    ? "md:grid-cols-[minmax(0,1fr)_130px_56px]"
+    : "md:grid-cols-[minmax(0,1fr)_130px]";
+
   const {
     staff: filteredStaff,
     allStaff,
@@ -83,6 +77,7 @@ function TeamManagementContent() {
     formData,
     removeTarget,
     isInviting,
+    isRemoving,
     handleOpenInviteModal,
     handleCloseModal,
     updateFormField,
@@ -132,7 +127,7 @@ function TeamManagementContent() {
 
         <section className="overflow-hidden rounded-[8px] border border-border bg-card">
           <div
-            className={`hidden shrink-0 ${HEADER_GRID} items-center gap-2 border-b border-border bg-muted px-3.5 py-2.5 md:grid`}
+            className={`hidden shrink-0 ${headerGridClass} items-center gap-2 border-b border-border bg-muted px-3.5 py-2.5 md:grid`}
           >
             <span className="text-[10px] font-extrabold uppercase tracking-wide text-muted-foreground">
               Membro
@@ -140,7 +135,7 @@ function TeamManagementContent() {
             <span className="text-[10px] font-extrabold uppercase tracking-wide text-muted-foreground">
               Função
             </span>
-            {CAN_REMOVE_MEMBER && (
+            {canManageTeam && (
               <span className="text-right text-[10px] font-extrabold uppercase tracking-wide text-muted-foreground">
                 Ações
               </span>
@@ -152,7 +147,7 @@ function TeamManagementContent() {
               {[0, 1, 2].map((row) => (
                 <div
                   key={row}
-                  className={`grid gap-3 p-3.5 ${ROW_GRID} md:items-center md:gap-2`}
+                  className={`grid gap-3 p-3.5 ${rowGridClass} md:items-center md:gap-2`}
                 >
                   <div className="flex min-w-0 items-center gap-2.5">
                     <Skeleton className="h-8 w-8 shrink-0 rounded-full" />
@@ -162,7 +157,7 @@ function TeamManagementContent() {
                     </div>
                   </div>
                   <Skeleton className="h-4 w-20" />
-                  {CAN_REMOVE_MEMBER && (
+                  {canManageTeam && (
                     <Skeleton className="ml-auto h-7 w-7 rounded-[7px]" />
                   )}
                 </div>
@@ -192,7 +187,7 @@ function TeamManagementContent() {
               {filteredStaff.map((member: StaffMember) => (
                 <div
                   key={member.id}
-                  className={`grid gap-3 p-3.5 ${ROW_GRID} md:items-center md:gap-2`}
+                  className={`grid gap-3 p-3.5 ${rowGridClass} md:items-center md:gap-2`}
                 >
                   <div className="flex min-w-0 items-center gap-2.5">
                     <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-[11px] font-extrabold text-foreground">
@@ -217,18 +212,22 @@ function TeamManagementContent() {
                     </span>
                   </div>
 
-                  {CAN_REMOVE_MEMBER && (
+                  {canManageTeam && (
                     <div className="flex justify-end">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleRequestRemove(member)}
-                        className="h-7 w-7 cursor-pointer rounded-[7px] bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 hover:text-red-600 dark:hover:text-red-400"
-                        aria-label={`Remover ${member.name}`}
-                        title="Remover"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
+                      {canRemoveStaffMember(currentUser, member) ? (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleRequestRemove(member)}
+                          className="h-7 w-7 cursor-pointer rounded-[7px] bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 hover:text-red-600 dark:hover:text-red-400"
+                          aria-label={`Remover ${member.name}`}
+                          title="Remover"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      ) : (
+                        <div className="h-7 w-7" aria-hidden="true" />
+                      )}
                     </div>
                   )}
                 </div>
@@ -317,10 +316,10 @@ function TeamManagementContent() {
         </DialogContent>
       </Dialog>
 
-      {CAN_REMOVE_MEMBER && (
+      {canManageTeam && (
         <AlertDialog
           open={!!removeTarget}
-          onOpenChange={(open) => !open && handleCancelRemove()}
+          onOpenChange={(open) => !open && !isRemoving && handleCancelRemove()}
         >
           <AlertDialogContent className="w-[calc(100%-2rem)] max-w-sm rounded-[8px] bg-card text-center shadow-2xl sm:w-fit">
             <div className="mx-auto mt-2 flex h-12 w-12 items-center justify-center rounded-[8px] bg-yellow-100 dark:bg-yellow-900">
@@ -345,15 +344,17 @@ function TeamManagementContent() {
               <Button
                 variant="outline"
                 onClick={handleCancelRemove}
-                className="h-10 flex-1 cursor-pointer rounded-[8px] border-border font-medium text-foreground hover:bg-muted"
+                disabled={isRemoving}
+                className="h-10 flex-1 cursor-pointer rounded-[8px] border-border font-medium text-foreground hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Cancelar
               </Button>
               <Button
                 onClick={handleConfirmRemove}
-                className="h-10 flex-1 cursor-pointer rounded-[8px] bg-red-600 font-medium text-white hover:bg-red-700"
+                disabled={isRemoving}
+                className="h-10 flex-1 cursor-pointer rounded-[8px] bg-red-600 font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Remover
+                {isRemoving ? "Removendo..." : "Remover"}
               </Button>
             </div>
           </AlertDialogContent>

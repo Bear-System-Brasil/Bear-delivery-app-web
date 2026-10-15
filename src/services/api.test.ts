@@ -377,4 +377,46 @@ describe("apiService (via apiRequest)", () => {
       expect(formData.get("description")).toBeNull();
     });
   });
+
+  describe("companies.removeStaff", () => {
+    it("chama DELETE /company/staff/:userId com autenticação obrigatória", async () => {
+      vi.mocked(fetch).mockResolvedValue(
+        jsonResponse({ id: "user-123", removed: true }),
+      );
+
+      const result = await apiService.companies.removeStaff("user-123");
+
+      expect(result).toEqual({
+        success: true,
+        data: { id: "user-123", removed: true },
+        status: 200,
+      });
+
+      expect(fetch).toHaveBeenCalledWith(
+        "/api/proxy/company/staff/user-123",
+        expect.objectContaining({
+          method: "DELETE",
+          headers: expect.objectContaining({
+            "X-Auth-Required": "1",
+          }),
+        }),
+      );
+    });
+
+    it("passa query param ?companyId= quando informado", async () => {
+      vi.mocked(fetch).mockResolvedValue(
+        jsonResponse({ id: "user-123", removed: true }),
+      );
+
+      await apiService.companies.removeStaff("user-123", "comp-999");
+
+      expect(fetch).toHaveBeenCalledWith(
+        "/api/proxy/company/staff/user-123?companyId=comp-999",
+        expect.objectContaining({
+          method: "DELETE",
+        }),
+      );
+    });
+  });
 });
+
