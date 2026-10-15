@@ -29,6 +29,8 @@ const { useCompanyAcceptedPaymentMethods } = await import(
   "./use-company-accepted-payment-methods"
 );
 
+const QUERY_KEY = ["restaurant", "comp-1"];
+
 function renderPaymentMethods() {
   // Cliente novo por teste, mas estável entre renders do mesmo teste.
   const queryClient = new QueryClient({
@@ -37,8 +39,34 @@ function renderPaymentMethods() {
   const Wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   );
-  return renderHook(() => useCompanyAcceptedPaymentMethods("comp-1"), {
-    wrapper: Wrapper,
+  const rendered = renderHook(
+    () => useCompanyAcceptedPaymentMethods("comp-1"),
+    { wrapper: Wrapper },
+  );
+  return { ...rendered, queryClient };
+}
+
+type Rendered = ReturnType<typeof renderPaymentMethods>;
+
+/**
+ * Refaz a busca e espera o dado novo chegar ao hook. Só aguardar o
+ * `refetch()` não basta: o TanStack entrega a notificação aos observers num
+ * tick seguinte, e a asserção rodaria antes do re-render com o dado novo -
+ * o teste passaria sem testar nada (um mutante que sobrescreve a edição
+ * passou assim).
+ */
+async function refetchAndSettle({ result, queryClient }: Rendered) {
+  const updates = queryClient.getQueryState(QUERY_KEY)?.dataUpdateCount ?? 0;
+  await act(async () => {
+    await result.current.refetch();
+  });
+  await waitFor(() =>
+    expect(queryClient.getQueryState(QUERY_KEY)?.dataUpdateCount).toBe(
+      updates + 1,
+    ),
+  );
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 20));
   });
 }
 
@@ -168,5 +196,71 @@ describe("useCompanyAcceptedPaymentMethods (LDMF-251)", () => {
 
     expect(result.current.selected).toEqual(["CASH"]);
     expect(result.current.hasChanges).toBe(false);
+  });
+
+  // Bug relatado no preview (celular): a caixa desmarcada voltaria a ficar
+  // marcada quando o dado do back chega de novo. A edição tem que sobreviver
+  // a qualquer refetch enquanto não for salva.
+  describe("refetch durante a edição", () => {
+    it("refetch com o mesmo dado não desfaz a caixa desmarcada", async () => {
+      getRestaurant.mockResolvedValue({
+        id: "comp-1",
+        acceptedPaymentMethods: ["CASH", "CREDIT_CARD", "DEBIT_CARD", "PIX"],
+      });
+      const rendered = renderPaymentMethods();
+      const { result } = rendered;
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+      act(() => result.current.toggleMethod("CASH"));
+      await refetchAndSettle(rendered);
+
+      expect(getRestaurant).toHaveBeenCalledTimes(2);
+      expect(result.current.selected).toEqual(["CREDIT_CARD", "DEBIT_CARD", "PIX"]);
+      expect(result.current.hasChanges).toBe(true);
+    });
+
+    it("refetch com dado diferente também não sobrescreve a edição", async () => {
+      getRestaurant.mockResolvedValueOnce({
+        id: "comp-1",
+        acceptedPaymentMethods: ["CASH", "PIX"],
+      });
+      getRestaurant.mockResolvedValue({
+        id: "comp-1",
+        acceptedPaymentMethods: ["CASH", "CREDIT_CARD", "DEBIT_CARD", "PIX"],
+      });
+      const rendered = renderPaymentMethods();
+      const { result } = rendered;
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+      act(() => result.current.toggleMethod("PIX"));
+      await refetchAndSettle(rendered);
+
+      expect(result.current.selected).toEqual(["CASH"]);
+      expect(result.current.hasChanges).toBe(true);
+    });
+
+    it("salvar depois de um refetch manda o estado atual das caixas", async () => {
+      getRestaurant.mockResolvedValue({
+        id: "comp-1",
+        acceptedPaymentMethods: ["CASH", "CREDIT_CARD", "DEBIT_CARD", "PIX"],
+      });
+      const rendered = renderPaymentMethods();
+      const { result } = rendered;
+      await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+      act(() => result.current.toggleMethod("CASH"));
+      await refetchAndSettle(rendered);
+      act(() => result.current.toggleMethod("PIX"));
+
+      await act(async () => {
+        await result.current.handleSave();
+      });
+
+      expect(updateAcceptedPaymentMethods).toHaveBeenCalledTimes(1);
+      expect(updateAcceptedPaymentMethods).toHaveBeenCalledWith("comp-1", [
+        "CREDIT_CARD",
+        "DEBIT_CARD",
+      ]);
+    });
   });
 });
