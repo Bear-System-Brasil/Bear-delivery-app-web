@@ -13,6 +13,7 @@ import { useAuth } from "@/contexts/auth-provider";
 import { ArrowLeft, ShieldCheck, Store, ThumbsUp } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { isValidCpf } from "@/utils";
 
 import { AnimatedBackground } from "@/components/ui/animated-background";
 import { GradientButton } from "@/components/ui/gradient-button";
@@ -44,6 +45,7 @@ export function DeliveryWrapper() {
     orderType,
     setOrderType,
     isDeliveryValid,
+    hasCpf,
     deliveryInfo,
     addressCoords,
     applyCoords,
@@ -67,9 +69,12 @@ export function DeliveryWrapper() {
     isFormValid,
     isProcessing,
     isNavigating,
+    isRestaurantOpen,
+    closedReason,
   } = useCheckoutProcess();
 
   const isSubmittingOrder = isProcessing || isNavigating;
+  const isStoreOpen = isRestaurantOpen !== false;
 
   const handleBack = () => {
     if (step === 2) {
@@ -82,8 +87,25 @@ export function DeliveryWrapper() {
   };
 
   const handleContinue = () => {
+    if (!isStoreOpen) {
+      toast.dismiss?.();
+      toast.error(
+        closedReason || "Este restaurante está fechado no momento.",
+      );
+      return;
+    }
+
     if (!isDeliveryValid()) {
       toast.dismiss?.();
+      if (
+        !hasCpf &&
+        deliveryInfo?.name &&
+        deliveryInfo?.phone &&
+        !isValidCpf(deliveryInfo?.cpf || "")
+      ) {
+        toast.error("Informe um CPF válido para continuar.");
+        return;
+      }
       toast.error(
         orderType === "pickup"
           ? "Preencha nome e telefone para continuar."
@@ -102,6 +124,14 @@ export function DeliveryWrapper() {
 
   const handleSubmit = async () => {
     if (isSubmittingOrder || submitLockRef.current) {
+      return;
+    }
+
+    if (!isStoreOpen) {
+      toast.dismiss?.();
+      toast.error(
+        closedReason || "Este restaurante está fechado no momento.",
+      );
       return;
     }
 
@@ -293,6 +323,7 @@ export function DeliveryWrapper() {
               orderType={orderType}
               setOrderType={setOrderType}
               restaurant={restaurant}
+              hasCpf={hasCpf}
             />
           ) : (
             <PaymentMethod
@@ -311,6 +342,8 @@ export function DeliveryWrapper() {
       <OrderSummary
         handleSubmitOrder={handleSubmit}
         isProcessing={isSubmittingOrder}
+        isRestaurantOpen={isStoreOpen}
+        closedReason={closedReason}
         deliveryFee={deliveryFee}
         isDeliveryFeeKnown={isDeliveryFeeKnown}
         discount={discount}

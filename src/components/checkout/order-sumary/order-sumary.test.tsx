@@ -84,5 +84,31 @@ describe("OrderSummary", () => {
 
     expect(screen.getByText("Grátis")).toBeInTheDocument();
   });
+
+  it("desabilita o botão e exibe aviso quando o restaurante está fechado", () => {
+    render(
+      <OrderSummary
+        handleSubmitOrder={vi.fn(async () => {})}
+        cartItems={CART_ITEMS}
+        subtotal={120}
+        deliveryFee={5}
+        isDeliveryFeeKnown={true}
+        total={125}
+        isProcessing={false}
+        isRestaurantOpen={false}
+        closedReason="Restaurante fechado no momento. Abre amanhã às 18:00."
+        step={2}
+        detailsOpen={false}
+        onToggleDetails={vi.fn()}
+        onContinue={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText("Restaurante fechado no momento. Abre amanhã às 18:00."),
+    ).toBeInTheDocument();
+    const btn = screen.getByRole("button", { name: "Restaurante fechado" });
+    expect(btn).toBeDisabled();
+  });
 });
 

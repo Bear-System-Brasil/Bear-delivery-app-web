@@ -48,7 +48,6 @@ describe("areas de trabalho das roles de gestao", () => {
   const AREAS = [
     "/menu-management",
     "/kitchen",
-    "/order-management",
     "/delivery-dashboard",
     "/financial-management/dashboard",
   ];

@@ -28,6 +28,7 @@ export async function requestBrowserNotificationPermission(): Promise<
 
 interface ShowBrowserNotificationOptions {
   body?: string
+  href?: string
 }
 
 /**
@@ -51,6 +52,9 @@ export function showBrowserNotification(
 
   notification.onclick = () => {
     window.focus()
+    if (options.href && typeof window !== 'undefined') {
+      window.location.href = options.href
+    }
     notification.close()
   }
 }

@@ -23,6 +23,6 @@ export function notify({ audience, title, body, href }: NotifyInput): void {
   useNotificationsStore.getState().addNotification({ audience, title, body, href })
 
   if (usePreferencesStore.getState().notifications.push) {
-    showBrowserNotification(title, { body })
+    showBrowserNotification(title, { body, href })
   }
 }

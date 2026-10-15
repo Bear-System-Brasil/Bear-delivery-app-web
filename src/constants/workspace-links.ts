@@ -1,7 +1,6 @@
 import {
   Bike,
   ChefHat,
-  ClipboardList,
   Store,
   Wallet,
   type LucideIcon,
@@ -41,12 +40,6 @@ const KITCHEN: WorkspaceLink = {
   icon: ChefHat,
 };
 
-const ORDERS: WorkspaceLink = {
-  label: "Pedidos",
-  href: "/order-management",
-  icon: ClipboardList,
-};
-
 const DELIVERIES: WorkspaceLink = {
   label: "Entregas",
   href: "/delivery-dashboard",
@@ -67,7 +60,6 @@ const FINANCIAL: WorkspaceLink = {
 const ALL_AREAS: WorkspaceLink[] = [
   MANAGEMENT,
   KITCHEN,
-  ORDERS,
   DELIVERIES,
   FINANCIAL,
 ];

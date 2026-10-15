@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { decodeJwt, isExpired } from "@/lib/jwt";
-import { CLIENT_ROLES, MANAGEMENT_ROLES } from "@/utils/role-helpers";
+import { CLIENT_ROLES } from "@/utils/role-helpers";
 
 const SESSION_COOKIE = "like_session";
 
@@ -17,10 +17,6 @@ const PROTECTED: { prefix: string; roles?: string[]; guestAllowed?: boolean }[] 
   { prefix: "/checkout", roles: [...CLIENT_ROLES], guestAllowed: true },
   { prefix: "/menu-management", roles: ["owner", "admin", "manager"] },
   { prefix: "/category-management", roles: ["owner", "admin", "manager"] },
-  {
-    prefix: "/order-management",
-    roles: ["owner", "admin", "manager", "cook"],
-  },
   { prefix: "/kitchen", roles: ["owner", "admin", "manager", "cook"] },
   { prefix: "/company-profile", roles: ["owner", "admin"] },
   {
@@ -77,7 +73,6 @@ export const config = {
     "/checkout/:path*",
     "/menu-management/:path*",
     "/category-management/:path*",
-    "/order-management/:path*",
     "/kitchen/:path*",
     "/company-profile/:path*",
     "/financial-management/:path*",

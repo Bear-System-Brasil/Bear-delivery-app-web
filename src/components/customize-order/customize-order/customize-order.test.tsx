@@ -51,6 +51,7 @@ vi.mock("@/hooks", () => ({
   }),
   usePublicProductVariations: () => variationsResult,
   usePublicProductAddOns: () => ({ data: [ADD_ON], isLoading: false }),
+  useRestaurantOpeningHours: () => ({ data: undefined, isLoading: false }),
 }));
 
 vi.mock("@/contexts/auth-provider", () => ({
@@ -356,3 +357,134 @@ describe("CustomizeOrder - tamanhos vendáveis", () => {
     expect(increaseBtn).toBeDisabled();
   });
 });
+
+describe("CustomizeOrder - restaurante fechado", () => {
+  it("desabilita o botão de adicionar e exibe o motivo de fechamento", () => {
+    render(
+      <CustomizeOrder
+        productData={product}
+        isModalOpen
+        setIsModalOpen={vi.fn()}
+        isRestaurantOpen={false}
+        closedReason="Restaurante fechado no momento. Abre hoje às 18:00."
+      />,
+    );
+
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("Restaurante fechado no momento. Abre hoje às 18:00.");
+    const addButton = screen.getByRole("button", { name: /Restaurante fechado/i });
+    expect(addButton).toBeDisabled();
+  });
+});
+
+describe("CustomizeOrder - checagem de estoque (LDMF-273)", () => {
+  beforeEach(() => {
+    addToCart.mockReset();
+    showAuthModal.mockReset();
+    isAuthenticated = true;
+    variationsResult = DEFAULT_VARIATIONS_RESULT;
+  });
+
+  it("exibe 'Esgotado' e desabilita botão quando prato simples tem estoque zero", async () => {
+    variationsResult = { data: [], isLoading: false };
+    const user = userEvent.setup();
+    render(
+      <CustomizeOrder
+        productData={{ ...product, stockQuantity: 0 }}
+        isModalOpen
+        setIsModalOpen={vi.fn()}
+      />,
+    );
+
+    const button = screen.getByRole("button", { name: "Esgotado" });
+    expect(button).toBeDisabled();
+
+    await user.click(button);
+    expect(addToCart).not.toHaveBeenCalled();
+  });
+
+  it("exibe 'Esgotado' e desabilita botão quando prato simples está indisponível", async () => {
+    variationsResult = { data: [], isLoading: false };
+    const user = userEvent.setup();
+    render(
+      <CustomizeOrder
+        productData={{ ...product, isAvailable: false, stockQuantity: 10 }}
+        isModalOpen
+        setIsModalOpen={vi.fn()}
+      />,
+    );
+
+    const button = screen.getByRole("button", { name: "Esgotado" });
+    expect(button).toBeDisabled();
+
+    await user.click(button);
+    expect(addToCart).not.toHaveBeenCalled();
+  });
+
+  it("limita a quantidade escolhida ao estoque disponível da variação", async () => {
+    variationsResult = {
+      data: [{ ...VARIATION, stockQuantity: 2 }],
+      isLoading: false,
+    };
+    const user = userEvent.setup();
+    renderModal();
+
+    const increaseBtn = screen.getByLabelText("Aumentar quantidade");
+    expect(increaseBtn).toBeEnabled();
+
+    // 1 unidade -> clica -> 2 unidades (atinge o estoque de 2)
+    await user.click(increaseBtn);
+    expect(screen.getByText("2")).toBeInTheDocument();
+    expect(increaseBtn).toBeDisabled();
+
+    // Tentar clicar com botão desabilitado não ultrapassa o limite
+    await user.click(increaseBtn);
+    expect(screen.getByText("2")).toBeInTheDocument();
+  });
+
+  it("limita a quantidade escolhida ao estoque disponível de prato simples", async () => {
+    variationsResult = { data: [], isLoading: false };
+    const user = userEvent.setup();
+    render(
+      <CustomizeOrder
+        productData={{ ...product, stockQuantity: 2 }}
+        isModalOpen
+        setIsModalOpen={vi.fn()}
+      />,
+    );
+
+    const increaseBtn = screen.getByLabelText("Aumentar quantidade");
+    await user.click(increaseBtn);
+    expect(screen.getByText("2")).toBeInTheDocument();
+    expect(increaseBtn).toBeDisabled();
+  });
+
+  it("ajusta a quantidade quando o cliente troca para um tamanho com menor estoque", async () => {
+    variationsResult = {
+      data: [
+        { ...VARIATION, id: "var-grande", name: "Grande", stockQuantity: 5, priceModifier: 5 },
+        { ...VARIATION, id: "var-pequeno", name: "Pequeno", stockQuantity: 2, priceModifier: 0 },
+      ],
+      isLoading: false,
+    };
+    const user = userEvent.setup();
+    renderModal();
+
+    // Pré-selecionado é o Pequeno (mais barato), trocamos para Grande com estoque 5
+    await user.click(screen.getByText("Grande"));
+    const increaseBtn = screen.getByLabelText("Aumentar quantidade");
+    await user.click(increaseBtn); // 2
+    await user.click(increaseBtn); // 3
+    await user.click(increaseBtn); // 4
+    expect(screen.getByText("4")).toBeInTheDocument();
+
+    // Troca para o Pequeno, que só tem 2 em estoque -> deve ajustar para 2
+    await user.click(screen.getByText("Pequeno"));
+    await waitFor(() => {
+      expect(screen.getByText("2")).toBeInTheDocument();
+    });
+    expect(increaseBtn).toBeDisabled();
+  });
+});
+
+

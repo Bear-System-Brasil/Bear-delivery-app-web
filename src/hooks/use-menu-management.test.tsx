@@ -25,6 +25,12 @@ vi.mock("@/services/api", async (importOriginal) => {
       linkCategoryToProduct: vi.fn(),
       unlinkCategoryFromProduct: vi.fn(),
       deleteProductImage: vi.fn(),
+      productVariations: {
+        create: vi.fn(),
+      },
+      productAddOns: {
+        create: vi.fn(),
+      },
     },
   };
 });
@@ -667,6 +673,186 @@ describe("useMenuManagement", () => {
 
       await waitFor(() => expect(result.current.allProducts[0].isAvailable).toBe(true));
       expect(toast.error).toHaveBeenCalledWith("Erro ao atualizar disponibilidade");
+    });
+  });
+
+  describe("unificação de cadastro com abas (LDMF-332)", () => {
+    it("abre o modal de criação na aba desejada e limpa os rascunhos", async () => {
+      const { result } = await renderMenu();
+
+      act(() => {
+        result.current.handleOpenCreateModal("variations");
+      });
+
+      expect(result.current.isModalOpen).toBe(true);
+      expect(result.current.activeTab).toBe("variations");
+      expect(result.current.draftVariations).toEqual([]);
+      expect(result.current.draftAddOns).toEqual([]);
+    });
+
+    it("abre o modal de edição na aba desejada (atalho de tamanhos ou complementos)", async () => {
+      server = [product("p1")];
+      const { result } = await renderMenu();
+
+      act(() => {
+        result.current.handleOpenEditModal(result.current.allProducts[0], "addons");
+      });
+
+      expect(result.current.isModalOpen).toBe(true);
+      expect(result.current.activeTab).toBe("addons");
+      expect(result.current.editingProduct?.id).toBe("p1");
+    });
+
+    it("redireciona para a aba 'details' quando a validação falha ao salvar", async () => {
+      const { result } = await renderMenu();
+
+      act(() => {
+        result.current.handleOpenCreateModal("variations");
+        // Preenche apenas descrição, deixando nome vazio
+        result.current.updateFormField("description", "Apenas descrição");
+      });
+
+      expect(result.current.activeTab).toBe("variations");
+
+      await act(async () => {
+        await result.current.handleSaveProduct();
+      });
+
+      expect(toast.error).toHaveBeenCalledWith("Nome do produto é obrigatório");
+      expect(result.current.activeTab).toBe("details");
+    });
+
+    it("salva prato novo e encadeia variações e complementos de rascunho", async () => {
+      api.createProduct.mockResolvedValue({ success: true, data: product("new-p1") });
+      api.linkCategoryToProduct.mockResolvedValue({ success: true, data: {} });
+      api.productVariations.create.mockResolvedValue({ success: true, data: {} });
+      api.productAddOns.create.mockResolvedValue({ success: true, data: {} });
+
+      const { result } = await renderMenu();
+
+      act(() => {
+        result.current.handleOpenCreateModal();
+      });
+      fill(result, validForm);
+
+      act(() => {
+        result.current.setDraftVariations([
+          {
+            id: "draft-var-1",
+            name: "Pequeno",
+            priceModifier: 0,
+            stockQuantity: 10,
+            isAvailable: true,
+            productId: "",
+            created_at: "",
+            updated_at: "",
+          },
+          {
+            id: "draft-var-2",
+            name: "Grande",
+            priceModifier: 10,
+            stockQuantity: 5,
+            isAvailable: true,
+            productId: "",
+            created_at: "",
+            updated_at: "",
+          },
+        ]);
+        result.current.setDraftAddOns([
+          {
+            id: "draft-addon-1",
+            name: "Bacon Extra",
+            priceModifier: 4.5,
+            isAvailable: true,
+            productId: "",
+            created_at: "",
+            updated_at: "",
+          },
+        ]);
+      });
+
+      await act(async () => {
+        await result.current.handleSaveProduct();
+      });
+
+      expect(api.createProduct).toHaveBeenCalledWith(
+        expect.objectContaining({ name: "X-Burger" }),
+      );
+      expect(api.productVariations.create).toHaveBeenCalledTimes(2);
+      expect(api.productVariations.create).toHaveBeenNthCalledWith(
+        1,
+        "new-p1",
+        expect.objectContaining({ name: "Pequeno", priceModifier: 0 }),
+      );
+      expect(api.productVariations.create).toHaveBeenNthCalledWith(
+        2,
+        "new-p1",
+        expect.objectContaining({ name: "Grande", priceModifier: 10 }),
+      );
+
+      expect(api.productAddOns.create).toHaveBeenCalledTimes(1);
+      expect(api.productAddOns.create).toHaveBeenCalledWith(
+        "new-p1",
+        expect.objectContaining({ name: "Bacon Extra", priceModifier: 4.5 }),
+      );
+
+      expect(result.current.isModalOpen).toBe(false);
+    });
+
+    it("avisa sobre falha parcial em variação ou complemento sem perder o prato criado", async () => {
+      api.createProduct.mockResolvedValue({ success: true, data: product("new-p2") });
+      api.linkCategoryToProduct.mockResolvedValue({ success: true, data: {} });
+      api.productVariations.create.mockResolvedValueOnce({
+        success: false,
+        message: "Erro no tamanho",
+      });
+      api.productAddOns.create.mockRejectedValueOnce(new Error("Rede instável"));
+
+      const { result } = await renderMenu();
+
+      act(() => {
+        result.current.handleOpenCreateModal();
+      });
+      fill(result, validForm);
+
+      act(() => {
+        result.current.setDraftVariations([
+          {
+            id: "draft-var-1",
+            name: "Grande",
+            priceModifier: 5,
+            stockQuantity: 2,
+            isAvailable: true,
+            productId: "",
+            created_at: "",
+            updated_at: "",
+          },
+        ]);
+        result.current.setDraftAddOns([
+          {
+            id: "draft-addon-1",
+            name: "Queijo",
+            priceModifier: 3,
+            isAvailable: true,
+            productId: "",
+            created_at: "",
+            updated_at: "",
+          },
+        ]);
+      });
+
+      await act(async () => {
+        await result.current.handleSaveProduct();
+      });
+
+      expect(toast.error).toHaveBeenCalledWith(
+        expect.stringContaining('Prato criado, mas houve erro ao salvar tamanho(s): "Grande": Erro no tamanho'),
+      );
+      expect(toast.error).toHaveBeenCalledWith(
+        expect.stringContaining('Prato criado, mas houve erro ao salvar complemento(s): "Queijo": Rede instável'),
+      );
+      // Prato continua criado no cache e modal fecha normalmente
+      expect(result.current.isModalOpen).toBe(false);
     });
   });
 });

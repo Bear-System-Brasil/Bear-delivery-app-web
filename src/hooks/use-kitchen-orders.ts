@@ -26,6 +26,7 @@ import {
 } from "@/components/kitchen/types";
 import { getPeriodRange, isSameLocalDay } from "@/components/kitchen/helpers";
 import { useSound } from "@/hooks/use-sound";
+import { acknowledgeOrder } from "@/lib/order-alerts";
 import { socketAuthProvider } from "@/lib/socket-auth";
 import {
   advanceKitchenOrderStatus,
@@ -446,6 +447,7 @@ export function useKitchenOrders() {
       advanceKitchenOrderStatus(order.id, next),
 
     onMutate: async ({ order, next }) => {
+      acknowledgeOrder(order.id);
       const from = order.status;
       await queryClient.cancelQueries({ queryKey: ["kitchen-orders"] });
       const previous = snapshot([from, next]);

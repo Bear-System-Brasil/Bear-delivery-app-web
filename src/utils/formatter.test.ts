@@ -3,11 +3,14 @@ import {
   formatCep,
   formatCnpj,
   formatCPF,
+  formatCpfDisplay,
   formatDate,
   formatPhone,
   formatPhoneDisplay,
   formatPhoneRegex,
   getCustomerDisplayName,
+  isAdult,
+  isCompleteDateFormat,
   isValidCep,
   isValidCnpj,
   isValidCpf,
@@ -20,6 +23,50 @@ import {
 describe("formatCPF", () => {
   it("remove tudo que não é dígito", () => {
     expect(formatCPF("123.456.789-00")).toBe("12345678900");
+  });
+});
+
+describe("formatCpfDisplay", () => {
+  it("aplica a máscara de CPF progressivamente conforme a digitação", () => {
+    expect(formatCpfDisplay("123")).toBe("123");
+    expect(formatCpfDisplay("1234")).toBe("123.4");
+    expect(formatCpfDisplay("123456")).toBe("123.456");
+    expect(formatCpfDisplay("1234567")).toBe("123.456.7");
+    expect(formatCpfDisplay("123456789")).toBe("123.456.789");
+    expect(formatCpfDisplay("1234567890")).toBe("123.456.789-0");
+    expect(formatCpfDisplay("12345678900")).toBe("123.456.789-00");
+  });
+
+  it("limita a 11 dígitos numéricos", () => {
+    expect(formatCpfDisplay("12345678900999")).toBe("123.456.789-00");
+  });
+});
+
+describe("isAdult e isCompleteDateFormat (LDMF-301)", () => {
+  it("isCompleteDateFormat reconhece datas completas em DD/MM/AAAA e AAAA-MM-DD", () => {
+    expect(isCompleteDateFormat("15/10/2000")).toBe(true);
+    expect(isCompleteDateFormat("2000-10-15")).toBe(true);
+    expect(isCompleteDateFormat("15/10/20")).toBe(false);
+    expect(isCompleteDateFormat("")).toBe(false);
+    expect(isCompleteDateFormat(null)).toBe(false);
+  });
+
+  it("isAdult aprova maior de 18 anos", () => {
+    expect(isAdult("01/01/1990")).toBe(true);
+    expect(isAdult("1990-01-01")).toBe(true);
+  });
+
+  it("isAdult reprova menor de 18 anos", () => {
+    const nextYear = new Date().getFullYear() - 10;
+    expect(isAdult(`01/01/${nextYear}`)).toBe(false);
+  });
+
+  it("isAdult retorna false para data vazia, nula ou inválida", () => {
+    expect(isAdult("")).toBe(false);
+    expect(isAdult(null)).toBe(false);
+    expect(isAdult(undefined)).toBe(false);
+    expect(isAdult("data-invalida")).toBe(false);
+    expect(isAdult("31/02/2000")).toBe(false);
   });
 });
 

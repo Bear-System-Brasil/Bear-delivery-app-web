@@ -46,12 +46,52 @@ export const toDateBackendFormat = (
 };
 
 /**
+ * Verifica se a data de nascimento informada corresponde a uma pessoa maior de idade (18+ anos).
+ * Utiliza autodeclaração como triagem inicial de maioridade (LDMF-301).
+ */
+export const isAdult = (
+  birthDateStr?: string | null,
+  minAge: number = 18,
+): boolean => {
+  const d = parseDateValue(birthDateStr);
+  if (!d || !d.isValid()) return false;
+  const today = dayjs.utc();
+  const age = today.diff(d, "year");
+  return age >= minAge && age <= 125;
+};
+
+/**
+ * Confere se a data de nascimento está em formato completo (DD/MM/AAAA ou AAAA-MM-DD).
+ */
+export const isCompleteDateFormat = (dateStr?: string | null): boolean => {
+  if (!dateStr || typeof dateStr !== "string") return false;
+  const trimmed = dateStr.trim();
+  return (
+    /^\d{2}\/\d{2}\/\d{4}$/.test(trimmed) || /^\d{4}-\d{2}-\d{2}$/.test(trimmed)
+  );
+};
+
+/**
  * Remove todos os caracteres não numéricos de um CPF
  * @param cpf - CPF com ou sem formatação
  * @returns CPF apenas com números
  */
 export const formatCPF = (cpf: string): string => {
   return cpf.replace(/\D/g, "");
+};
+
+/**
+ * Formata um CPF aplicando a máscara 000.000.000-00 progressivamente conforme digitação
+ * @param value - CPF com ou sem formatação
+ * @returns CPF formatado com máscara
+ */
+export const formatCpfDisplay = (value: string): string => {
+  const digits = value.replace(/\D/g, "").slice(0, 11);
+  if (digits.length <= 3) return digits;
+  if (digits.length <= 6) return `${digits.slice(0, 3)}.${digits.slice(3)}`;
+  if (digits.length <= 9)
+    return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`;
+  return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
 };
 
 /**

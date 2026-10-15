@@ -1,6 +1,9 @@
+import { resolveRestaurantOpenStatus } from "@/constants/opening-hours";
 import { useConfirm } from "@/contexts/confirm-provider";
 import { useSound } from "@/hooks/use-sound";
+import type { Product, ProductVariation } from "@/services/api";
 import { apiService } from "@/services/api";
+import { getCartItemStock, getCartStockIssues } from "@/lib/cart-stock";
 import { useCartStore } from "@/stores";
 import { useAuthStore } from "@/stores/auth-store";
 import { getErrorMessage } from "@/utils";
@@ -500,6 +503,33 @@ export const useCartActions = () => {
     try {
       setLoading(true);
 
+      // Validação: verificar se o restaurante está aberto
+      try {
+        if (apiService.openingHours?.getByCompany) {
+          const openingHoursRes = await queryClient.fetchQuery({
+            queryKey: ["opening-hours", "public", item.restaurantId],
+            queryFn: () =>
+              apiService.openingHours.getByCompany(item.restaurantId),
+            staleTime: 60 * 1000,
+          });
+
+          if (openingHoursRes?.data) {
+            const openStatus = resolveRestaurantOpenStatus(
+              openingHoursRes.data,
+            );
+            if (!openStatus.isOpen) {
+              toast.error(
+                openStatus.reason || "Este restaurante está fechado no momento.",
+              );
+              setLoading(false);
+              return false;
+            }
+          }
+        }
+      } catch {
+        // Ignora falha de requisição de horários para não travar indevidamente
+      }
+
       // Flag para saber se precisamos criar um novo carrinho
       let needsNewCart = !orderId;
 
@@ -921,6 +951,42 @@ export const useCartActions = () => {
       return;
     }
 
+    // Se a quantidade estiver aumentando, valida contra o estoque se disponível
+    if (newQuantity > item.quantity) {
+      const targetRestaurantId = restaurant?.id || item.restaurantId;
+      if (targetRestaurantId) {
+        const cachedVariations = queryClient.getQueryData<ProductVariation[]>([
+          "product-variations",
+          "public",
+          "by-company",
+          targetRestaurantId,
+        ]);
+        const cachedProducts = queryClient.getQueryData<Product[]>([
+          "products",
+          "company",
+          targetRestaurantId,
+        ]);
+
+        if (
+          (cachedVariations && cachedVariations.length > 0) ||
+          (cachedProducts && cachedProducts.length > 0)
+        ) {
+          const itemStock = getCartItemStock(
+            item,
+            cachedProducts ?? [],
+            cachedVariations ?? [],
+          );
+          if (
+            itemStock.availableStock !== undefined &&
+            newQuantity > itemStock.availableStock
+          ) {
+            toast.error("Quantidade excede o estoque disponível.");
+            return;
+          }
+        }
+      }
+    }
+
     // Primeiro clique da rajada: guarda a quantidade antes dela e marca a
     // rajada como pendente até a requisição dela terminar - o sync espera
     if (!debounceBaseQuantities.current.has(itemId)) {
@@ -983,6 +1049,55 @@ export const useCartActions = () => {
     if (items.length === 0) {
       toast.error("Seu carrinho está vazio");
       return;
+    }
+
+    const targetRestaurantId = restaurant?.id || items[0]?.restaurantId;
+    if (targetRestaurantId) {
+      const cachedOpeningHours = queryClient.getQueryData<{
+        data?: Parameters<typeof resolveRestaurantOpenStatus>[0];
+      }>(["opening-hours", "public", targetRestaurantId]);
+
+      if (cachedOpeningHours?.data) {
+        const openStatus = resolveRestaurantOpenStatus(
+          cachedOpeningHours.data,
+        );
+        if (!openStatus.isOpen) {
+          toast.error(
+            openStatus.reason || "Este restaurante está fechado no momento.",
+          );
+          return;
+        }
+      }
+
+      // Se houver dados de produtos/variações no cache do React Query, valida estoque
+      const cachedVariations = queryClient.getQueryData<ProductVariation[]>([
+        "product-variations",
+        "public",
+        "by-company",
+        targetRestaurantId,
+      ]);
+      const cachedProducts = queryClient.getQueryData<Product[]>([
+        "products",
+        "company",
+        targetRestaurantId,
+      ]);
+
+      if (
+        (cachedVariations && cachedVariations.length > 0) ||
+        (cachedProducts && cachedProducts.length > 0)
+      ) {
+        const stockResult = getCartStockIssues(
+          items,
+          cachedProducts ?? [],
+          cachedVariations ?? [],
+        );
+        if (stockResult.hasIssues) {
+          toast.error(
+            "Remova ou ajuste os itens esgotados antes de finalizar o pedido.",
+          );
+          return;
+        }
+      }
     }
 
     router.push("/checkout");

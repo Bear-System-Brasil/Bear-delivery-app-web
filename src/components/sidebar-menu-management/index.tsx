@@ -63,12 +63,6 @@ const navGroups: { label: string; links: NavLink[] }[] = [
         roles: ["owner", "admin", "manager"],
       },
       {
-        href: "/order-management",
-        label: "Gerenciar Pedidos",
-        icon: ClipboardList,
-        roles: ["owner", "admin", "manager"],
-      },
-      {
         href: "/kitchen",
         label: "Cozinha",
         icon: ChefHat,

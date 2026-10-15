@@ -2,8 +2,8 @@
 
 import { AdminPageLayout } from "@/components/admin-page-layout";
 import { AdminDish, AdminDishCard } from "@/components/admin-dish-card";
-import { ProductAddOnsDialog } from "@/components/product-add-ons-dialog";
-import { ProductVariationsDialog } from "@/components/product-variations-dialog";
+import { ProductAddOnsPanel } from "@/components/product-add-ons-dialog";
+import { ProductVariationsPanel } from "@/components/product-variations-dialog";
 import ProtectedRoute from "@/components/protected-route";
 import {
   AlertDialog,
@@ -26,9 +26,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StockQuantityInput } from "@/components/ui/stock-quantity-input";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { useMenuManagement } from "@/hooks";
+import {
+  useMenuManagement,
+  useProductAddOns,
+  useProductVariations,
+  type MenuModalTab,
+} from "@/hooks";
 import {
   Building2,
   GripHorizontal,
@@ -61,10 +66,6 @@ const textareaClassName =
 function MenuManagementContent() {
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
-  const [addOnsTarget, setAddOnsTarget] = useState<AdminDish | null>(null);
-  const [variationsTarget, setVariationsTarget] = useState<AdminDish | null>(
-    null,
-  );
   const [canCategoryScroll, setCanCategoryScroll] = useState(false);
   const [isCategoryDragActive, setIsCategoryDragActive] = useState(false);
   const categoriesScrollRef = useRef<HTMLDivElement>(null);
@@ -109,7 +110,43 @@ function MenuManagementContent() {
     setIsCreatingCategory,
     newCategoryName,
     setNewCategoryName,
+    activeTab,
+    setActiveTab,
+    draftVariations,
+    setDraftVariations,
+    draftAddOns,
+    setDraftAddOns,
   } = useMenuManagement();
+
+  const editingProductId = editingProduct?.id ?? null;
+  const { data: existingVariations = [] } = useProductVariations(
+    editingProductId,
+    companyId,
+  );
+  const { data: existingAddOns = [] } = useProductAddOns(
+    editingProductId,
+    companyId,
+  );
+
+  const variationsCount = editingProduct
+    ? existingVariations.length
+    : draftVariations.length;
+
+  const addOnsCount = editingProduct
+    ? existingAddOns.length
+    : draftAddOns.length;
+
+  const variationsTabLabel = editingProduct
+    ? `Tamanhos (${variationsCount})`
+    : variationsCount > 0
+      ? `Tamanhos (${variationsCount})`
+      : "Tamanhos";
+
+  const addOnsTabLabel = editingProduct
+    ? `Complementos (${addOnsCount})`
+    : addOnsCount > 0
+      ? `Complementos (${addOnsCount})`
+      : "Complementos";
 
   const filteredDishes: AdminDish[] = useMemo(() => {
     return products.map((product) => ({
@@ -351,7 +388,23 @@ function MenuManagementContent() {
     const product = products.find((p) => p.id === dish.id);
     if (product) {
       resetImageState();
-      handleOpenEditModal(product);
+      handleOpenEditModal(product, "details");
+    }
+  };
+
+  const handleManageVariations = (dish: AdminDish) => {
+    const product = products.find((p) => p.id === dish.id);
+    if (product) {
+      resetImageState();
+      handleOpenEditModal(product, "variations");
+    }
+  };
+
+  const handleManageAddOns = (dish: AdminDish) => {
+    const product = products.find((p) => p.id === dish.id);
+    if (product) {
+      resetImageState();
+      handleOpenEditModal(product, "addons");
     }
   };
 
@@ -391,9 +444,9 @@ function MenuManagementContent() {
 
   const handleClearForm = () => {
     if (editingProduct) {
-      handleOpenEditModal(editingProduct);
+      handleOpenEditModal(editingProduct, activeTab);
     } else {
-      handleOpenCreateModal();
+      handleOpenCreateModal(activeTab);
     }
     resetImageState();
   };
@@ -533,8 +586,8 @@ function MenuManagementContent() {
                 onEdit={handleEditDish}
                 onDelete={handleDeleteDish}
                 onToggleAvailability={handleToggleAvail}
-                onManageAddOns={setAddOnsTarget}
-                onManageVariations={setVariationsTarget}
+                onManageAddOns={handleManageAddOns}
+                onManageVariations={handleManageVariations}
               />
             ))}
           </div>
@@ -563,18 +616,40 @@ function MenuManagementContent() {
           }
         }}
       >
-        <DialogContent className="max-h-[90vh] rounded-[14px] border-border bg-card p-0 shadow-[0_24px_70px_rgba(20,22,26,0.18)] sm:max-w-[520px]">
+        <DialogContent className="flex max-h-[90vh] flex-col rounded-[14px] border-border bg-card p-0 shadow-[0_24px_70px_rgba(20,22,26,0.18)] sm:max-w-[560px]">
           <DialogHeader className="shrink-0 border-b border-border px-4 pb-3 pt-4 sm:px-6">
             <DialogTitle className="text-base font-extrabold text-foreground sm:text-lg">
               {editingProduct ? "Editar Prato" : "Adicionar Novo Prato"}
             </DialogTitle>
             <DialogDescription className="text-xs font-medium text-muted-foreground sm:text-sm">
-              Preencha as informações do prato.
+              {editingProduct
+                ? `Gerencie informações, tamanhos e complementos de "${editingProduct.name}".`
+                : "Preencha as informações, tamanhos e complementos do prato."}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex-1 overflow-y-auto px-4 py-3 sm:px-6 sm:py-4">
-            <div className="grid gap-3">
+          <Tabs
+            value={activeTab}
+            onValueChange={(val) => setActiveTab(val as MenuModalTab)}
+            className="flex min-h-0 flex-1 flex-col"
+          >
+            <div className="shrink-0 border-b border-border px-4 py-2 sm:px-6">
+              <TabsList className="grid h-9 w-full grid-cols-3 rounded-lg bg-muted p-1">
+                <TabsTrigger value="details" className="text-xs font-bold">
+                  Dados do Prato
+                </TabsTrigger>
+                <TabsTrigger value="variations" className="text-xs font-bold">
+                  {variationsTabLabel}
+                </TabsTrigger>
+                <TabsTrigger value="addons" className="text-xs font-bold">
+                  {addOnsTabLabel}
+                </TabsTrigger>
+              </TabsList>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-4 py-3 sm:px-6 sm:py-4">
+              <TabsContent value="details" className="mt-0 focus-visible:ring-0">
+                <div className="grid gap-3">
               <div className="grid gap-1.5">
                 <Label
                   htmlFor="productImage"
@@ -857,43 +932,70 @@ function MenuManagementContent() {
                 </Label>
               </div>
             </div>
-          </div>
+          </TabsContent>
 
-          <DialogFooter className="shrink-0 flex-col-reverse gap-2 border-t border-border px-4 py-3 sm:flex-row sm:px-6">
-            <Button
-              variant="ghost"
-              onClick={handleClearForm}
-              className="h-9 w-full cursor-pointer rounded-[9px] text-sm font-bold text-muted-foreground hover:bg-muted hover:text-foreground sm:w-auto"
-            >
-              Limpar Tudo
-            </Button>
-            <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row">
-              <Button
-                variant="outline"
-                onClick={handleCloseModalWithReset}
-                className="h-9 w-full cursor-pointer rounded-[9px] border-border bg-card text-sm font-bold text-foreground shadow-none hover:bg-muted sm:w-auto"
-              >
-                Cancelar
-              </Button>
-              <Button
-                onClick={async () => {
-                  await handleSaveProduct(selectedImages);
-                  resetImageState();
-                }}
-                disabled={isSaving}
-                className="h-9 w-full cursor-pointer rounded-[9px] bg-brand-500 text-sm font-extrabold text-white shadow-[0_4px_12px_var(--tw-shadow-color)] shadow-brand-500/25 transition-colors hover:bg-brand-600 sm:w-auto"
-              >
-                {isSaving ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    {editingProduct ? "Atualizando..." : "Criando..."}
-                  </>
-                ) : (
-                  <>{editingProduct ? "Atualizar" : "Criar"} Prato</>
-                )}
-              </Button>
+              <TabsContent value="variations" className="mt-0 focus-visible:ring-0">
+                <ProductVariationsPanel
+                  productId={editingProduct?.id ?? null}
+                  productName={editingProduct?.name ?? formData.name}
+                  salePrice={formData.salePrice ?? 0}
+                  companyId={companyId}
+                  isDraftMode={!editingProduct}
+                  draftVariations={draftVariations}
+                  onDraftVariationsChange={setDraftVariations}
+                />
+              </TabsContent>
+
+              <TabsContent value="addons" className="mt-0 focus-visible:ring-0">
+                <ProductAddOnsPanel
+                  productId={editingProduct?.id ?? null}
+                  productName={editingProduct?.name ?? formData.name}
+                  companyId={companyId}
+                  isDraftMode={!editingProduct}
+                  draftAddOns={draftAddOns}
+                  onDraftAddOnsChange={setDraftAddOns}
+                />
+              </TabsContent>
             </div>
-          </DialogFooter>
+
+            <DialogFooter className="shrink-0 flex-col-reverse gap-2 border-t border-border px-4 py-3 sm:flex-row sm:px-6">
+              {!editingProduct && (
+                <Button
+                  variant="ghost"
+                  onClick={handleClearForm}
+                  className="h-9 w-full cursor-pointer rounded-[9px] text-sm font-bold text-muted-foreground hover:bg-muted hover:text-foreground sm:w-auto"
+                >
+                  Limpar Tudo
+                </Button>
+              )}
+              <div className="flex w-full flex-col-reverse gap-2 sm:ms-auto sm:w-auto sm:flex-row">
+                <Button
+                  variant="outline"
+                  onClick={handleCloseModalWithReset}
+                  className="h-9 w-full cursor-pointer rounded-[9px] border-border bg-card text-sm font-bold text-foreground shadow-none hover:bg-muted sm:w-auto"
+                >
+                  {editingProduct ? "Fechar" : "Cancelar"}
+                </Button>
+                <Button
+                  onClick={async () => {
+                    await handleSaveProduct(selectedImages);
+                    resetImageState();
+                  }}
+                  disabled={isSaving}
+                  className="h-9 w-full cursor-pointer rounded-[9px] bg-brand-500 text-sm font-extrabold text-white shadow-[0_4px_12px_var(--tw-shadow-color)] shadow-brand-500/25 transition-colors hover:bg-brand-600 sm:w-auto"
+                >
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      {editingProduct ? "Atualizando..." : "Criando..."}
+                    </>
+                  ) : (
+                    <>{editingProduct ? "Atualizar" : "Criar"} Prato</>
+                  )}
+                </Button>
+              </div>
+            </DialogFooter>
+          </Tabs>
         </DialogContent>
       </Dialog>
 
@@ -954,23 +1056,6 @@ function MenuManagementContent() {
           </div>
         </AlertDialogContent>
       </AlertDialog>
-
-      <ProductAddOnsDialog
-        productId={addOnsTarget?.id ?? null}
-        productName={addOnsTarget?.name}
-        companyId={companyId}
-        open={!!addOnsTarget}
-        onOpenChange={(open) => !open && setAddOnsTarget(null)}
-      />
-
-      <ProductVariationsDialog
-        productId={variationsTarget?.id ?? null}
-        productName={variationsTarget?.name}
-        salePrice={variationsTarget?.price ?? 0}
-        companyId={companyId}
-        open={!!variationsTarget}
-        onOpenChange={(open) => !open && setVariationsTarget(null)}
-      />
     </AdminPageLayout>
   );
 }

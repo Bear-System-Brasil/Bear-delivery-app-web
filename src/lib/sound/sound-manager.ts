@@ -1,3 +1,4 @@
+import { useAuthStore } from "@/stores/auth-store";
 import {
   ALERT_LOOP_MS,
   SOUND_BUNDLES,
@@ -28,6 +29,7 @@ class SoundManager {
   private loading = new Map<SoundName, Promise<AudioBuffer | null>>();
   private loops = new Map<SoundName, ReturnType<typeof setInterval>>();
   private listeners = new Set<() => void>();
+  private lastPlayed = new Map<SoundName, number>();
   private unlockInstalled = false;
   private failed = new Set<SoundName>();
 
@@ -46,7 +48,15 @@ class SoundManager {
     if (this.hydrated || typeof window === "undefined") return;
     this.hydrated = true;
     try {
-      this.muted = window.localStorage.getItem(MUTED_KEY) === "1";
+      const storedMuted = window.localStorage.getItem(MUTED_KEY);
+      if (storedMuted !== null) {
+        this.muted = storedMuted === "1";
+      } else {
+        // Sem preferência gravada: financeiro começa sem som por padrão;
+        // outros papéis começam com o alerta ativo por padrão (LDMF-329).
+        const user = useAuthStore.getState().user;
+        this.muted = user?.role === "financial";
+      }
 
       // Sem `raw` o app abre mudo na primeira visita: `Number(null)` é 0, que
       // passa em todas as validações abaixo e zera o volume de quem nunca
@@ -215,6 +225,12 @@ class SoundManager {
     this.installUnlockHandlers();
     if (this.muted || this.volume === 0) return;
 
+    // Evita disparos duplicados idênticos em menos de 500ms (ex: socket + polling concorrentes)
+    const now = Date.now();
+    const last = this.lastPlayed.get(name) ?? 0;
+    if (now - last < 500) return;
+    this.lastPlayed.set(name, now);
+
     void (async () => {
       const ctx = this.getContext();
       if (!ctx) return;
@@ -285,3 +301,17 @@ class SoundManager {
 }
 
 export const soundManager = new SoundManager();
+
+if (typeof window !== "undefined") {
+  useAuthStore.subscribe((state, prevState) => {
+    if (state.user?.role !== prevState?.user?.role) {
+      try {
+        if (window.localStorage.getItem(MUTED_KEY) === null) {
+          soundManager.setMuted(state.user?.role === "financial");
+        }
+      } catch {
+        // Storage inacessível
+      }
+    }
+  });
+}

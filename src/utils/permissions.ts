@@ -34,8 +34,7 @@ export const ROUTE_PERMISSIONS: { [key: string]: string[] } = {
   // /financial-management e /delivery-dashboard usam.
   "/team-management": ["owner", "admin", "manager"],
 
-  // Order management
-  "/order-management": ["owner", "admin", "manager", "cook"],
+  // Kitchen
   "/kitchen": ["owner", "admin", "manager", "cook"],
 
   // Delivery - a area de entregas tambem e alcancavel por quem administra o

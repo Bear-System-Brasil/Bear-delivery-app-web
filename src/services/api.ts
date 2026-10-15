@@ -1375,6 +1375,25 @@ export const apiService = {
     return apiRequest<User>("PUT", `/user`, payload, true);
   },
 
+  /**
+   * Atualiza/registra o CPF do usuário autenticado (LDMF-301 / LDMF-335).
+   * Chama a rota protegida PATCH /auth/cpf, com fallback para PUT /user
+   * caso a rota nova ainda não tenha subido no backend (404).
+   */
+  updateCpf: async (cpf: string): Promise<ApiResponse<User>> => {
+    const cleanCpf = cpf.replace(/\D/g, "");
+    const res = await apiRequest<User>(
+      "PATCH",
+      "/auth/cpf",
+      { cpf: cleanCpf },
+      true,
+    );
+    if (!res.success && res.status === 404) {
+      return apiService.updateUser({ cpf: cleanCpf });
+    }
+    return res;
+  },
+
   verifyOtp: (otpData: VerifyOtpRequest) =>
     apiRequest<string>("POST", "/user/complet", otpData),
 
@@ -1894,6 +1913,22 @@ export const apiService = {
      */
     getStaff: () =>
       apiRequest<CompanyStaffMember[]>("GET", "/company/staff", undefined, true),
+
+    /**
+     * Remove um membro da equipe da empresa (DELETE /company/staff/:userId).
+     *
+     * A empresa vem do token JWT (ou por ?companyId= para admin).
+     * Roles permitidas no backend: owner, admin, manager (LDMF-231).
+     */
+    removeStaff: (userId: string, companyId?: string) =>
+      apiRequest<{ id: string; removed: boolean }>(
+        "DELETE",
+        companyId
+          ? `/company/staff/${userId}?companyId=${encodeURIComponent(companyId)}`
+          : `/company/staff/${userId}`,
+        undefined,
+        true,
+      ),
   },
 
   openingHours: {

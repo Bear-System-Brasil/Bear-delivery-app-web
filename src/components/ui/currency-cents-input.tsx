@@ -11,6 +11,7 @@ interface CurrencyCentsInputProps {
   placeholder?: string
   className?: string
   maskWhileTyping?: boolean // true = R$ 0,05 ao digitar | false = 0,05 ao digitar
+  disabled?: boolean
 }
 
 const formatCurrency = (value: number) => {
@@ -78,6 +79,7 @@ export function CurrencyCentsInput({
   placeholder = "0,01",
   className,
   maskWhileTyping = false,
+  disabled,
 }: CurrencyCentsInputProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [displayValue, setDisplayValue] = useState("")
@@ -180,6 +182,7 @@ export function CurrencyCentsInput({
       onFocus={handleFocus}
       placeholder={placeholder}
       className={cn(className)}
+      disabled={disabled}
     />
   )
 }

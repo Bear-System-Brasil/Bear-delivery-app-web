@@ -356,6 +356,39 @@ describe("apiService (via apiRequest)", () => {
       const body = JSON.parse(config!.body as string);
       expect(body).not.toHaveProperty("birthDate");
     });
+
+    it("updateCpf envia PATCH /auth/cpf com apenas dígitos e autenticação", async () => {
+      vi.mocked(fetch).mockResolvedValue(jsonResponse({ id: "u1", cpf: "12345678900" }));
+      const result = await apiService.updateCpf("123.456.789-00");
+
+      expect(result.success).toBe(true);
+      const [url, config] = vi.mocked(fetch).mock.calls.at(-1)!;
+      expect(url).toBe("/api/proxy/auth/cpf");
+      expect(config?.method).toBe("PATCH");
+      expect((config?.headers as Record<string, string>)["X-Auth-Required"]).toBe("1");
+      const body = JSON.parse(config!.body as string);
+      expect(body).toEqual({ cpf: "12345678900" });
+    });
+
+    it("updateCpf faz fallback para PUT /user caso PATCH /auth/cpf retorne 404", async () => {
+      vi.mocked(fetch)
+        .mockResolvedValueOnce(jsonResponse({ message: "Not Found" }, { status: 404 }))
+        .mockResolvedValueOnce(jsonResponse({ id: "u1", cpf: "12345678900" }));
+
+      const result = await apiService.updateCpf("123.456.789-00");
+
+      expect(result.success).toBe(true);
+      expect(vi.mocked(fetch)).toHaveBeenCalledTimes(2);
+      const [url1, config1] = vi.mocked(fetch).mock.calls[0];
+      expect(url1).toBe("/api/proxy/auth/cpf");
+      expect(config1?.method).toBe("PATCH");
+
+      const [url2, config2] = vi.mocked(fetch).mock.calls[1];
+      expect(url2).toBe("/api/proxy/user");
+      expect(config2?.method).toBe("PUT");
+      const body2 = JSON.parse(config2!.body as string);
+      expect(body2.cpf).toBe("12345678900");
+    });
   });
 
   describe("companies.create", () => {
@@ -377,4 +410,46 @@ describe("apiService (via apiRequest)", () => {
       expect(formData.get("description")).toBeNull();
     });
   });
+
+  describe("companies.removeStaff", () => {
+    it("chama DELETE /company/staff/:userId com autenticação obrigatória", async () => {
+      vi.mocked(fetch).mockResolvedValue(
+        jsonResponse({ id: "user-123", removed: true }),
+      );
+
+      const result = await apiService.companies.removeStaff("user-123");
+
+      expect(result).toEqual({
+        success: true,
+        data: { id: "user-123", removed: true },
+        status: 200,
+      });
+
+      expect(fetch).toHaveBeenCalledWith(
+        "/api/proxy/company/staff/user-123",
+        expect.objectContaining({
+          method: "DELETE",
+          headers: expect.objectContaining({
+            "X-Auth-Required": "1",
+          }),
+        }),
+      );
+    });
+
+    it("passa query param ?companyId= quando informado", async () => {
+      vi.mocked(fetch).mockResolvedValue(
+        jsonResponse({ id: "user-123", removed: true }),
+      );
+
+      await apiService.companies.removeStaff("user-123", "comp-999");
+
+      expect(fetch).toHaveBeenCalledWith(
+        "/api/proxy/company/staff/user-123?companyId=comp-999",
+        expect.objectContaining({
+          method: "DELETE",
+        }),
+      );
+    });
+  });
 });
+

@@ -90,3 +90,47 @@ export function isClientRole(role?: string): boolean {
 export function getProfileRoute(role?: string): string {
   return isCompanyAdminRole(role) ? '/company-profile' : '/profile'
 }
+
+/**
+ * Define se o usuário atual tem permissão para remover um membro da equipe.
+ * Espelha as regras de DELETE /company/staff/:userId do backend (LDMF-231):
+ * - O usuário não pode remover a si mesmo (CANNOT_REMOVE_YOURSELF).
+ * - O proprietário (owner) não pode ser removido (CANNOT_REMOVE_OWNER).
+ * - manager só pode remover funções subordinadas (cook, delivery, financial),
+ *   não podendo remover outro manager nem admin (INSUFFICIENT_ROLE_TO_REMOVE).
+ * - admin não pode remover outro admin (INSUFFICIENT_ROLE_TO_REMOVE).
+ * - owner pode remover qualquer membro da equipe (exceto a si mesmo).
+ */
+export function canRemoveStaffMember(
+  requester?: { id?: string; role?: string } | null,
+  target?: { id: string; role: string } | null,
+): boolean {
+  if (!requester?.id || !requester.role || !target?.id || !target.role) {
+    return false
+  }
+
+  // Não pode remover a si mesmo
+  if (requester.id === target.id) {
+    return false
+  }
+
+  // Não pode remover o proprietário da empresa
+  if (target.role === 'owner') {
+    return false
+  }
+
+  if (requester.role === 'owner') {
+    return true
+  }
+
+  if (requester.role === 'admin') {
+    return target.role !== 'admin'
+  }
+
+  if (requester.role === 'manager') {
+    return target.role !== 'admin' && target.role !== 'manager'
+  }
+
+  return false
+}
+

@@ -325,6 +325,47 @@ describe("useAuthModal", () => {
       expect(result.current.step).toBe("form");
       expect(result.current.submitMessage).toEqual({ type: "error", text: "CPF já cadastrado" });
     });
+
+    it("menor de 18 anos não conclui o cadastro (LDMF-301)", async () => {
+      const { result } = renderModal("register");
+      const minorYear = new Date().getFullYear() - 15;
+      const minorBirthDate = `0101${minorYear}`;
+      type(result, { ...validRegister, birthDate: minorBirthDate });
+      act(() => result.current.setAcceptedTerms(true));
+
+      // isFormValid deve ser falso para menor de 18 anos
+      expect(result.current.isFormValid()).toBe(false);
+
+      // Submissão direta deve ser bloqueada sem chamar api.createUser
+      await act(async () => {
+        await result.current.handleSubmit();
+      });
+
+      expect(api.createUser).not.toHaveBeenCalled();
+      expect(result.current.step).toBe("form");
+      expect(result.current.submitMessage).toEqual({
+        type: "error",
+        text: "É necessário ter pelo menos 18 anos para se cadastrar.",
+      });
+    });
+
+    it("maior de 18 anos conclui o cadastro com sucesso (LDMF-301)", async () => {
+      api.createUser.mockResolvedValue({ success: true });
+      const { result } = renderModal("register");
+      const adultYear = new Date().getFullYear() - 20;
+      const adultBirthDate = `0101${adultYear}`;
+      type(result, { ...validRegister, birthDate: adultBirthDate });
+      act(() => result.current.setAcceptedTerms(true));
+
+      expect(result.current.isFormValid()).toBe(true);
+
+      await act(async () => {
+        await result.current.handleSubmit();
+      });
+
+      expect(api.createUser).toHaveBeenCalled();
+      expect(result.current.step).toBe("otp");
+    });
   });
 
   describe("código de verificação", () => {
