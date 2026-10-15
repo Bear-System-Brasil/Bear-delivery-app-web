@@ -811,6 +811,11 @@ export interface Company {
   isOpen?: boolean;
   categories?: Category[];
   specialty?: Specialty[];
+  /**
+   * Formas aceitas pelo restaurante (LDMF-289). Só vem em GET /company/:id,
+   * não na listagem. Opcional: ausente, o checkout oferece todas.
+   */
+  acceptedPaymentMethods?: PaymentMethod[];
   created_at: string;
   updated_at: string;
 }
@@ -1832,6 +1837,23 @@ export const apiService = {
       ),
 
     getById: (id: string) => apiRequest<Company>("GET", `/company/${id}`),
+
+    /**
+     * Grava as formas de pagamento aceitas (PATCH /company/:id, só admin e
+     * owner). Vai em JSON porque não há arquivo: em multipart o `update`
+     * abaixo transformaria a lista em "CASH,PIX", que o backend recusa. A
+     * lista substitui a anterior inteira, então mande sempre a completa.
+     */
+    updateAcceptedPaymentMethods: (
+      id: string,
+      acceptedPaymentMethods: PaymentMethod[],
+    ) =>
+      apiRequest<Company>(
+        "PATCH",
+        `/company/${id}`,
+        { acceptedPaymentMethods },
+        true,
+      ),
 
     update: async (
       id: string,
