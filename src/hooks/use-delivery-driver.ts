@@ -32,7 +32,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Socket, io } from "socket.io-client";
 import { toast } from "sonner";
 
-const POLL_INTERVAL = 15_000; // mesmo ritmo do painel da cozinha (use-order-management)
+const POLL_INTERVAL = 15_000; // ritmo padrão de polling para pedidos da equipe
 
 /**
  * Uma página só, no maior tamanho que o backend aceita.

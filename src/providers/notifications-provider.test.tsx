@@ -28,7 +28,7 @@ vi.mock("@/lib/order-alerts", () => ({
   triggerOrderAlert: vi.fn(),
   acknowledgeOrder: vi.fn(),
   stopOrderAlerts: vi.fn(),
-  getOrderManagementRoute: vi.fn((role) => (role === "cook" ? "/kitchen" : "/order-management")),
+  getOrderManagementRoute: vi.fn((role) => (role === "financial" ? "/financial-management/orders" : "/kitchen")),
 }));
 
 vi.mock("@/services/api", () => ({

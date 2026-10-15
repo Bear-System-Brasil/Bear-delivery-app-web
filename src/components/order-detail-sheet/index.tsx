@@ -1,10 +1,9 @@
 "use client";
 
 /**
- * Modal de detalhe de pedido — compartilhado entre /order-management e
- * /kitchen (e qualquer outra tela que precise do mesmo resumo). Não conhece
- * `ColumnId`/`COLUMN_ACTIONS` nem `KitchenStatus`/`KITCHEN_COLUMNS`: quem
- * chama já resolve o rótulo do botão principal para a própria tela.
+ * Modal de detalhe de pedido — usado por /kitchen (e qualquer outra tela
+ * que precise do mesmo resumo). Não conhece `KitchenStatus`/`KITCHEN_COLUMNS`:
+ * quem chama já resolve o rótulo do botão principal para a própria tela.
  */
 
 import { Badge } from "@/components/ui/badge";

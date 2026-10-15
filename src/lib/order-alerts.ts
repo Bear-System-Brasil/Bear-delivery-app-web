@@ -7,9 +7,8 @@
  *    enquanto houver pedidos novos não visualizados/atendidos.
  * 3. Para imediatamente assim que o pedido for aberto ou o aviso for clicado/dispensado.
  * 4. Respeita o perfil do usuário para rota e som:
- *    - cook: leva para /kitchen
+ *    - cook e papéis de gestão (owner, admin, manager): levam para /kitchen
  *    - financial: leva para /financial-management/orders (mudo por padrão)
- *    - outros de gestão (owner, admin, manager): levam para /order-management
  */
 
 import { notify } from "@/lib/notify";
@@ -26,9 +25,8 @@ function getOrderLabel(order: { id: string; orderNumber?: unknown }) {
 }
 
 export function getOrderManagementRoute(role?: string): string {
-  if (role === "cook") return "/kitchen";
   if (role === "financial") return "/financial-management/orders";
-  return "/order-management";
+  return "/kitchen";
 }
 
 function stopReminderTimer() {

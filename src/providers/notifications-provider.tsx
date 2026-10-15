@@ -4,9 +4,7 @@
  * Motor do sino global: fica de olho em pedidos e chama `notify()` quando
  * algo relevante muda, não importa em qual tela a pessoa está.
  *
- * Cliente e gestão são observados por caminhos diferentes porque hoje só a
- * cozinha tem socket - o resto do app é polling puro (ver
- * `use-order-management.ts` e `use-order-status.ts`):
+ * Cliente e gestão são observados por caminhos diferentes:
  *
  * - Cliente: não existe socket de pedido do cliente. Reaproveita
  *   `useUserOrders()` (já usado em /orders, mesmo cache do React Query) e

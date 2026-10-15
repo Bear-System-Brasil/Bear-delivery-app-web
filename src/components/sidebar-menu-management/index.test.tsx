@@ -78,12 +78,12 @@ describe("Sidebar da gestao - Entregas", () => {
 
     const hrefs = visibleHrefs();
 
-    // Pedidos, Cozinha e Entregas em sequencia - é a operação do dia a dia.
+    // Cozinha e Entregas em sequencia - é a operação do dia a dia.
+    expect(hrefs.indexOf("/kitchen")).toBe(
+      hrefs.indexOf("/category-management") + 1,
+    );
     expect(hrefs.indexOf("/delivery-dashboard")).toBe(
       hrefs.indexOf("/kitchen") + 1,
-    );
-    expect(hrefs.indexOf("/kitchen")).toBe(
-      hrefs.indexOf("/order-management") + 1,
     );
   });
 

@@ -16,12 +16,11 @@ const labels = (role?: string) =>
 
 describe("getWorkspaceLinks", () => {
   it.each(["owner", "admin", "manager"])(
-    "%s enxerga as cinco areas",
+    "%s enxerga as quatro areas",
     (role) => {
       expect(labels(role)).toEqual([
         "Gestão",
         "Cozinha",
-        "Pedidos",
         "Entregas",
         "Financeiro",
       ]);

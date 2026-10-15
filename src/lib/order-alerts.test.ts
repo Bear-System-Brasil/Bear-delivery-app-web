@@ -55,11 +55,11 @@ describe("order-alerts", () => {
       );
     });
 
-    it("demais papéis de gestão vão para /order-management", () => {
-      expect(getOrderManagementRoute("manager")).toBe("/order-management");
-      expect(getOrderManagementRoute("admin")).toBe("/order-management");
-      expect(getOrderManagementRoute("owner")).toBe("/order-management");
-      expect(getOrderManagementRoute(undefined)).toBe("/order-management");
+    it("demais papéis de gestão vão para /kitchen", () => {
+      expect(getOrderManagementRoute("manager")).toBe("/kitchen");
+      expect(getOrderManagementRoute("admin")).toBe("/kitchen");
+      expect(getOrderManagementRoute("owner")).toBe("/kitchen");
+      expect(getOrderManagementRoute(undefined)).toBe("/kitchen");
     });
   });
 
@@ -76,7 +76,7 @@ describe("order-alerts", () => {
         audience: "management",
         title: "Novo pedido recebido",
         body: "Pedido #101 acabou de chegar.",
-        href: "/order-management",
+        href: "/kitchen",
       });
 
       expect(toast.info).toHaveBeenCalledWith(
