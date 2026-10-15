@@ -20,6 +20,8 @@ type Props = {
   paymentMethod: string;
   changeAmount: string;
   needsChange: boolean;
+  /** Opções que o restaurante aceita. Ausente, mostra todas (LDMF-251). */
+  availableMethods?: string[];
 };
 
 type PaymentOption = {
@@ -65,7 +67,11 @@ export function PaymentMethod({
   paymentMethod,
   changeAmount,
   needsChange,
+  availableMethods,
 }: Props) {
+  const visibleOptions = availableMethods
+    ? paymentOptions.filter((option) => availableMethods.includes(option.value))
+    : paymentOptions;
   const normalizedChangeAmount = Number.parseFloat(
     changeAmount.replace(",", "."),
   );
@@ -98,7 +104,7 @@ export function PaymentMethod({
       </div>
 
       <div className="flex flex-wrap justify-around gap-2">
-        {paymentOptions.map((option) => {
+        {visibleOptions.map((option) => {
           const Icon = option.icon;
           const isActive = paymentMethod === option.value;
 

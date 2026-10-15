@@ -48,6 +48,7 @@ export function DeliveryWrapper() {
     addressCoords,
     applyCoords,
     paymentMethod,
+    availablePaymentMethods,
     changeAmount,
     needsChange,
     handleInputChange,
@@ -319,6 +320,7 @@ export function DeliveryWrapper() {
               setNeedsChange={setNeedsChange}
               setChangeAmount={setChangeAmount}
               paymentMethod={paymentMethod}
+              availableMethods={availablePaymentMethods}
               changeAmount={changeAmount}
               needsChange={needsChange}
               total={total}

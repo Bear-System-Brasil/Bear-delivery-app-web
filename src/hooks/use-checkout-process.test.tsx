@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
  * O corpo de POST /order/:id (finalizar) é o único lugar por onde o backend
@@ -833,6 +833,84 @@ describe("useCheckoutProcess - frete, total e valor do pagamento (LDMF-315)", ()
     expect(result.current.deliveryFee).toBe(0);
     expect(result.current.isDeliveryFeeKnown).toBe(false);
     expect(result.current.total).toBe(35.9);
+  });
+});
+
+describe("useCheckoutProcess - formas aceitas pelo restaurante (LDMF-251)", () => {
+  beforeEach(() => {
+    openingHoursQuery = { data: undefined, isLoading: false };
+    finishOrder.mockReset();
+    finishOrder.mockResolvedValue({ success: true, data: { id: "order-1" } });
+    openCart.mockReset();
+    paymentsCreate.mockReset();
+    paymentsCreate.mockResolvedValue({ success: true, data: {} });
+    resetAddressMocks();
+    addressesQuery = ADDRESSES_WITH_DEFAULT;
+    seedAddressBook(ADDRESSES_WITH_DEFAULT);
+  });
+
+  afterEach(() => {
+    RESTAURANT_QUERY.data = { id: "comp-1", deliveryFee: "0" };
+  });
+
+  it("sem acceptedPaymentMethods, oferece todas as formas", async () => {
+    RESTAURANT_QUERY.data = { id: "comp-1", deliveryFee: "0" };
+    const { result } = renderCheckout();
+    await waitFor(() => expect(result.current.selectedAddressId).toBe("addr-1"));
+
+    expect(result.current.availablePaymentMethods).toEqual([
+      "cash",
+      "credit_card_machine",
+      "debit_card_machine",
+      "pix_on_delivery",
+    ]);
+    expect(result.current.paymentMethod).toBe("cash");
+  });
+
+  it("oferece só as aceitas e sai do dinheiro quando ele não é aceito", async () => {
+    RESTAURANT_QUERY.data = {
+      id: "comp-1",
+      deliveryFee: "0",
+      acceptedPaymentMethods: ["PIX", "DEBIT_CARD"],
+    } as never;
+    const { result } = renderCheckout();
+    await waitFor(() => expect(result.current.selectedAddressId).toBe("addr-1"));
+
+    expect(result.current.availablePaymentMethods).toEqual([
+      "debit_card_machine",
+      "pix_on_delivery",
+    ]);
+    // O padrão "cash" não vale: passa para a primeira aceita.
+    expect(result.current.paymentMethod).toBe("debit_card_machine");
+  });
+
+  it("com uma forma só, ela já vem escolhida e o formulário é válido", async () => {
+    RESTAURANT_QUERY.data = {
+      id: "comp-1",
+      deliveryFee: "0",
+      acceptedPaymentMethods: ["PIX"],
+    } as never;
+    const { result } = renderCheckout();
+    await waitFor(() => expect(result.current.selectedAddressId).toBe("addr-1"));
+    act(() => result.current.setOrderType("delivery"));
+
+    expect(result.current.paymentMethod).toBe("pix_on_delivery");
+    expect(result.current.isFormValid()).toBe(true);
+  });
+
+  it("grava a forma aceita no pagamento", async () => {
+    RESTAURANT_QUERY.data = {
+      id: "comp-1",
+      deliveryFee: "0",
+      acceptedPaymentMethods: ["CREDIT_CARD"],
+    } as never;
+
+    await submitWith((h) => h.setOrderType("delivery"));
+
+    await waitFor(() => expect(paymentsCreate).toHaveBeenCalledTimes(1));
+    expect(paymentsCreate.mock.calls[0][0]).toMatchObject({
+      paymentMethod: "CREDIT_CARD",
+    });
   });
 });
 
