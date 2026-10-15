@@ -1894,6 +1894,22 @@ export const apiService = {
      */
     getStaff: () =>
       apiRequest<CompanyStaffMember[]>("GET", "/company/staff", undefined, true),
+
+    /**
+     * Remove um membro da equipe da empresa (DELETE /company/staff/:userId).
+     *
+     * A empresa vem do token JWT (ou por ?companyId= para admin).
+     * Roles permitidas no backend: owner, admin, manager (LDMF-231).
+     */
+    removeStaff: (userId: string, companyId?: string) =>
+      apiRequest<{ id: string; removed: boolean }>(
+        "DELETE",
+        companyId
+          ? `/company/staff/${userId}?companyId=${encodeURIComponent(companyId)}`
+          : `/company/staff/${userId}`,
+        undefined,
+        true,
+      ),
   },
 
   openingHours: {

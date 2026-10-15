@@ -45,6 +45,48 @@ export function resolveInviteErrorMessage(response: {
   return fromBackend || byStatus || "Não foi possível enviar o convite";
 }
 
+const REMOVE_ERROR_MESSAGES: Record<string, string> = {
+  CANNOT_REMOVE_YOURSELF: "Você não pode remover a si mesmo da equipe.",
+  CANNOT_REMOVE_OWNER: "Não é possível remover o proprietário da equipe.",
+  INSUFFICIENT_ROLE_TO_REMOVE:
+    "Você não tem permissão para remover este membro da equipe.",
+  STAFF_HAS_OPEN_CASH_REGISTER:
+    "Não é possível remover: o membro possui um caixa aberto.",
+  STAFF_HAS_ACTIVE_DELIVERY:
+    "Não é possível remover: o membro possui uma entrega em andamento.",
+  STAFF_NOT_FOUND: "Membro não encontrado na equipe.",
+  COMPANY_ID_REQUIRED: "Empresa não informada.",
+};
+
+const REMOVE_ERROR_BY_STATUS: Record<number, string> = {
+  400: "Não foi possível remover o membro da equipe.",
+  403: "Você não tem permissão para remover este membro da equipe.",
+  404: "Membro não encontrado na equipe.",
+  409: "Não é possível remover o membro com atividades em andamento.",
+};
+
+/**
+ * Mapeia mensagens de erro da remoção de membro (DELETE /company/staff/:userId).
+ */
+export function resolveRemoveStaffErrorMessage(response: {
+  message?: string;
+  status?: number;
+}): string {
+  if (response.message) {
+    if (REMOVE_ERROR_MESSAGES[response.message]) {
+      return REMOVE_ERROR_MESSAGES[response.message];
+    }
+    if (!GENERIC_API_MESSAGE.test(response.message)) {
+      return response.message;
+    }
+  }
+  if (response.status && REMOVE_ERROR_BY_STATUS[response.status]) {
+    return REMOVE_ERROR_BY_STATUS[response.status];
+  }
+  return "Não foi possível remover o membro da equipe";
+}
+
+
 /**
  * Membro como a tela usa. Só tem o que GET /company/staff devolve: a rota
  * não manda status nem data de convite, então a tela não mostra nenhum dos
@@ -90,8 +132,10 @@ export function toStaffMembers(data: unknown): StaffMember[] {
 /**
  * Hook para gerenciar a equipe da empresa.
  *
- * Listagem e convite são reais (GET /company/staff, POST /company/invite).
- * A remoção segue local: não existe endpoint para ela ainda.
+ * Listagem, convite e remoção são reais:
+ * - GET /company/staff
+ * - POST /company/invite
+ * - DELETE /company/staff/:userId (LDMF-231)
  */
 export const useTeamManagement = () => {
   const queryClient = useQueryClient();
@@ -100,13 +144,8 @@ export const useTeamManagement = () => {
   const [removeTarget, setRemoveTarget] = useState<StaffMember | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Remoção só existe no cliente enquanto o backend não expõe a rota. Guardar
-  // os ids removidos (em vez de reescrever a lista) mantém o cache da query
-  // como fonte única - um refetch traz o membro de volta, que é a verdade.
-  const [removedIds, setRemovedIds] = useState<string[]>([]);
-
   const {
-    data: fetchedStaff = [],
+    data: staff = [],
     isLoading,
     isError,
     error,
@@ -123,15 +162,14 @@ export const useTeamManagement = () => {
     staleTime: 60_000,
   });
 
-  const staff = useMemo(
-    () => fetchedStaff.filter((member) => !removedIds.includes(member.id)),
-    [fetchedStaff, removedIds],
-  );
-
-  const filteredStaff = staff.filter(
-    (member) =>
-      member.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      member.email.toLowerCase().includes(searchQuery.toLowerCase()),
+  const filteredStaff = useMemo(
+    () =>
+      staff.filter(
+        (member) =>
+          member.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          member.email.toLowerCase().includes(searchQuery.toLowerCase()),
+      ),
+    [staff, searchQuery],
   );
 
   const handleOpenInviteModal = () => {
@@ -169,6 +207,29 @@ export const useTeamManagement = () => {
       toast.error(error.message || "Não foi possível enviar o convite"),
   });
 
+  const removeMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      const response = await apiService.companies.removeStaff(userId);
+      if (!response.success) {
+        throw new Error(resolveRemoveStaffErrorMessage(response));
+      }
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: STAFF_QUERY_KEY });
+      toast.success(
+        removeTarget?.name
+          ? `${removeTarget.name} removido da equipe`
+          : "Membro removido da equipe",
+      );
+      setRemoveTarget(null);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Não foi possível remover o membro da equipe");
+      setRemoveTarget(null);
+    },
+  });
+
   // A checagem de duplicado saiu daqui de propósito: ela só enxergava o mock
   // local, e quem sabe de verdade quem já foi convidado é o backend - que
   // responde 409 nesse caso.
@@ -188,14 +249,13 @@ export const useTeamManagement = () => {
   };
 
   const handleCancelRemove = () => {
+    if (removeMutation.isPending) return;
     setRemoveTarget(null);
   };
 
   const handleConfirmRemove = () => {
-    if (!removeTarget) return;
-    setRemovedIds((prev) => [...prev, removeTarget.id]);
-    toast.success(`${removeTarget.name} removido da equipe nesta sessão`);
-    setRemoveTarget(null);
+    if (!removeTarget || removeMutation.isPending) return;
+    removeMutation.mutate(removeTarget.id);
   };
 
   return {
@@ -213,6 +273,7 @@ export const useTeamManagement = () => {
     formData,
     removeTarget,
     isInviting: inviteMutation.isPending,
+    isRemoving: removeMutation.isPending,
 
     handleOpenInviteModal,
     handleCloseModal,
