@@ -656,6 +656,41 @@ describe("useCartActions", () => {
       });
       expect(toast.error).toHaveBeenCalledWith("Sem estoque suficiente");
     });
+
+    it("não permite incrementar a quantidade além do estoque disponível em cache", async () => {
+      login();
+      const item: CartItem = {
+        id: "linha-1",
+        productId: "prod-1",
+        name: "Pizza",
+        price: 30,
+        quantity: 2,
+        restaurantId: "r1",
+        restaurantName: "Pizzaria",
+      };
+      act(() => {
+        useCartStore.getState().setOrderId("order-1");
+        useCartStore.getState().setItems([item]);
+      });
+
+      const queryClient = new QueryClient();
+      queryClient.setQueryData(["products", "company", "r1"], [
+        { id: "prod-1", name: "Pizza", stockQuantity: 2, isAvailable: true } as Product,
+      ]);
+
+      const customWrapper = ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      );
+
+      const { result } = renderHook(() => useCartActions(), { wrapper: customWrapper });
+
+      await act(async () => {
+        await result.current.handleUpdateQuantity("linha-1", 3);
+      });
+
+      expect(useCartStore.getState().items[0].quantity).toBe(2);
+      expect(toast.error).toHaveBeenCalledWith("Quantidade excede o estoque disponível.");
+    });
   });
 
   describe("handleUpdateQuantity - corrida entre rajadas e sync (LDMF-247)", () => {
@@ -1080,6 +1115,31 @@ describe("useCartActions", () => {
 
       expect(toast.error).toHaveBeenCalledWith(
         expect.stringContaining("Restaurante fechado"),
+      );
+      expect(pushMock).not.toHaveBeenCalledWith("/checkout");
+    });
+
+    it("handleGoToCheckout bloqueia navegação quando há item esgotado em cache", () => {
+      act(() => {
+        useCartStore.getState().setItems([
+          { id: "l1", productId: "p1", name: "X", price: 1, quantity: 1, restaurantId: "r1", restaurantName: "R" } as CartItem,
+        ]);
+      });
+
+      const queryClient = new QueryClient();
+      queryClient.setQueryData(["products", "company", "r1"], [
+        { id: "p1", name: "X", stockQuantity: 0, isAvailable: true } as Product,
+      ]);
+
+      const customWrapper = ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      );
+
+      const { result } = renderHook(() => useCartActions(), { wrapper: customWrapper });
+      act(() => result.current.handleGoToCheckout());
+
+      expect(toast.error).toHaveBeenCalledWith(
+        "Remova ou ajuste os itens esgotados antes de finalizar o pedido.",
       );
       expect(pushMock).not.toHaveBeenCalledWith("/checkout");
     });
