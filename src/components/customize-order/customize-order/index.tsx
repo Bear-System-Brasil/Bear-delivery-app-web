@@ -290,7 +290,16 @@ export function CustomizeOrder({
 
   const handleConfirmAddToCart = async () => {
     if (!productData || !restaurant || isCustomizationLoading) return;
-    if (pendingRequiredGroup || hasNoSellableVariation) return;
+    if (
+      pendingRequiredGroup ||
+      hasNoSellableVariation ||
+      isProductOutOfStock
+    ) {
+      return;
+    }
+    if (maxAllowedQuantity !== undefined && quantity > maxAllowedQuantity) {
+      return;
+    }
 
     if (!isStoreOpen) {
       toast.error(closedReasonText);
@@ -395,6 +404,38 @@ export function CustomizeOrder({
     !variationsLoading &&
     variations.length > 0 &&
     !variations.some(isSellableVariation);
+
+  const selectedVariationId = selections.variation?.[0];
+  const selectedVariation = variations.find((v) => v.id === selectedVariationId);
+
+  const availableStock = useMemo(() => {
+    if (variations.length > 0) {
+      if (!selectedVariation) return 0;
+      return selectedVariation.stockQuantity ?? 0;
+    }
+    return productData.stockQuantity;
+  }, [variations.length, selectedVariation, productData.stockQuantity]);
+
+  const isProductOutOfStock =
+    !variationsLoading &&
+    variations.length === 0 &&
+    (productData.isAvailable === false ||
+      (productData.stockQuantity !== undefined &&
+        productData.stockQuantity <= 0));
+
+  const maxAllowedQuantity =
+    availableStock !== undefined ? Math.max(0, availableStock) : undefined;
+
+  // Ajusta a quantidade se o tamanho selecionado tiver estoque menor que a quantidade atual
+  useEffect(() => {
+    if (
+      maxAllowedQuantity !== undefined &&
+      maxAllowedQuantity > 0 &&
+      quantity > maxAllowedQuantity
+    ) {
+      setQuantity(maxAllowedQuantity);
+    }
+  }, [maxAllowedQuantity, quantity]);
 
   const pendingRequiredGroup = extraGroups.find(
     (group) => group.required && (selections[group.id]?.length ?? 0) === 0,
@@ -534,7 +575,7 @@ export function CustomizeOrder({
             <button
               type="button"
               onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-              disabled={quantity <= 1 || !isStoreOpen}
+              disabled={quantity <= 1 || !isStoreOpen || isProductOutOfStock}
               className="flex h-8 w-[30px] items-center justify-center rounded-lg text-foreground disabled:opacity-40"
               aria-label="Diminuir quantidade"
             >
@@ -545,8 +586,19 @@ export function CustomizeOrder({
             </span>
             <button
               type="button"
-              onClick={() => setQuantity((q) => q + 1)}
-              disabled={!isStoreOpen}
+              onClick={() =>
+                setQuantity((q) =>
+                  maxAllowedQuantity !== undefined
+                    ? Math.min(q + 1, maxAllowedQuantity)
+                    : q + 1,
+                )
+              }
+              disabled={
+                !isStoreOpen ||
+                isProductOutOfStock ||
+                (maxAllowedQuantity !== undefined &&
+                  quantity >= maxAllowedQuantity)
+              }
               className="flex h-8 w-[30px] items-center justify-center rounded-lg text-foreground disabled:opacity-40"
               aria-label="Aumentar quantidade"
             >
@@ -558,6 +610,7 @@ export function CustomizeOrder({
             onClick={handleConfirmAddToCart}
             disabled={
               !isStoreOpen ||
+              isProductOutOfStock ||
               isAddingToCart ||
               isCustomizationLoading ||
               !!pendingRequiredGroup ||
@@ -572,6 +625,8 @@ export function CustomizeOrder({
               </span>
             ) : !isStoreOpen ? (
               <span>Restaurante fechado</span>
+            ) : isProductOutOfStock ? (
+              <span>Esgotado</span>
             ) : isAddingToCart ? (
               <span className="flex items-center justify-center gap-2">
                 <span className="h-4 w-4 animate-spin rounded-full border-b-2 border-white" />
