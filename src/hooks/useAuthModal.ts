@@ -3,6 +3,7 @@ import { apiService } from "@/services/api";
 import { useAuthStore } from "@/stores";
 import { normalizeAuthUser } from "@/stores/auth-store";
 import type { RawAuthUser } from "@/services/api";
+import { isAdult, formatCpfDisplay } from "@/utils";
 
 interface UseAuthModalProps {
   isOpen: boolean;
@@ -60,11 +61,6 @@ export function useAuthModal({
     if (isOpen) setActiveTab(defaultTab);
   }, [isOpen, defaultTab]);
 
-  const formatCPF = (value: string) => {
-    const numbers = value.replace(/\D/g, "");
-    return numbers.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
-  };
-
   const formatPhone = (value: string) => {
     const numbers = value.replace(/\D/g, "");
     return numbers.replace(/(\d{2})(\d{5})(\d{4})/, "($1) $2-$3");
@@ -93,7 +89,7 @@ export function useAuthModal({
     }
 
     let formattedValue = normalizedValue;
-    if (field === "cpf") formattedValue = formatCPF(value);
+    if (field === "cpf") formattedValue = formatCpfDisplay(value);
     if (field === "phone") formattedValue = formatPhone(value);
     if (field === "birthDate") formattedValue = formatDate(value);
 
@@ -130,6 +126,7 @@ export function useAuthModal({
         registerData.password &&
         registerData.confirmPassword &&
         registerData.birthDate &&
+        isAdult(registerData.birthDate) &&
         passwordErrors.length === 0 &&
         passwordMatch &&
         acceptedTerms
@@ -184,6 +181,14 @@ export function useAuthModal({
           setSubmitMessage({ type: "error", text: loginResponse.message || "Email ou senha incorretos. Tente novamente." });
         }
       } else {
+        if (!isAdult(registerData.birthDate)) {
+          setSubmitMessage({
+            type: "error",
+            text: "É necessário ter pelo menos 18 anos para se cadastrar.",
+          });
+          return;
+        }
+
         const cpfDigits = registerData.cpf.replace(/\D/g, "");
         const apiData = {
           name: registerData.name,
