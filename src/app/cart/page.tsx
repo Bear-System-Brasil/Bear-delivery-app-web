@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
+  AlertTriangle,
   ArrowLeft,
   Clock3,
   Minus,
@@ -21,8 +22,16 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { DEFAULT_DELIVERY_FEE } from "@/constants/delivery-defaults";
-import { useCartActions, useRestaurant, useRestaurantOpeningHours } from "@/hooks";
+import {
+  useCartActions,
+  useCompanyProducts,
+  usePublicCompanyProductVariations,
+  useRestaurant,
+  useRestaurantOpeningHours,
+} from "@/hooks";
 import { resolveRestaurantOpenStatus } from "@/constants/opening-hours";
+import { getCartStockIssues } from "@/lib/cart-stock";
+import { cn } from "@/lib/utils";
 import {
   getDeliveryDiscount,
   getPromoDiscount,
@@ -65,6 +74,54 @@ export default function CartPage() {
   const { data: restaurant } = useRestaurant(restaurantId);
   const { data: openingHoursData } = useRestaurantOpeningHours(restaurantId);
   const openStatus = resolveRestaurantOpenStatus(openingHoursData, restaurant);
+
+  const { data: companyVariations = [], refetch: refetchVariations } =
+    usePublicCompanyProductVariations(restaurantId);
+  const { data: companyProducts = [], refetch: refetchProducts } =
+    useCompanyProducts(restaurantId);
+
+  const stockResult = useMemo(
+    () => getCartStockIssues(items, companyProducts, companyVariations),
+    [items, companyProducts, companyVariations],
+  );
+
+  const [isCheckingStock, setIsCheckingStock] = useState(false);
+
+  const handleProceedToCheckout = async () => {
+    if (!openStatus.isOpen) return;
+
+    setIsCheckingStock(true);
+    try {
+      // Rechecar o estoque com dados atualizados do backend antes de ir para o checkout
+      const [freshVariationsRes, freshProductsRes] = await Promise.all([
+        refetchVariations(),
+        refetchProducts(),
+      ]);
+
+      const freshVariations = freshVariationsRes.data ?? companyVariations;
+      const freshProducts = freshProductsRes.data ?? companyProducts;
+
+      const freshIssues = getCartStockIssues(
+        items,
+        freshProducts,
+        freshVariations,
+      );
+
+      if (freshIssues.hasIssues) {
+        toast.error(
+          "Remova ou ajuste os itens esgotados antes de finalizar o pedido.",
+        );
+        return;
+      }
+
+      handleGoToCheckout();
+    } catch (error) {
+      console.error("Erro ao verificar estoque atualizado:", error);
+      handleGoToCheckout();
+    } finally {
+      setIsCheckingStock(false);
+    }
+  };
 
   useEffect(() => {
     setIsMounted(true);
@@ -251,18 +308,29 @@ export default function CartPage() {
               {items.map((item) => {
                 const extrasLabel = getItemExtrasLabel(item);
                 const itemTotal = item.price * item.quantity;
+                const stockStatus = stockResult.itemIssues.get(item.id);
+                const isOutOfStock = stockStatus?.isOutOfStock ?? false;
+                const exceedsStock = stockStatus?.exceedsStock ?? false;
+                const availableStock = stockStatus?.availableStock;
 
                 return (
                   <Card
                     key={item.id}
-                    className="flex gap-3 border-border bg-card p-3 shadow-sm"
+                    className={cn(
+                      "flex gap-3 border-border bg-card p-3 shadow-sm transition",
+                      (isOutOfStock || exceedsStock) &&
+                        "border-red-500/50 bg-red-50/20 dark:bg-red-950/10",
+                    )}
                   >
                     <Image
                       width={72}
                       height={72}
                       src={getItemImage(item)}
                       alt={item.name}
-                      className="h-[72px] w-[72px] shrink-0 rounded-[10px] bg-muted object-cover"
+                      className={cn(
+                        "h-[72px] w-[72px] shrink-0 rounded-[10px] bg-muted object-cover",
+                        isOutOfStock && "opacity-50 grayscale",
+                      )}
                     />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-start justify-between gap-3">
@@ -288,6 +356,25 @@ export default function CartPage() {
                         <p className="mt-1 truncate text-xs font-bold text-brand-600 dark:text-brand-400">
                           {extrasLabel}
                         </p>
+                      )}
+
+                      {/* Sinalização de estoque para LDMF-273 */}
+                      {isOutOfStock && (
+                        <div className="mt-1.5 flex items-center gap-1.5 text-xs font-bold text-red-600 dark:text-red-400">
+                          <span className="rounded bg-red-100 dark:bg-red-950/80 px-1.5 py-0.5 text-[10.5px] font-extrabold uppercase tracking-wide">
+                            Esgotado
+                          </span>
+                          <span>Item sem estoque</span>
+                        </div>
+                      )}
+
+                      {!isOutOfStock && exceedsStock && availableStock !== undefined && (
+                        <div className="mt-1.5 flex items-center gap-1.5 text-xs font-bold text-amber-600 dark:text-amber-400">
+                          <span className="rounded bg-amber-100 dark:bg-amber-950/80 px-1.5 py-0.5 text-[10.5px] font-extrabold uppercase tracking-wide">
+                            Estoque insuficiente
+                          </span>
+                          <span>Apenas {availableStock} disponíveis</span>
+                        </div>
                       )}
 
                       <div className="mt-3 flex items-center justify-between gap-3">
@@ -318,7 +405,12 @@ export default function CartPage() {
                             onClick={() =>
                               handleUpdateQuantity(item.id, item.quantity + 1)
                             }
-                            className="h-7 w-7 rounded-md text-foreground hover:bg-card"
+                            disabled={
+                              isOutOfStock ||
+                              (availableStock !== undefined &&
+                                item.quantity >= availableStock)
+                            }
+                            className="h-7 w-7 rounded-md text-foreground hover:bg-card disabled:opacity-40"
                             aria-label={`Aumentar quantidade de ${item.name}`}
                             title="Aumentar quantidade"
                           >
@@ -421,15 +513,38 @@ export default function CartPage() {
                   </div>
                 )}
 
+                {openStatus.isOpen && stockResult.hasIssues && (
+                  <div
+                    role="alert"
+                    className="mt-4 flex items-start gap-2.5 rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-xs text-red-700 dark:text-red-300"
+                  >
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <div>
+                      <p className="font-semibold">Itens esgotados no carrinho</p>
+                      <p className="mt-0.5">
+                        Remova ou ajuste a quantidade dos itens sinalizados para prosseguir.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 <Button
                   type="button"
-                  onClick={handleGoToCheckout}
-                  disabled={!openStatus.isOpen}
+                  onClick={handleProceedToCheckout}
+                  disabled={
+                    !openStatus.isOpen ||
+                    stockResult.hasIssues ||
+                    isCheckingStock
+                  }
                   className="mt-4 h-11 w-full rounded-lg bg-brand-500 text-sm font-extrabold hover:bg-brand-600 disabled:opacity-60"
                 >
-                  {!openStatus.isOpen
-                    ? "Restaurante fechado"
-                    : "Finalizar pedido"}
+                  {isCheckingStock
+                    ? "Verificando estoque..."
+                    : !openStatus.isOpen
+                      ? "Restaurante fechado"
+                      : stockResult.hasIssues
+                        ? "Itens esgotados no carrinho"
+                        : "Finalizar pedido"}
                 </Button>
 
                 <p className="mt-3 text-center text-[11px] font-semibold text-muted-foreground">
