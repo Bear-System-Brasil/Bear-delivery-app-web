@@ -13,6 +13,7 @@ import { useAuth } from "@/contexts/auth-provider";
 import { ArrowLeft, ShieldCheck, Store, ThumbsUp } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { isValidCpf } from "@/utils";
 
 import { AnimatedBackground } from "@/components/ui/animated-background";
 import { GradientButton } from "@/components/ui/gradient-button";
@@ -44,6 +45,7 @@ export function DeliveryWrapper() {
     orderType,
     setOrderType,
     isDeliveryValid,
+    hasCpf,
     deliveryInfo,
     addressCoords,
     applyCoords,
@@ -95,6 +97,15 @@ export function DeliveryWrapper() {
 
     if (!isDeliveryValid()) {
       toast.dismiss?.();
+      if (
+        !hasCpf &&
+        deliveryInfo?.name &&
+        deliveryInfo?.phone &&
+        !isValidCpf(deliveryInfo?.cpf || "")
+      ) {
+        toast.error("Informe um CPF válido para continuar.");
+        return;
+      }
       toast.error(
         orderType === "pickup"
           ? "Preencha nome e telefone para continuar."
@@ -312,6 +323,7 @@ export function DeliveryWrapper() {
               orderType={orderType}
               setOrderType={setOrderType}
               restaurant={restaurant}
+              hasCpf={hasCpf}
             />
           ) : (
             <PaymentMethod
