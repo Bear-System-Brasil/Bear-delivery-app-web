@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { decodeJwt, isExpired } from "@/lib/jwt";
 import { getSessionToken } from "@/lib/session";
+import { noStore } from "@/lib/no-store";
 
 export const dynamic = "force-dynamic";
 
@@ -16,8 +17,8 @@ export async function GET() {
   const payload = token ? decodeJwt(token) : null;
 
   if (!token || !payload || isExpired(payload)) {
-    return NextResponse.json({ token: null }, { status: 401 });
+    return noStore(NextResponse.json({ token: null }, { status: 401 }));
   }
 
-  return NextResponse.json({ token });
+  return noStore(NextResponse.json({ token }));
 }
