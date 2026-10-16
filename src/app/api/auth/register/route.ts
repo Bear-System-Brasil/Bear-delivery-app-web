@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { API_BASE_URL } from "@/lib/api-config";
 import { decodeJwt } from "@/lib/jwt";
 import { SESSION_COOKIE, sessionCookieOptions } from "@/lib/session";
+import { noStore } from "@/lib/no-store";
 
 export const dynamic = "force-dynamic";
 
@@ -40,10 +41,10 @@ export async function POST(request: Request) {
         ? result.message
         : `Erro ${upstream.status}`;
 
-    return NextResponse.json(
+    return noStore(NextResponse.json(
       { success: false, message: msg },
       { status: upstream.status || 500 },
-    );
+    ));
   }
 
   // Faz login para obter o JWT da nova conta e persistir o cookie de sessão
@@ -61,14 +62,14 @@ export async function POST(request: Request) {
   const token: string | undefined = loginResult?.data?.token;
 
   if (!loginRes.ok || !token) {
-    return NextResponse.json({
+    return noStore(NextResponse.json({
       success: true,
       data: {
         data: {
           user: result,
         },
       },
-    });
+    }));
   }
 
   const payload = decodeJwt(token);
@@ -86,5 +87,5 @@ export async function POST(request: Request) {
   });
 
   response.cookies.set(SESSION_COOKIE, token, sessionCookieOptions());
-  return response;
+  return noStore(response);
 }

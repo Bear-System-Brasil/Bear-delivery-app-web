@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { apiService } from "@/services/api";
 import { useAuthStore } from "@/stores";
 import { useAuthModal } from "./useAuthModal";
+import { BIRTH_DATE_MESSAGES } from "@/utils";
 
 vi.mock("@/services/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/services/api")>();
@@ -345,8 +346,91 @@ describe("useAuthModal", () => {
       expect(result.current.step).toBe("form");
       expect(result.current.submitMessage).toEqual({
         type: "error",
-        text: "É necessário ter pelo menos 18 anos para se cadastrar.",
+        text: BIRTH_DATE_MESSAGES.underage,
       });
+    });
+
+    it("data futura ou inexistente também bloqueia, com a mensagem da regra (LDMF-303)", async () => {
+      const { result } = renderModal("register");
+      act(() => result.current.setAcceptedTerms(true));
+
+      type(result, { ...validRegister, birthDate: "31022000" });
+      expect(result.current.registerData.birthDate).toBe("31/02/2000");
+      expect(result.current.isFormValid()).toBe(false);
+
+      type(result, { birthDate: `0101${new Date().getFullYear() + 1}` });
+      expect(result.current.isFormValid()).toBe(false);
+      await act(async () => {
+        await result.current.handleSubmit();
+      });
+
+      expect(api.createUser).not.toHaveBeenCalled();
+      expect(result.current.submitMessage).toEqual({
+        type: "error",
+        text: BIRTH_DATE_MESSAGES.future,
+      });
+    });
+
+    it("recusa de data pelo back aparece no campo com message[0] e some ao editar a data (LDMF-303)", async () => {
+      api.createUser.mockResolvedValue({
+        success: false,
+        status: 400,
+        code: "UNDERAGE",
+        message: "Data de nascimento inválida, usuário menor de idade.",
+      });
+      const { result } = renderModal("register");
+      type(result, validRegister);
+      act(() => result.current.setAcceptedTerms(true));
+
+      await act(async () => {
+        await result.current.handleSubmit();
+      });
+
+      expect(result.current.birthDateServerError).toBe(
+        "Data de nascimento inválida, usuário menor de idade.",
+      );
+      expect(result.current.submitMessage).toEqual({
+        type: "error",
+        text: "Data de nascimento inválida, usuário menor de idade.",
+      });
+
+      type(result, { birthDate: "02011990" });
+      expect(result.current.birthDateServerError).toBeNull();
+    });
+
+    it("erro sem code de data não vai para o campo de data", async () => {
+      api.createUser.mockResolvedValue({ success: false, status: 409, message: "E-mail já cadastrado" });
+      const { result } = renderModal("register");
+      type(result, validRegister);
+      act(() => result.current.setAcceptedTerms(true));
+
+      await act(async () => {
+        await result.current.handleSubmit();
+      });
+
+      expect(result.current.birthDateServerError).toBeNull();
+      expect(result.current.submitMessage).toEqual({ type: "error", text: "E-mail já cadastrado" });
+    });
+
+    it("o cadastro manda birthDate em DD/MM/YYYY (contrato LDMF-302)", async () => {
+      api.createUser.mockResolvedValue({ success: true });
+      const { result } = renderModal("register");
+      type(result, { ...validRegister, birthDate: "15051990" });
+      act(() => result.current.setAcceptedTerms(true));
+
+      await act(async () => {
+        await result.current.handleSubmit();
+      });
+
+      expect(api.createUser).toHaveBeenCalledWith(
+        expect.objectContaining({ birthDate: "15/05/1990" }),
+      );
+    });
+
+    it("a máscara da data entra enquanto digita (LDMF-303)", () => {
+      const { result } = renderModal("register");
+      type(result, { birthDate: "151" });
+      expect(result.current.registerData.birthDate).toBe("15/1");
     });
 
     it("maior de 18 anos conclui o cadastro com sucesso (LDMF-301)", async () => {

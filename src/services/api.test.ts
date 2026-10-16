@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { apiService } from "./api";
+import { apiService, PaymentMethod } from "./api";
 
 /**
  * `apiRequest` (o único ponto que fala HTTP nesse arquivo) não é exportado -
@@ -104,6 +104,71 @@ describe("apiService (via apiRequest)", () => {
     expect(listener).not.toHaveBeenCalled();
 
     window.removeEventListener("auth:unauthorized", listener);
+  });
+
+  describe("erros de data de nascimento pelo code (LDMF-303)", () => {
+    it("repassa o code do corpo de erro e mostra message[0]", async () => {
+      vi.mocked(fetch).mockResolvedValue(
+        jsonResponse(
+          {
+            message: ["Data de nascimento inválida, usuário menor de idade."],
+            code: "UNDERAGE",
+            statusCode: 400,
+          },
+          { status: 400 },
+        ),
+      );
+      const result = await apiService.createUser({
+        name: "Ana",
+        email: "ana@example.com",
+        phone: "41999990000",
+        password: "Senha@1",
+        birthDate: "16/10/2010",
+        role: "client",
+      } as never);
+
+      expect(result.code).toBe("UNDERAGE");
+      expect(getBirthDateApiError(result)).toBe(
+        "Data de nascimento inválida, usuário menor de idade.",
+      );
+    });
+
+    it("sem code no corpo, o resultado não traz code", async () => {
+      vi.mocked(fetch).mockResolvedValue(jsonResponse({ message: ["x"] }, { status: 400 }));
+      const result = await apiService.getAllProducts();
+      expect(result.code).toBeUndefined();
+    });
+
+    it("getBirthDateApiError ignora outros codes e erro sem code", () => {
+      expect(getBirthDateApiError({ code: "CPF_REQUIRED", message: "CPF obrigatório" })).toBeNull();
+      expect(getBirthDateApiError({ message: "Erro qualquer" })).toBeNull();
+    });
+
+    it("getBirthDateApiError nunca devolve JSON cru: cai na mensagem local", () => {
+      expect(
+        getBirthDateApiError({ code: "INVALID_BIRTH_DATE", message: '{"field":"birthDate"}' }),
+      ).toBe(BIRTH_DATE_MESSAGES.invalid);
+      expect(getBirthDateApiError({ code: "UNDERAGE", message: "" })).toBe(
+        BIRTH_DATE_MESSAGES.underage,
+      );
+      expect(getBirthDateApiError({ code: "UNDERAGE" })).toBe(BIRTH_DATE_MESSAGES.underage);
+    });
+  });
+
+  describe("formato da data de nascimento enviada ao back (contrato LDMF-302)", () => {
+    it("o perfil manda birthDate em DD/MM/YYYY", async () => {
+      vi.mocked(fetch).mockResolvedValue(jsonResponse({ id: "u1" }));
+      await apiService.updateUser({ name: "Ana", birthDate: "15/05/1990" });
+      const [, config] = vi.mocked(fetch).mock.calls[0];
+      expect(JSON.parse(String(config?.body))).toMatchObject({ birthDate: "15/05/1990" });
+    });
+
+    it("o perfil converte AAAA-MM-DD para DD/MM/YYYY antes de enviar", async () => {
+      vi.mocked(fetch).mockResolvedValue(jsonResponse({ id: "u1" }));
+      await apiService.updateUser({ name: "Ana", birthDate: "1990-05-15" });
+      const [, config] = vi.mocked(fetch).mock.calls[0];
+      expect(JSON.parse(String(config?.body))).toMatchObject({ birthDate: "15/05/1990" });
+    });
   });
 
   describe("extração de mensagem de erro", () => {
@@ -451,5 +516,26 @@ describe("apiService (via apiRequest)", () => {
       );
     });
   });
-});
 
+  describe("companies.updateAcceptedPaymentMethods (LDMF-251)", () => {
+    it("manda a lista como array em JSON no PATCH /company/:id, autenticado", async () => {
+      vi.mocked(fetch).mockResolvedValue(jsonResponse({ id: "comp-1" }));
+
+      await apiService.companies.updateAcceptedPaymentMethods("comp-1", [
+        PaymentMethod.PIX,
+        PaymentMethod.CASH,
+      ]);
+
+      const [url, config] = vi.mocked(fetch).mock.calls[0];
+      expect(url).toBe("/api/proxy/company/comp-1");
+      expect(config?.method).toBe("PATCH");
+      expect(
+        (config?.headers as Record<string, string>)["X-Auth-Required"],
+      ).toBe("1");
+      // Array de verdade, não "PIX,CASH" como texto.
+      expect(JSON.parse(config?.body as string)).toEqual({
+        acceptedPaymentMethods: ["PIX", "CASH"],
+      });
+    });
+  });
+});
