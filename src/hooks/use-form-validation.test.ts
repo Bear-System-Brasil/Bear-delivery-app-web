@@ -7,6 +7,7 @@ import {
   useLoginForm,
   useProfileForm,
 } from "./use-form-validation";
+import { BIRTH_DATE_MESSAGES } from "@/utils";
 
 describe("profileSchema", () => {
   it("aceita um perfil válido com CPF", () => {
@@ -66,6 +67,33 @@ describe("profileSchema", () => {
       phone: "11987654321",
     });
     expect(result.success).toBe(false);
+  });
+});
+
+describe("profileSchema - data de nascimento (LDMF-303)", () => {
+  const base = { name: "Maria", email: "maria@example.com", phone: "11987654321" };
+  const birthDateError = (birthDate?: string) => {
+    const result = profileSchema.safeParse({ ...base, birthDate });
+    return result.success
+      ? null
+      : result.error.issues.find((i) => i.path[0] === "birthDate")?.message ?? null;
+  };
+
+  it("usa a mesma regra do cadastro", () => {
+    expect(birthDateError("01/01/1990")).toBeNull();
+    expect(birthDateError(`01/01/${new Date().getFullYear() - 10}`)).toBe(
+      BIRTH_DATE_MESSAGES.underage,
+    );
+    expect(birthDateError("31/02/2000")).toBe(BIRTH_DATE_MESSAGES.invalid);
+    expect(birthDateError(`01/01/${new Date().getFullYear() + 1}`)).toBe(
+      BIRTH_DATE_MESSAGES.future,
+    );
+    expect(birthDateError("01/01/1800")).toBe(BIRTH_DATE_MESSAGES.invalid);
+  });
+
+  it("vazia continua aceita (o perfil não manda birthDate)", () => {
+    expect(birthDateError("")).toBeNull();
+    expect(birthDateError(undefined)).toBeNull();
   });
 });
 

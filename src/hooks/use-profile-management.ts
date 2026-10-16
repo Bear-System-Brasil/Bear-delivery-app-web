@@ -6,14 +6,18 @@ import {
 } from "@/lib/address-coordinates";
 import { parseCoords } from "@/lib/geocode";
 import { findNeighborhood, neighborhoodLabel } from "@/services/neighborhoods";
-import { apiService, type UpdateUserRequest } from "@/services/api";
+import {
+  apiService,
+  getBirthDateApiError,
+  type UpdateUserRequest,
+} from "@/services/api";
 import {
   restorePendingDefaultAddress,
   setDefaultAddress,
 } from "@/lib/default-address";
 import { useAuthStore } from "@/stores";
 import { Coords } from "@/types/restaurant";
-import { getErrorMessage, onlyNumbers, toDateInputFormat } from "@/utils";
+import { formatDate, getErrorMessage, onlyNumbers } from "@/utils";
 import { isCompanyAdminRole } from "@/utils/role-helpers";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
@@ -103,7 +107,7 @@ export const useProfileManagement = () => {
     email: user?.email || "",
     cpf: user?.cpf || "",
     phone: user?.phone || "",
-    birthDate: toDateInputFormat(user?.birthDate),
+    birthDate: formatDate(user?.birthDate ?? ""),
   });
   const addressForm = useAddressForm();
 
@@ -292,7 +296,7 @@ export const useProfileManagement = () => {
       email: user.email || "",
       cpf: user.cpf || "",
       phone: user.phone || "",
-      birthDate: toDateInputFormat(user.birthDate),
+      birthDate: formatDate(user.birthDate ?? ""),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
@@ -449,6 +453,15 @@ export const useProfileManagement = () => {
       editingState.close();
       toast.success("Perfil atualizado com sucesso!");
     } catch (error) {
+      const birthDateError =
+        typeof error === "object" && error !== null
+          ? getBirthDateApiError(error)
+          : null;
+      if (birthDateError) {
+        profileForm.setError("birthDate", { message: birthDateError });
+        toast.error(birthDateError);
+        return;
+      }
       toast.error(getErrorMessage(error, "Erro ao atualizar perfil"));
     }
   };

@@ -17,10 +17,10 @@ import { useAuthModal } from "@/hooks/useAuthModal";
 import { PASSWORD_RECOVERY_UNAVAILABLE } from "@/constants/password-change";
 import { LEGAL_CONTACT_EMAIL } from "@/components/legal-page";
 import type { RawAuthUser } from "@/services/api";
-import { isAdult, isCompleteDateFormat } from "@/utils";
+import { getBirthDateError } from "@/utils";
+import { BirthDateInput } from "@/components/birth-date-input";
 import {
   ArrowRight,
-  Calendar,
   CheckCircle,
   CreditCard,
   Lock,
@@ -51,6 +51,7 @@ export default function AuthModal({
     loginData,
     resetPasswordData, setResetPasswordData,
     registerData,
+    birthDateServerError,
     acceptedTerms,
     setAcceptedTerms,
     otpData, setOtpData,
@@ -206,7 +207,7 @@ export default function AuthModal({
                         />
                       </div>
                       <p className="text-[11px] text-muted-foreground mt-0.5">
-                        Utilizado para emissão de nota fiscal. Pode ser informado no primeiro pedido.
+                        Vamos pedir seu CPF no primeiro pedido. Se preferir, já informe agora.
                       </p>
                     </div>
                   </div>
@@ -233,23 +234,13 @@ export default function AuthModal({
                       <Label htmlFor="birthDate" className="text-xs sm:text-sm font-semibold text-foreground">
                         Nascimento
                       </Label>
-                      <div className="relative">
-                        <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-                        <Input
-                          id="birthDate"
-                          placeholder="DD/MM/AAAA"
-                          value={registerData.birthDate}
-                          onChange={(e) => handleInputChange("birthDate", e.target.value)}
-                          maxLength={10}
-                          className="pl-10 rounded-xl border-2 border-border focus:border-brand-400 h-9 sm:h-10 text-xs sm:text-sm"
-                        />
-                      </div>
-                      {isCompleteDateFormat(registerData.birthDate) &&
-                        !isAdult(registerData.birthDate) && (
-                          <p className="text-xs text-red-600 dark:text-red-400 mt-1">
-                            É necessário ter pelo menos 18 anos para se cadastrar.
-                          </p>
-                        )}
+                      <BirthDateInput
+                        id="birthDate"
+                        value={registerData.birthDate}
+                        onChange={(value) => handleInputChange("birthDate", value)}
+                        error={birthDateServerError ?? getBirthDateError(registerData.birthDate)}
+                        className="h-9 sm:h-10 text-xs sm:text-sm"
+                      />
                     </div>
                   </div>
 

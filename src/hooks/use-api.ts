@@ -64,7 +64,12 @@ export function useProfile() {
     async (data: Partial<UpdateUserRequest>) => {
       const response = await apiService.updateUser(data);
       if (!response.success) {
-        throw new Error(response.message || "Erro ao atualizar perfil");
+        // Leva o `code` do back junto, para a tela mostrar recusa de data de
+        // nascimento no próprio campo (LDMF-303).
+        throw Object.assign(
+          new Error(response.message || "Erro ao atualizar perfil"),
+          { code: response.code },
+        );
       }
       return response;
     },
