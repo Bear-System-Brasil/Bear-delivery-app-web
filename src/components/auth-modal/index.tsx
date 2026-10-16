@@ -206,7 +206,7 @@ export default function AuthModal({
                         />
                       </div>
                       <p className="text-[11px] text-muted-foreground mt-0.5">
-                        Utilizado para emissão de nota fiscal. Pode ser informado no primeiro pedido.
+                        Vamos pedir seu CPF no primeiro pedido. Se preferir, já informe agora.
                       </p>
                     </div>
                   </div>
