@@ -1825,5 +1825,67 @@ describe("useCartActions", () => {
         ]);
       });
     });
+
+    describe("outra aba trocou o carrinho, sem recarregar esta", () => {
+      // Esta aba ainda acha que o carrinho é da Loja B; outra aba esvaziou e
+      // encheu o mesmo `cart:user-1` com a Loja A
+      function setupStaleTab() {
+        login();
+        const backend = realisticBackend({ companyId: "rA", products: ["prod-a"] });
+        act(() => {
+          useCartStore.getState().setOrderId("cart:user-1");
+          useCartStore.getState().setRestaurant({ id: "rB", name: "Loja B" });
+          useCartStore.getState().setItems([
+            { ...itemDa("prod-b1"), id: "prod-b1::::", productId: "prod-b1" },
+          ]);
+        });
+        return backend;
+      }
+
+      it("desfaz o item no backend e pergunta com os nomes certos; confirmando, troca", async () => {
+        const backend = setupStaleTab();
+        const { result } = renderCartActions();
+
+        await add(result, "prod-b2");
+
+        await waitFor(() =>
+          expect(confirmMock).toHaveBeenCalledWith(
+            expect.objectContaining({
+              title: "Trocar de restaurante?",
+              currentRestaurant: "Loja A",
+              newRestaurant: "Loja B",
+            }),
+          ),
+        );
+        // O item que caiu no carrinho da Loja A saiu de lá
+        expect(apiService.orderItems.removeProductFromCart).toHaveBeenCalledWith(
+          "user-1",
+          "cart:user-1",
+          "prod-b2",
+          1,
+        );
+
+        await waitFor(() => expect(backend.cart?.companyId).toBe("rB"));
+        await waitFor(() =>
+          expect(backend.cart?.orderedItems?.map((i) => i.productId)).toEqual(["prod-b2"]),
+        );
+        expect(useCartStore.getState().restaurant).toEqual({ id: "rB", name: "Loja B" });
+      });
+
+      it("cancelando, o carrinho da outra loja fica como estava e a tela mostra ele", async () => {
+        const backend = setupStaleTab();
+        confirmMock.mockResolvedValueOnce(false);
+        const { result } = renderCartActions();
+
+        await add(result, "prod-b2");
+
+        await waitFor(() => expect(confirmMock).toHaveBeenCalled());
+        await act(() => sleep(0));
+        expect(backend.cart?.companyId).toBe("rA");
+        expect(backend.cart?.orderedItems?.map((i) => i.productId)).toEqual(["prod-a"]);
+        expect(useCartStore.getState().restaurant).toEqual({ id: "rA", name: "Loja A" });
+        expect(useCartStore.getState().items.map((i) => i.productId)).toEqual(["prod-a"]);
+      });
+    });
   });
 });

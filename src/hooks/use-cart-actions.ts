@@ -846,7 +846,7 @@ export const useCartActions = () => {
       // essa tentativa somou preserva a mudança da outra em vez de apagá-la.
       const addedQuantity = item.quantity || 1;
 
-      const revertAddToCart = (message?: string) => {
+      const revertAddToCart = (message?: string, { silent = false } = {}) => {
         const currentItems = useCartStore.getState().items;
         const existing = currentItems.find((i) => i.id === cartItemKey);
         const revertedItems =
@@ -857,8 +857,11 @@ export const useCartActions = () => {
                 : i,
             )
             : currentItems.filter((i) => i.id !== cartItemKey);
+        cartWriteVersion++;
         setItems(revertedItems);
-        toast.error(message || "Erro ao adicionar item. Tente novamente.");
+        if (!silent) {
+          toast.error(message || "Erro ao adicionar item. Tente novamente.");
+        }
       };
 
       const addItemToBackend = async (signal: AbortSignal) => {
@@ -913,8 +916,10 @@ export const useCartActions = () => {
         return response;
       };
 
+      // Devolve o companyId do carrinho quando o item caiu no carrinho de
+      // outra loja (já desfeito), ou null
       const backgroundAdd = addItemToBackend(abortController.signal)
-        .then((response) => {
+        .then(async (response): Promise<string | null> => {
           clearTimeout(timeoutId);
           pendingRequests.current.delete(cartItemKey);
 
@@ -923,17 +928,38 @@ export const useCartActions = () => {
           // mantinha o item no carrinho local como se tivesse sido salvo
           if (!response.success) {
             revertAddToCart(response.message);
+            return null;
           }
+
+          // Outra aba pode ter trocado o carrinho do backend sem esta saber:
+          // o mesmo `cart:<userId>`, agora preso a outra loja. O backend
+          // aceita o item mesmo assim (LDMF-347) - desfaz aqui, antes de
+          // qualquer leitura do carrinho, e quem chamou pergunta depois.
+          const cart = response.data as unknown as BackendCart | undefined;
+          if (cart?.companyId && cart.companyId !== item.restaurantId) {
+            await apiService.orderItems
+              .removeProductFromCart(
+                user.id,
+                cart.id || currentOrderId,
+                item.id,
+                addedQuantity,
+              )
+              .catch(() => undefined);
+            revertAddToCart(undefined, { silent: true });
+            return cart.companyId;
+          }
+          return null;
         })
         .catch((error) => {
           clearTimeout(timeoutId);
           pendingRequests.current.delete(cartItemKey);
 
           // Ignorar erros de abort (esperado)
-          if (error.name === "AbortError") return;
+          if (error.name === "AbortError") return null;
 
           console.error("Erro ao adicionar item:", error);
           revertAddToCart();
+          return null;
         });
 
       // Registrado pra quem for sincronizar do backend (ex: ao entrar em
@@ -944,6 +970,21 @@ export const useCartActions = () => {
         pendingAddPromises = pendingAddPromises.filter(
           (p) => p !== backgroundAdd,
         );
+      });
+
+      // Fora da promessa registrada: o sync aqui dentro esperaria por ela
+      // mesma. O local passa a mostrar o carrinho real e o cliente escolhe.
+      backgroundAdd.then(async (foreignCompanyId) => {
+        if (!foreignCompanyId) return;
+
+        await syncCartFromBackend();
+        const confirmChange = await confirmRestaurantChange(
+          foreignCompanyId,
+          item.restaurantName,
+        );
+        if (!confirmChange) return;
+        if (!(await handleClearCart(false))) return;
+        await handleAddToCart(item);
       });
 
       // Retornar true imediatamente (optimistic)
