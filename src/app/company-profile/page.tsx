@@ -27,10 +27,15 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { RESTAURANT_CATEGORIES } from "@/constants";
 import {
+  useCompanyAcceptedPaymentMethods,
   useCompanyOpeningHours,
   useCompanyProfileManagement,
   useSpecialties,
 } from "@/hooks";
+import {
+  ACCEPTED_PAYMENT_METHODS,
+  ACCEPTED_PAYMENT_METHOD_LABELS,
+} from "@/lib/accepted-payment-methods";
 import { cn } from "@/lib/utils";
 import { formatCnpj, formatPhoneDisplay } from "@/utils";
 import {
@@ -179,6 +184,18 @@ function CompanyProfileContent() {
     isOpenNow,
     linkedToCashRegister,
   } = useCompanyOpeningHours(user?.companyId || user?.id);
+
+  const {
+    selected: acceptedPaymentMethods,
+    hasChanges: hasPaymentMethodsChanges,
+    toggleMethod: togglePaymentMethod,
+    discardChanges: discardPaymentMethodsChanges,
+    handleSave: handleSavePaymentMethods,
+    isSaving: isSavingPaymentMethods,
+    isLoading: isLoadingPaymentMethods,
+    isError: isPaymentMethodsError,
+    refetch: refetchPaymentMethods,
+  } = useCompanyAcceptedPaymentMethods(user?.companyId || user?.id);
 
   const { data: specialties } = useSpecialties();
   const specialtyOptions =
@@ -672,6 +689,94 @@ function CompanyProfileContent() {
                     </div>
                   ))}
                 </div>
+              )}
+            </SectionCard>
+
+            {/* Formas de pagamento aceitas (LDMF-251) */}
+            <SectionCard
+              title="Formas de Pagamento"
+              subtitle="O checkout só oferece ao cliente as formas marcadas"
+              className="mb-3"
+              actions={
+                <div className="flex gap-2">
+                  {hasPaymentMethodsChanges && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={discardPaymentMethodsChanges}
+                      disabled={isSavingPaymentMethods}
+                      className="h-8 rounded-[9px] px-3 text-xs font-bold"
+                    >
+                      Descartar
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    variant={"secondary"}
+                    onClick={handleSavePaymentMethods}
+                    disabled={
+                      isSavingPaymentMethods ||
+                      isLoadingPaymentMethods ||
+                      isPaymentMethodsError ||
+                      !hasPaymentMethodsChanges
+                    }
+                    className="h-8 rounded-[9px] px-3.5 text-xs font-bold"
+                  >
+                    <div className="flex gap-2">
+                      <Save className="h-3.5 w-3.5" />
+                      {isSavingPaymentMethods ? "Salvando..." : "Salvar"}
+                    </div>
+                  </Button>
+                </div>
+              }
+            >
+              {/* Sem a lista gravada a tela mostraria o padrão (todas), e
+                  salvar por cima apagaria a configuração real: trava até
+                  carregar. */}
+              {isPaymentMethodsError ? (
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-[9px] border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 px-3 py-2 text-[11px] font-semibold text-amber-800 dark:text-amber-300">
+                  <span>Não foi possível carregar as formas de pagamento.</span>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => refetchPaymentMethods()}
+                    className="h-7 shrink-0 rounded-[9px] px-3 text-[11px] font-bold"
+                  >
+                    Tentar de novo
+                  </Button>
+                </div>
+              ) : isLoadingPaymentMethods ? (
+                <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                  {ACCEPTED_PAYMENT_METHODS.map((method) => (
+                    <Skeleton key={method} className="h-[42px] rounded-[10px]" />
+                  ))}
+                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                    {ACCEPTED_PAYMENT_METHODS.map((method) => (
+                      <label
+                        key={method}
+                        className="flex cursor-pointer items-center gap-2 rounded-[10px] border border-border px-3 py-2.5"
+                      >
+                        <Checkbox
+                          checked={acceptedPaymentMethods.includes(method)}
+                          disabled={isSavingPaymentMethods}
+                          onCheckedChange={() => togglePaymentMethod(method)}
+                          className="h-4 w-4 border-border data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
+                        />
+                        <span className="text-[12.5px] font-bold text-foreground">
+                          {ACCEPTED_PAYMENT_METHOD_LABELS[method]}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                  {acceptedPaymentMethods.length === 0 && (
+                    <p className="mt-2 text-[11px] font-semibold text-red-600 dark:text-red-400">
+                      Marque pelo menos uma forma de pagamento.
+                    </p>
+                  )}
+                </>
               )}
             </SectionCard>
 

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { apiService } from "./api";
+import { apiService, PaymentMethod } from "./api";
 
 /**
  * `apiRequest` (o único ponto que fala HTTP nesse arquivo) não é exportado -
@@ -451,5 +451,26 @@ describe("apiService (via apiRequest)", () => {
       );
     });
   });
-});
 
+  describe("companies.updateAcceptedPaymentMethods (LDMF-251)", () => {
+    it("manda a lista como array em JSON no PATCH /company/:id, autenticado", async () => {
+      vi.mocked(fetch).mockResolvedValue(jsonResponse({ id: "comp-1" }));
+
+      await apiService.companies.updateAcceptedPaymentMethods("comp-1", [
+        PaymentMethod.PIX,
+        PaymentMethod.CASH,
+      ]);
+
+      const [url, config] = vi.mocked(fetch).mock.calls[0];
+      expect(url).toBe("/api/proxy/company/comp-1");
+      expect(config?.method).toBe("PATCH");
+      expect(
+        (config?.headers as Record<string, string>)["X-Auth-Required"],
+      ).toBe("1");
+      // Array de verdade, não "PIX,CASH" como texto.
+      expect(JSON.parse(config?.body as string)).toEqual({
+        acceptedPaymentMethods: ["PIX", "CASH"],
+      });
+    });
+  });
+});
