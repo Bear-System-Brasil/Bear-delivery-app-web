@@ -90,4 +90,10 @@ export interface Restaurant {
 
   /** Endereços da loja (a API retorna a chave com "A" maiúsculo). */
   Address?: Address[];
+
+  /**
+   * Formas de pagamento aceitas (LDMF-289). Só em GET /company/:id; a
+   * listagem não traz. Ausente, o checkout oferece todas.
+   */
+  acceptedPaymentMethods?: string[];
 }

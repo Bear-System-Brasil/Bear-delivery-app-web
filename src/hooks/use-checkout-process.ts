@@ -41,6 +41,7 @@ import { useRestaurant } from "./use-restaurants";
 import { useUserAddresses } from "./use-addresses";
 import { useRestaurantOpeningHours } from "./use-opening-hours";
 import { resolveRestaurantOpenStatus } from "@/constants/opening-hours";
+import { resolveAcceptedPaymentMethods } from "@/lib/accepted-payment-methods";
 
 function showCheckoutError(message: string) {
   toast.dismiss?.();
@@ -58,6 +59,22 @@ export const CHECKOUT_PAYMENT_METHODS: Record<string, PaymentMethod> = {
   debit_card_machine: PaymentMethod.DEBIT_CARD,
   pix_on_delivery: PaymentMethod.PIX,
 };
+
+/**
+ * Opções do checkout que o restaurante aceita, na ordem de
+ * CHECKOUT_PAYMENT_METHODS. Sem `acceptedPaymentMethods` na resposta (ou
+ * enquanto ela não chega), todas as opções ficam disponíveis (LDMF-251).
+ */
+export function getAvailableCheckoutPaymentMethods(
+  acceptedPaymentMethods: unknown,
+): string[] {
+  const accepted: PaymentMethod[] = resolveAcceptedPaymentMethods(
+    acceptedPaymentMethods,
+  );
+  return Object.keys(CHECKOUT_PAYMENT_METHODS).filter((option) =>
+    accepted.includes(CHECKOUT_PAYMENT_METHODS[option]),
+  );
+}
 
 /**
  * Latitude/longitude não moram aqui: elas vivem em `addressCoords` junto com
@@ -239,6 +256,26 @@ export const useCheckoutProcess = () => {
   const [paymentGatewayUrl, setPaymentGatewayUrl] = useState<string | null>(
     null,
   );
+
+  // Só as formas que o restaurante aceita (LDMF-251). Se a escolhida deixou
+  // de valer (o padrão "cash" num restaurante sem dinheiro, por exemplo),
+  // passa para a primeira aceita. A chave em texto mantém o efeito estável
+  // entre renders, já que a lista é recriada a cada um.
+  const availablePaymentMethods = getAvailableCheckoutPaymentMethods(
+    restaurantDetails?.acceptedPaymentMethods,
+  );
+  const availablePaymentMethodsKey = availablePaymentMethods.join(",");
+  useEffect(() => {
+    const available = availablePaymentMethodsKey.split(",");
+    // Valor fora das opções do checkout não é trocado aqui: o isFormValid
+    // já barra, e trocar esconderia o erro.
+    if (!Object.hasOwn(CHECKOUT_PAYMENT_METHODS, paymentMethod)) return;
+    if (available.includes(paymentMethod)) return;
+
+    setPaymentMethod(available[0]);
+    setNeedsChange(false);
+    setChangeAmount("");
+  }, [availablePaymentMethodsKey, paymentMethod]);
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false);
@@ -443,7 +480,10 @@ export const useCheckoutProcess = () => {
     const requiredFields = isDeliveryValid();
 
     // Só pagamento na entrega é aceito
-    const paymentValid = Object.hasOwn(CHECKOUT_PAYMENT_METHODS, paymentMethod);
+    // e só forma que o restaurante aceita.
+    const paymentValid =
+      Object.hasOwn(CHECKOUT_PAYMENT_METHODS, paymentMethod) &&
+      availablePaymentMethods.includes(paymentMethod);
 
     // Se é dinheiro e precisa de troco, validar valor. `>=` e não `>`:
     // pagar exatamente o total é válido (troco zero), e a mensagem da tela
@@ -882,6 +922,7 @@ export const useCheckoutProcess = () => {
     addressCoords,
     applyCoords,
     paymentMethod,
+    availablePaymentMethods,
     changeAmount,
     needsChange,
     paymentGatewayUrl,

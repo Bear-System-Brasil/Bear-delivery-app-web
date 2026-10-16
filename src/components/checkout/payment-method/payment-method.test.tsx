@@ -10,7 +10,15 @@ const normalize = (value: string | null) => (value ?? "").replace(/ /g, " ");
 // Estado de verdade, como o useCheckoutProcess guarda na página.
 let latest: { paymentMethod: string; needsChange: boolean; changeAmount: string };
 
-function Checkout({ total = 35.9, initial = "cash" }: { total?: number; initial?: string }) {
+function Checkout({
+  total = 35.9,
+  initial = "cash",
+  availableMethods,
+}: {
+  total?: number;
+  initial?: string;
+  availableMethods?: string[];
+}) {
   const [paymentMethod, setPaymentMethod] = useState(initial);
   const [needsChange, setNeedsChange] = useState(false);
   const [changeAmount, setChangeAmount] = useState("");
@@ -25,6 +33,7 @@ function Checkout({ total = 35.9, initial = "cash" }: { total?: number; initial?
       setNeedsChange={setNeedsChange}
       changeAmount={changeAmount}
       setChangeAmount={setChangeAmount}
+      availableMethods={availableMethods}
     />
   );
 }
@@ -43,6 +52,20 @@ describe("PaymentMethod", () => {
     expect(screen.getByRole("button", { name: /Débito na maquininha/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Pix na entrega/ })).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: /Dinheiro|maquininha|Pix/ })).toHaveLength(4);
+  });
+
+  it("mostra só as formas que o restaurante aceita (LDMF-251)", () => {
+    render(
+      <Checkout
+        initial="pix_on_delivery"
+        availableMethods={["debit_card_machine", "pix_on_delivery"]}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: /Débito na maquininha/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Pix na entrega/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Dinheiro/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Crédito na maquininha/ })).not.toBeInTheDocument();
   });
 
   it("em dinheiro, pergunta do troco e só mostra o campo depois do 'Sim'", async () => {
