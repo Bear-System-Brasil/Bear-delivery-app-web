@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { apiService } from "@/services/api";
+import { apiService, getBirthDateApiError } from "@/services/api";
 import { useAuthStore } from "@/stores";
 import { normalizeAuthUser } from "@/stores/auth-store";
 import type { RawAuthUser } from "@/services/api";
@@ -41,6 +41,9 @@ export function useAuthModal({
   const [passwordErrors, setPasswordErrors] = useState<string[]>([]);
   const [passwordMatch, setPasswordMatch] = useState(true);
   const [submitMessage, setSubmitMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  // Recusa da data pelo back (UNDERAGE / INVALID_BIRTH_DATE), mostrada no
+  // próprio campo até a pessoa mexer na data de novo.
+  const [birthDateServerError, setBirthDateServerError] = useState<string | null>(null);
 
   // Troca de aba/etapa nunca deve deixar o feedback (erro/sucesso) de uma
   // tela vazar pra outra - ex: errar a senha no login e ver essa mensagem
@@ -86,7 +89,10 @@ export function useAuthModal({
     let formattedValue = normalizedValue;
     if (field === "cpf") formattedValue = formatCpfDisplay(value);
     if (field === "phone") formattedValue = formatPhone(value);
-    if (field === "birthDate") formattedValue = maskBirthDate(value);
+    if (field === "birthDate") {
+      formattedValue = maskBirthDate(value);
+      setBirthDateServerError(null);
+    }
 
     setRegisterData((prev) => {
       const newData = { ...prev, [field]: formattedValue };
@@ -140,6 +146,7 @@ export function useAuthModal({
     setSubmitMessage(null);
     setPasswordErrors([]);
     setPasswordMatch(true);
+    setBirthDateServerError(null);
   };
 
   const handleClose = () => {
@@ -200,7 +207,12 @@ export function useAuthModal({
           setStep("otp");
           setSubmitMessage({ type: "success", text: "Código de verificação enviado para seu telefone!" });
         } else {
-          setSubmitMessage({ type: "error", text: response.message || "Erro ao criar conta. Tente novamente." });
+          const birthDateError = getBirthDateApiError(response);
+          setBirthDateServerError(birthDateError);
+          setSubmitMessage({
+            type: "error",
+            text: birthDateError || response.message || "Erro ao criar conta. Tente novamente.",
+          });
         }
       }
     } catch (error) {
@@ -307,6 +319,7 @@ export function useAuthModal({
     forgotPasswordData, setForgotPasswordData,
     resetPasswordData, setResetPasswordData,
     registerData,
+    birthDateServerError,
     acceptedTerms, setAcceptedTerms,
     otpData, setOtpData,
     passwordErrors,

@@ -371,6 +371,62 @@ describe("useAuthModal", () => {
       });
     });
 
+    it("recusa de data pelo back aparece no campo com message[0] e some ao editar a data (LDMF-303)", async () => {
+      api.createUser.mockResolvedValue({
+        success: false,
+        status: 400,
+        code: "UNDERAGE",
+        message: "Data de nascimento inválida, usuário menor de idade.",
+      });
+      const { result } = renderModal("register");
+      type(result, validRegister);
+      act(() => result.current.setAcceptedTerms(true));
+
+      await act(async () => {
+        await result.current.handleSubmit();
+      });
+
+      expect(result.current.birthDateServerError).toBe(
+        "Data de nascimento inválida, usuário menor de idade.",
+      );
+      expect(result.current.submitMessage).toEqual({
+        type: "error",
+        text: "Data de nascimento inválida, usuário menor de idade.",
+      });
+
+      type(result, { birthDate: "02011990" });
+      expect(result.current.birthDateServerError).toBeNull();
+    });
+
+    it("erro sem code de data não vai para o campo de data", async () => {
+      api.createUser.mockResolvedValue({ success: false, status: 409, message: "E-mail já cadastrado" });
+      const { result } = renderModal("register");
+      type(result, validRegister);
+      act(() => result.current.setAcceptedTerms(true));
+
+      await act(async () => {
+        await result.current.handleSubmit();
+      });
+
+      expect(result.current.birthDateServerError).toBeNull();
+      expect(result.current.submitMessage).toEqual({ type: "error", text: "E-mail já cadastrado" });
+    });
+
+    it("o cadastro manda birthDate em DD/MM/YYYY (contrato LDMF-302)", async () => {
+      api.createUser.mockResolvedValue({ success: true });
+      const { result } = renderModal("register");
+      type(result, { ...validRegister, birthDate: "15051990" });
+      act(() => result.current.setAcceptedTerms(true));
+
+      await act(async () => {
+        await result.current.handleSubmit();
+      });
+
+      expect(api.createUser).toHaveBeenCalledWith(
+        expect.objectContaining({ birthDate: "15/05/1990" }),
+      );
+    });
+
     it("a máscara da data entra enquanto digita (LDMF-303)", () => {
       const { result } = renderModal("register");
       type(result, { birthDate: "151" });

@@ -51,6 +51,7 @@ export default function AuthModal({
     loginData,
     resetPasswordData, setResetPasswordData,
     registerData,
+    birthDateServerError,
     acceptedTerms,
     setAcceptedTerms,
     otpData, setOtpData,
@@ -237,7 +238,7 @@ export default function AuthModal({
                         id="birthDate"
                         value={registerData.birthDate}
                         onChange={(value) => handleInputChange("birthDate", value)}
-                        error={getBirthDateError(registerData.birthDate)}
+                        error={birthDateServerError ?? getBirthDateError(registerData.birthDate)}
                         className="h-9 sm:h-10 text-xs sm:text-sm"
                       />
                     </div>

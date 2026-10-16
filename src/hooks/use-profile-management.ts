@@ -6,7 +6,11 @@ import {
 } from "@/lib/address-coordinates";
 import { parseCoords } from "@/lib/geocode";
 import { findNeighborhood, neighborhoodLabel } from "@/services/neighborhoods";
-import { apiService, type UpdateUserRequest } from "@/services/api";
+import {
+  apiService,
+  getBirthDateApiError,
+  type UpdateUserRequest,
+} from "@/services/api";
 import {
   restorePendingDefaultAddress,
   setDefaultAddress,
@@ -449,6 +453,15 @@ export const useProfileManagement = () => {
       editingState.close();
       toast.success("Perfil atualizado com sucesso!");
     } catch (error) {
+      const birthDateError =
+        typeof error === "object" && error !== null
+          ? getBirthDateApiError(error)
+          : null;
+      if (birthDateError) {
+        profileForm.setError("birthDate", { message: birthDateError });
+        toast.error(birthDateError);
+        return;
+      }
       toast.error(getErrorMessage(error, "Erro ao atualizar perfil"));
     }
   };

@@ -284,6 +284,28 @@ describe("useProfileManagement", () => {
       await waitFor(() => expect(result.current.updateProfile.isError).toBe(true));
     });
 
+    it("recusa de data pelo back (INVALID_BIRTH_DATE) vai para o campo de data (LDMF-303)", async () => {
+      api.updateUser.mockResolvedValue({
+        success: false,
+        status: 400,
+        code: "INVALID_BIRTH_DATE",
+        message: "Data de nascimento inválida.",
+      });
+      const { result } = await renderProfile();
+      act(() => result.current.editingState.open());
+
+      await act(async () => {
+        await result.current.handleSaveProfile({ ...user, birthDate: "01/01/1990" });
+      });
+
+      expect(result.current.profileForm.getFieldState("birthDate").error?.message).toBe(
+        "Data de nascimento inválida.",
+      );
+      expect(toast.error).toHaveBeenCalledWith("Data de nascimento inválida.");
+      expect(useAuthStore.getState().user?.birthDate).toBe(user.birthDate);
+      expect(result.current.editingState.isOpen).toBe(true);
+    });
+
     it("exceção ao salvar avisa erro e mantém a edição aberta", async () => {
       api.updateUser.mockRejectedValue(new Error("offline"));
       const { result } = await renderProfile();
