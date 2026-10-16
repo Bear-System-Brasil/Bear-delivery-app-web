@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { API_BASE_URL } from "@/lib/api-config";
 import { decodeJwt, isExpired } from "@/lib/jwt";
 import { getSessionToken } from "@/lib/session";
+import { noStore } from "@/lib/no-store";
 
 export const dynamic = "force-dynamic";
 
@@ -9,13 +10,13 @@ export async function GET() {
   const token = await getSessionToken();
 
   if (!token) {
-    return NextResponse.json({ authenticated: false, user: null });
+    return noStore(NextResponse.json({ authenticated: false, user: null }));
   }
 
   const payload = decodeJwt(token);
 
   if (!payload || isExpired(payload)) {
-    return NextResponse.json({ authenticated: false, user: null });
+    return noStore(NextResponse.json({ authenticated: false, user: null }));
   }
 
   const upstream = await fetch(`${API_BASE_URL}/user/me`, {
@@ -24,7 +25,7 @@ export async function GET() {
   });
 
   if (!upstream.ok) {
-    return NextResponse.json({ authenticated: false, user: null });
+    return noStore(NextResponse.json({ authenticated: false, user: null }));
   }
 
   const user = await upstream.json().catch(() => null);
@@ -34,12 +35,12 @@ export async function GET() {
   // localStorage).
   const { password: _password, ...safeUser } = user?.data ?? user ?? {};
 
-  return NextResponse.json({
+  return noStore(NextResponse.json({
     authenticated: true,
     user: {
       ...safeUser,
       role: payload.role,
       companyId: payload.companyId ?? null,
     },
-  });
+  }));
 }

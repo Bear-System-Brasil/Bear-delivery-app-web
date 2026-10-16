@@ -175,5 +175,69 @@ describe("POST /api/auth/register", () => {
     expect(data.success).toBe(false);
     expect(data.message).toBe("O usuário já possui cadastro no sistema.");
   });
-});
 
+  // A resposta traz dado do usuário e define o cookie de sessão: sai sempre
+  // no-store (LDMF-348).
+  describe("Cache-Control", () => {
+    const registerRequest = () =>
+      new Request("http://localhost:3000/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "Cliente",
+          email: "cliente@teste.com",
+          phone: "11999999999",
+          password: "Password1!",
+        }),
+      });
+
+    const userCreated = {
+      ok: true,
+      status: 201,
+      json: () => Promise.resolve({ id: "u1", name: "Cliente" }),
+    } as Response;
+
+    it("cadastro e login automático ok: no-store", async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(userCreated);
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({
+            data: { token: dummyToken, user: { id: "u1", name: "Cliente" } },
+          }),
+      } as Response);
+
+      const res = await POST(registerRequest());
+
+      expect(res.headers.get("Cache-Control")).toBe("no-store");
+    });
+
+    it("cadastro ok mas login automático falhou: no-store", async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(userCreated);
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        json: () => Promise.resolve(null),
+      } as Response);
+
+      const res = await POST(registerRequest());
+
+      expect((await res.json()).success).toBe(true);
+      expect(res.headers.get("Cache-Control")).toBe("no-store");
+    });
+
+    it("cadastro recusado: no-store", async () => {
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        json: () => Promise.resolve({ message: "Já cadastrado" }),
+      } as Response);
+
+      const res = await POST(registerRequest());
+
+      expect(res.status).toBe(409);
+      expect(res.headers.get("Cache-Control")).toBe("no-store");
+    });
+  });
+});
