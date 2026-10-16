@@ -1,8 +1,11 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { ComponentProps } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { PersonalInformation } from "./index";
 import { useForm } from "react-hook-form";
 import type { ProfileFormData } from "@/hooks";
+import { useProfileForm } from "@/hooks/use-form-validation";
+import { BIRTH_DATE_MESSAGES } from "@/utils";
 import type { User } from "@/stores/auth-store";
 
 const mockUser: User = {
@@ -28,7 +31,7 @@ function TestWrapper({
       email: mockUser.email || "",
       cpf: mockUser.cpf || "",
       phone: mockUser.phone || "",
-      birthDate: "1990-05-15",
+      birthDate: "15/05/1990",
     },
   });
 
@@ -98,10 +101,11 @@ describe("PersonalInformation Component", () => {
     const emailInput = screen.getByLabelText(/email \(não editável\)/i);
     expect(emailInput).toBeDisabled();
 
-    // Data de nascimento vira input type="date"
+    // Data de nascimento usa o mesmo campo do cadastro, não o seletor nativo
     const birthDateInput = screen.getByLabelText(/data de nascimento/i);
     expect(birthDateInput).not.toBeDisabled();
-    expect(birthDateInput).toHaveAttribute("type", "date");
+    expect(birthDateInput).toHaveAttribute("type", "text");
+    expect(birthDateInput).toHaveAttribute("inputmode", "numeric");
 
     // Cancelar chama o callback correspondente
     fireEvent.click(screen.getByRole("button", { name: /cancelar/i }));
@@ -109,3 +113,100 @@ describe("PersonalInformation Component", () => {
   });
 });
 
+
+function ValidatedWrapper({ birthDate = "15/05/1990", handleSaveProfile = vi.fn() }) {
+  const form = useProfileForm({
+    name: mockUser.name,
+    email: mockUser.email,
+    cpf: mockUser.cpf,
+    phone: mockUser.phone,
+    birthDate,
+  });
+  const editingState = {
+    isOpen: true,
+    toggle: vi.fn(),
+    open: vi.fn(),
+    close: vi.fn(),
+    setIsOpen: vi.fn(),
+  };
+  const updateProfile = {
+    isPending: false,
+    isError: false,
+    reset: vi.fn(),
+  } as unknown as ComponentProps<typeof PersonalInformation>["updateProfile"];
+
+  return (
+    <PersonalInformation
+      handleCancelEdit={vi.fn()}
+      handleSaveProfile={handleSaveProfile}
+      updateProfile={updateProfile}
+      profileForm={form}
+      editingState={editingState}
+      user={mockUser}
+    />
+  );
+}
+
+describe("PersonalInformation - data de nascimento (LDMF-303)", () => {
+  it("aplica a máscara dd/mm/aaaa enquanto digita", () => {
+    render(<ValidatedWrapper />);
+    const input = screen.getByLabelText(/data de nascimento/i);
+
+    fireEvent.change(input, { target: { value: "151" } });
+    expect(input).toHaveValue("15/1");
+
+    fireEvent.change(input, { target: { value: "15102000" } });
+    expect(input).toHaveValue("15/10/2000");
+  });
+
+  it("mostra no próprio campo o erro de menor de 18 e não salva", async () => {
+    const save = vi.fn();
+    render(<ValidatedWrapper handleSaveProfile={save} />);
+    const input = screen.getByLabelText(/data de nascimento/i);
+
+    fireEvent.change(input, {
+      target: { value: `0101${new Date().getFullYear() - 10}` },
+    });
+
+    expect(await screen.findByText(BIRTH_DATE_MESSAGES.underage)).toBeInTheDocument();
+    expect(input).toHaveAttribute("aria-invalid", "true");
+
+    fireEvent.click(screen.getByRole("button", { name: /salvar/i }));
+    await waitFor(() => expect(save).not.toHaveBeenCalled());
+  });
+
+  it("mostra erro de data inexistente e de data futura", async () => {
+    render(<ValidatedWrapper />);
+    const input = screen.getByLabelText(/data de nascimento/i);
+
+    fireEvent.change(input, { target: { value: "31022000" } });
+    expect(await screen.findByText(BIRTH_DATE_MESSAGES.invalid)).toBeInTheDocument();
+
+    fireEvent.change(input, {
+      target: { value: `0101${new Date().getFullYear() + 1}` },
+    });
+    expect(await screen.findByText(BIRTH_DATE_MESSAGES.future)).toBeInTheDocument();
+  });
+
+  it("não acusa data incompleta enquanto digita, só depois de tentar salvar", async () => {
+    const save = vi.fn();
+    render(<ValidatedWrapper handleSaveProfile={save} />);
+    const input = screen.getByLabelText(/data de nascimento/i);
+
+    fireEvent.change(input, { target: { value: "1510" } });
+    expect(screen.queryByText(BIRTH_DATE_MESSAGES.incomplete)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /salvar/i }));
+    expect(await screen.findByText(BIRTH_DATE_MESSAGES.incomplete)).toBeInTheDocument();
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it("data válida de adulto salva normalmente", async () => {
+    const save = vi.fn();
+    render(<ValidatedWrapper handleSaveProfile={save} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /salvar/i }));
+    await waitFor(() => expect(save).toHaveBeenCalled());
+    expect(save.mock.calls[0][0]).toMatchObject({ birthDate: "15/05/1990" });
+  });
+});

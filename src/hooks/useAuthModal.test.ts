@@ -371,6 +371,12 @@ describe("useAuthModal", () => {
       });
     });
 
+    it("a máscara da data entra enquanto digita (LDMF-303)", () => {
+      const { result } = renderModal("register");
+      type(result, { birthDate: "151" });
+      expect(result.current.registerData.birthDate).toBe("15/1");
+    });
+
     it("maior de 18 anos conclui o cadastro com sucesso (LDMF-301)", async () => {
       api.createUser.mockResolvedValue({ success: true });
       const { result } = renderModal("register");

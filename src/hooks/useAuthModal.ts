@@ -3,7 +3,7 @@ import { apiService } from "@/services/api";
 import { useAuthStore } from "@/stores";
 import { normalizeAuthUser } from "@/stores/auth-store";
 import type { RawAuthUser } from "@/services/api";
-import { formatCpfDisplay, getBirthDateError } from "@/utils";
+import { formatCpfDisplay, getBirthDateError, maskBirthDate } from "@/utils";
 
 interface UseAuthModalProps {
   isOpen: boolean;
@@ -66,11 +66,6 @@ export function useAuthModal({
     return numbers.replace(/(\d{2})(\d{5})(\d{4})/, "($1) $2-$3");
   };
 
-  const formatDate = (value: string) => {
-    const numbers = value.replace(/\D/g, "");
-    return numbers.replace(/(\d{2})(\d{2})(\d{4})/, "$1/$2/$3");
-  };
-
   const validatePassword = (password: string): string[] => {
     const errors: string[] = [];
     if (password.length < 6) errors.push("mínimo 6 caracteres");
@@ -91,7 +86,7 @@ export function useAuthModal({
     let formattedValue = normalizedValue;
     if (field === "cpf") formattedValue = formatCpfDisplay(value);
     if (field === "phone") formattedValue = formatPhone(value);
-    if (field === "birthDate") formattedValue = formatDate(value);
+    if (field === "birthDate") formattedValue = maskBirthDate(value);
 
     setRegisterData((prev) => {
       const newData = { ...prev, [field]: formattedValue };

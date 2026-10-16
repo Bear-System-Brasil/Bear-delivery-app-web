@@ -91,6 +91,17 @@ export const getBirthDateError = (
 };
 
 /**
+ * Máscara dd/mm/aaaa aplicada enquanto a pessoa digita: as barras entram
+ * sozinhas a partir do 3º e do 5º dígito. Aceita no máximo 8 dígitos.
+ */
+export const maskBirthDate = (value: string): string => {
+  const digits = value.replace(/\D/g, "").slice(0, 8);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+};
+
+/**
  * Confere se a data de nascimento está em formato completo (DD/MM/AAAA ou AAAA-MM-DD).
  */
 export const isCompleteDateFormat = (dateStr?: string | null): boolean => {

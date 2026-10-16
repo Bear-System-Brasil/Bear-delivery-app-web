@@ -329,7 +329,8 @@ describe("useProfileManagement", () => {
           email: "ana@example.com",
           cpf: "12345678900",
           phone: "41999990000",
-          birthDate: "1990-01-01",
+          // O campo do perfil usa a máscara dd/mm/aaaa do cadastro (LDMF-303)
+          birthDate: "01/01/1990",
         }),
       );
     });

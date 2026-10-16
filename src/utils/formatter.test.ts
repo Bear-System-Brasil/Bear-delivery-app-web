@@ -11,6 +11,7 @@ import {
   getCustomerDisplayName,
   BIRTH_DATE_MESSAGES,
   getBirthDateError,
+  maskBirthDate,
   isCompleteDateFormat,
   isValidCep,
   isValidCnpj,
@@ -111,6 +112,40 @@ describe("getBirthDateError (LDMF-303)", () => {
     expect(getBirthDateError(undefined, now)).toBe(BIRTH_DATE_MESSAGES.incomplete);
     expect(getBirthDateError("15/10/20", now)).toBe(BIRTH_DATE_MESSAGES.incomplete);
     expect(getBirthDateError("data-invalida", now)).toBe(BIRTH_DATE_MESSAGES.incomplete);
+  });
+});
+
+describe("maskBirthDate (LDMF-303)", () => {
+  it("aplica a máscara desde o primeiro dígito, com as barras entrando sozinhas", () => {
+    let value = "";
+    const steps: string[] = [];
+    for (const digit of "15102000") {
+      value = maskBirthDate(value + digit);
+      steps.push(value);
+    }
+    expect(steps).toEqual([
+      "1",
+      "15",
+      "15/1",
+      "15/10",
+      "15/10/2",
+      "15/10/20",
+      "15/10/200",
+      "15/10/2000",
+    ]);
+  });
+
+  it("ignora o que não é dígito e limita a 8 dígitos", () => {
+    expect(maskBirthDate("15-10-2000")).toBe("15/10/2000");
+    expect(maskBirthDate("ab15c")).toBe("15");
+    expect(maskBirthDate("151020001234")).toBe("15/10/2000");
+  });
+
+  it("apagar a barra apaga junto o separador, sem travar o campo", () => {
+    // "15/1" com backspace vira "15/" e a máscara devolve "15"
+    expect(maskBirthDate("15/")).toBe("15");
+    expect(maskBirthDate("15/10/")).toBe("15/10");
+    expect(maskBirthDate("")).toBe("");
   });
 });
 
