@@ -64,6 +64,10 @@ const brasiliaDate = (now: Date): string =>
     day: "2-digit",
   }).format(now);
 
+/** Ano corrente no horário de Brasília. */
+export const brasiliaYear = (now: Date = new Date()): number =>
+  Number(brasiliaDate(now).slice(0, 4));
+
 export const isLeapYear = (year: number): boolean =>
   (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
 
@@ -173,6 +177,30 @@ export const nextBirthDateValue = (previous: string, next: string): string => {
   const addsImpossible =
     countImpossibleBirthDateDigits(after) > countImpossibleBirthDateDigits(before);
   return maskBirthDate(addsImpossible ? before : after);
+};
+
+/** Partes já completas do campo (dia, mês, ano), para o seletor. */
+export const birthDateParts = (
+  value: string,
+): { day: number | null; month: number | null; year: number | null } => {
+  const d = onlyDigits(value);
+  const day = d.length >= 2 ? Number(d.slice(0, 2)) : null;
+  const month = d.length >= 4 ? Number(d.slice(2, 4)) : null;
+  const year = d.length === 8 ? Number(d.slice(4, 8)) : null;
+  return {
+    day: day && day <= 31 ? day : null,
+    month: month && month <= 12 ? month : null,
+    year,
+  };
+};
+
+/** Anos do seletor: de 18 a 120 anos atrás, do mais recente ao mais antigo. */
+export const birthDatePickerYears = (now: Date = new Date()): number[] => {
+  const current = brasiliaYear(now);
+  return Array.from(
+    { length: MAX_BIRTH_AGE - MIN_BIRTH_AGE + 1 },
+    (_, i) => current - MIN_BIRTH_AGE - i,
+  );
 };
 
 /**

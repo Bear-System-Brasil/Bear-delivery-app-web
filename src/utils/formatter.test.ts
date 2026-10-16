@@ -15,6 +15,8 @@ import {
   nextBirthDateValue,
   daysInMonth,
   isLeapYear,
+  birthDateParts,
+  birthDatePickerYears,
   isCompleteDateFormat,
   isValidCep,
   isValidCnpj,
@@ -269,7 +271,7 @@ describe("nextBirthDateValue: colar (LDMF-303)", () => {
   });
 });
 
-describe("dias por mês (LDMF-303)", () => {
+describe("dias por mês e seletor (LDMF-303)", () => {
   it("daysInMonth considera ano bissexto em fevereiro", () => {
     expect(daysInMonth(2, 2000)).toBe(29);
     expect(daysInMonth(2, 2004)).toBe(29);
@@ -288,6 +290,25 @@ describe("dias por mês (LDMF-303)", () => {
     expect(isLeapYear(2023)).toBe(false);
   });
 
+  it("birthDateParts lê só as partes completas", () => {
+    expect(birthDateParts("")).toEqual({ day: null, month: null, year: null });
+    expect(birthDateParts("15/1")).toEqual({ day: 15, month: null, year: null });
+    expect(birthDateParts("15/10/20")).toEqual({ day: 15, month: 10, year: null });
+    expect(birthDateParts("15/10/2000")).toEqual({ day: 15, month: 10, year: 2000 });
+    expect(birthDateParts("99/99/2000")).toEqual({ day: null, month: null, year: 2000 });
+  });
+
+  it("anos do seletor: de 18 a 120 anos atrás, começando em hoje menos 18", () => {
+    const years = birthDatePickerYears(new Date("2026-10-16T15:00:00Z"));
+    expect(years[0]).toBe(2008);
+    expect(years[years.length - 1]).toBe(1906);
+    expect(years).toHaveLength(103);
+  });
+
+  it("anos do seletor usam o ano em Brasília na virada do ano", () => {
+    // 02:00 UTC de 01/01/2027 ainda é 31/12/2026 em Brasília
+    expect(birthDatePickerYears(new Date("2027-01-01T02:00:00Z"))[0]).toBe(2008);
+  });
 });
 
 describe("formatPhone", () => {
