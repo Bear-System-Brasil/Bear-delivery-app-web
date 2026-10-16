@@ -17,6 +17,7 @@ const paymentsCreate = vi.fn();
 const deleteUserAddress = vi.fn();
 const createUserAddress = vi.fn();
 const toastError = vi.fn();
+const updateCpf = vi.fn();
 
 /**
  * Estado do "banco" de endereços. O hook lê a lista pelo mock de
@@ -70,8 +71,15 @@ const CART_ITEMS = [
 ];
 
 const SOUND = { play: vi.fn(), unlock: vi.fn() };
-const AUTH = {
-  user: { id: "user-1", name: "Cliente", phone: "11999999999" },
+const AUTH: {
+  user: { id: string; name: string; phone: string; cpf?: string } | null;
+} = {
+  user: {
+    id: "user-1",
+    name: "Cliente",
+    phone: "11999999999",
+    cpf: "12345678900",
+  },
 };
 const RESTAURANT_QUERY = { data: { id: "comp-1", deliveryFee: "0" } };
 const ADDRESS_BASE = {
@@ -127,8 +135,26 @@ const cartStore = {
 
 vi.mock("@/hooks/use-sound", () => ({ useSound: () => SOUND }));
 
+const authStoreUpdateUser = vi.fn(
+  (updated: Partial<{ id: string; name: string; phone: string; cpf?: string }>) => {
+    if (AUTH.user) {
+      AUTH.user = { ...AUTH.user, ...updated };
+    }
+  },
+);
+
+const useAuthStoreMock = Object.assign(
+  () => AUTH,
+  {
+    getState: () => ({
+      user: AUTH.user,
+      updateUser: authStoreUpdateUser,
+    }),
+  },
+);
+
 vi.mock("@/stores", () => ({
-  useAuthStore: () => AUTH,
+  useAuthStore: useAuthStoreMock,
   useCartStore: () => cartStore,
 }));
 
@@ -184,6 +210,7 @@ vi.mock("@/services/api", () => ({
       getUserAddresses,
       createUserAddress,
     },
+    updateCpf,
   },
   PaymentMethod: {
     CASH: "CASH",
@@ -237,6 +264,22 @@ async function submitWith(setup: (h: Hook) => void) {
 
   return result;
 }
+
+beforeEach(() => {
+  openingHoursQuery = { data: undefined, isLoading: false };
+  AUTH.user = {
+    id: "user-1",
+    name: "Cliente",
+    phone: "11999999999",
+    cpf: "12345678900",
+  };
+  updateCpf.mockReset();
+  updateCpf.mockResolvedValue({
+    success: true,
+    data: { cpf: "12345678900" },
+  });
+  authStoreUpdateUser.mockClear();
+});
 
 describe("useCheckoutProcess - corpo do finishOrder", () => {
   beforeEach(() => {
@@ -956,6 +999,131 @@ describe("useCheckoutProcess - restaurante fechado", () => {
     );
     expect(finishOrder).not.toHaveBeenCalled();
     expect(openCart).not.toHaveBeenCalled();
+  });
+});
+
+describe("useCheckoutProcess - primeiro pedido e CPF (LDMF-301)", () => {
+  beforeEach(() => {
+    finishOrder.mockReset();
+    finishOrder.mockResolvedValue({ success: true, data: { id: "order-1" } });
+    openCart.mockReset();
+    paymentsCreate.mockReset();
+    paymentsCreate.mockResolvedValue({ success: true, data: {} });
+    deleteUserAddress.mockReset();
+    resetAddressMocks();
+    addressesQuery = ADDRESSES_WITH_DEFAULT;
+    seedAddressBook(ADDRESSES_WITH_DEFAULT);
+    toastError.mockReset();
+  });
+
+  it("hasCpf reflete presença ou ausência de CPF no usuário logado", () => {
+    AUTH.user = { id: "user-1", name: "Cliente", phone: "11999999999", cpf: "12345678900" };
+    const { result: withCpf } = renderCheckout();
+    expect(withCpf.current.hasCpf).toBe(true);
+
+    AUTH.user = { id: "user-2", name: "Cliente Sem CPF", phone: "11999999999", cpf: "" };
+    const { result: withoutCpf } = renderCheckout();
+    expect(withoutCpf.current.hasCpf).toBe(false);
+  });
+
+  it("exige CPF no primeiro pedido quando o cliente não informou no cadastro", async () => {
+    AUTH.user = { id: "user-2", name: "Cliente Sem CPF", phone: "11999999999", cpf: "" };
+    const { result } = renderCheckout();
+    await waitFor(() => expect(result.current.selectedAddressId).toBe("addr-1"));
+
+    // Sem CPF preenchido
+    expect(result.current.isDeliveryValid()).toBe(false);
+
+    // Tentativa de submissão direta barra com erro
+    await act(async () => {
+      await result.current.handleSubmitOrder();
+    });
+
+    expect(toastError).toHaveBeenCalledWith("Informe um CPF válido para finalizar o pedido.");
+    expect(finishOrder).not.toHaveBeenCalled();
+
+    // Com CPF inválido/incompleto
+    act(() => {
+      result.current.handleInputChange("cpf", "12345");
+    });
+    expect(result.current.isDeliveryValid()).toBe(false);
+
+    // Com CPF válido (11 dígitos)
+    act(() => {
+      result.current.handleInputChange("cpf", "12345678900");
+    });
+    expect(result.current.deliveryInfo.cpf).toBe("123.456.789-00");
+    expect(result.current.isDeliveryValid()).toBe(true);
+  });
+
+  it("salva o CPF no backend e atualiza o store antes de finalizar o primeiro pedido", async () => {
+    AUTH.user = { id: "user-2", name: "Cliente Sem CPF", phone: "11999999999", cpf: "" };
+    updateCpf.mockResolvedValueOnce({ success: true, data: { cpf: "12345678900" } });
+    finishOrder.mockResolvedValueOnce({ success: true, data: { id: "order-99" } });
+
+    const { result } = renderCheckout();
+    await waitFor(() => expect(result.current.selectedAddressId).toBe("addr-1"));
+
+    act(() => {
+      result.current.setOrderType("delivery");
+      result.current.setPaymentMethod("pix_on_delivery");
+      result.current.handleInputChange("cpf", "123.456.789-00");
+    });
+
+    await act(async () => {
+      await result.current.handleSubmitOrder();
+    });
+
+    expect(updateCpf).toHaveBeenCalledWith("12345678900");
+    expect(authStoreUpdateUser).toHaveBeenCalledWith(
+      expect.objectContaining({ cpf: "12345678900" }),
+    );
+    expect(finishOrder).toHaveBeenCalledTimes(1);
+  });
+
+  it("não finaliza o pedido caso o salvamento do CPF falhe", async () => {
+    AUTH.user = { id: "user-2", name: "Cliente Sem CPF", phone: "11999999999", cpf: "" };
+    updateCpf.mockResolvedValueOnce({ success: false, message: "CPF já cadastrado" });
+
+    const { result } = renderCheckout();
+    await waitFor(() => expect(result.current.selectedAddressId).toBe("addr-1"));
+
+    act(() => {
+      result.current.setOrderType("delivery");
+      result.current.setPaymentMethod("pix_on_delivery");
+      result.current.handleInputChange("cpf", "123.456.789-00");
+    });
+
+    await act(async () => {
+      await result.current.handleSubmitOrder();
+    });
+
+    expect(updateCpf).toHaveBeenCalledWith("12345678900");
+    expect(toastError).toHaveBeenCalledWith("CPF já cadastrado");
+    expect(finishOrder).not.toHaveBeenCalled();
+  });
+
+  it("quem já possui CPF informado não é perguntado novamente nem chama updateCpf", async () => {
+    AUTH.user = { id: "user-1", name: "Cliente", phone: "11999999999", cpf: "12345678900" };
+    finishOrder.mockResolvedValueOnce({ success: true, data: { id: "order-100" } });
+
+    const { result } = renderCheckout();
+    await waitFor(() => expect(result.current.selectedAddressId).toBe("addr-1"));
+
+    expect(result.current.hasCpf).toBe(true);
+    expect(result.current.isDeliveryValid()).toBe(true);
+
+    act(() => {
+      result.current.setOrderType("delivery");
+      result.current.setPaymentMethod("pix_on_delivery");
+    });
+
+    await act(async () => {
+      await result.current.handleSubmitOrder();
+    });
+
+    expect(updateCpf).not.toHaveBeenCalled();
+    expect(finishOrder).toHaveBeenCalledTimes(1);
   });
 });
 

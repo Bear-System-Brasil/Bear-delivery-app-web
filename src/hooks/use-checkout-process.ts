@@ -7,7 +7,12 @@ import {
 } from "@/services/api";
 import { useAuthStore, useCartStore } from "@/stores";
 import { getDeliveryDiscount, getPromoDiscount } from "@/stores/cart-store";
-import { getErrorMessage, onlyNumbers } from "@/utils";
+import {
+  formatCpfDisplay,
+  getErrorMessage,
+  isValidCpf,
+  onlyNumbers,
+} from "@/utils";
 import {
   resolveAddressCoordinates,
   withCoords,
@@ -80,6 +85,7 @@ export function getAvailableCheckoutPaymentMethods(
 export interface DeliveryInfo {
   name: string;
   phone: string;
+  cpf: string;
   zipCode: string;
   street: string;
   number: string;
@@ -225,6 +231,7 @@ export const useCheckoutProcess = () => {
   const [deliveryInfo, setDeliveryInfo] = useState<DeliveryInfo>({
     name: user?.name || "",
     phone: user?.phone || "",
+    cpf: user?.cpf || "",
     zipCode: "",
     street: "",
     number: "",
@@ -352,7 +359,11 @@ export const useCheckoutProcess = () => {
    * Atualiza campo de entrega
    */
   const handleInputChange = (field: string, value: string | number) => {
-    setDeliveryInfo((prev) => ({ ...prev, [field]: value }));
+    let formattedValue = value;
+    if (field === "cpf") {
+      formattedValue = formatCpfDisplay(String(value));
+    }
+    setDeliveryInfo((prev) => ({ ...prev, [field]: formattedValue }));
 
     // Endereço diferente, ponto diferente: a coordenada herdada de um endereço
     // salvo não sobrevive à edição do texto, senão o endereço novo seria
@@ -433,7 +444,11 @@ export const useCheckoutProcess = () => {
    * Endereço so e obrigatório quando o pedido e para entrega
    */
   const isDeliveryValid = () => {
-    const contactValid = Boolean(deliveryInfo.name && deliveryInfo.phone);
+    const hasCpf = Boolean(user?.cpf && onlyNumbers(user.cpf).length === 11);
+    const cpfValid = hasCpf || isValidCpf(deliveryInfo.cpf);
+    const contactValid = Boolean(
+      deliveryInfo.name && deliveryInfo.phone && cpfValid,
+    );
 
     if (orderType === "pickup") {
       return contactValid;
@@ -538,6 +553,12 @@ export const useCheckoutProcess = () => {
       return;
     }
 
+    const hasCpf = Boolean(user?.cpf && onlyNumbers(user.cpf).length === 11);
+    if (!hasCpf && !isValidCpf(deliveryInfo.cpf)) {
+      showCheckoutError("Informe um CPF válido para finalizar o pedido.");
+      return;
+    }
+
     submittingRef.current = true;
     setIsProcessing(true);
 
@@ -548,6 +569,22 @@ export const useCheckoutProcess = () => {
     let orderCompleted = false;
 
     try {
+      // --------------------------------------------------
+      // 0️⃣ SALVAR CPF CASO SEJA PRIMEIRO PEDIDO SEM CPF (LDMF-301)
+      // --------------------------------------------------
+      if (!hasCpf && isValidCpf(deliveryInfo.cpf)) {
+        const cleanCpf = onlyNumbers(deliveryInfo.cpf);
+        const updateCpfRes = await apiService.updateCpf(cleanCpf);
+        if (!updateCpfRes.success) {
+          showCheckoutError(
+            updateCpfRes.message ||
+              "Erro ao salvar CPF. Verifique e tente novamente.",
+          );
+          return;
+        }
+        useAuthStore.getState?.()?.updateUser?.({ ...user, cpf: cleanCpf });
+      }
+
       // --------------------------------------------------
       // 1️⃣ GARANTIR QUE EXISTE UM ADDRESS (apenas para entrega)
       // --------------------------------------------------
@@ -854,9 +891,12 @@ export const useCheckoutProcess = () => {
         ...prev,
         name: user.name || prev.name,
         phone: user.phone || prev.phone,
+        cpf: user.cpf || prev.cpf,
       }));
     }
   }, [user]);
+
+  const hasCpf = Boolean(user?.cpf && onlyNumbers(user.cpf).length === 11);
 
   return {
     // Address management
@@ -875,6 +915,7 @@ export const useCheckoutProcess = () => {
     orderType,
     setOrderType,
     isDeliveryValid,
+    hasCpf,
 
     // Form state
     deliveryInfo,

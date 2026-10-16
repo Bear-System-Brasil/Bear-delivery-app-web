@@ -1380,6 +1380,25 @@ export const apiService = {
     return apiRequest<User>("PUT", `/user`, payload, true);
   },
 
+  /**
+   * Atualiza/registra o CPF do usuário autenticado (LDMF-301 / LDMF-335).
+   * Chama a rota protegida PATCH /auth/cpf, com fallback para PUT /user
+   * caso a rota nova ainda não tenha subido no backend (404).
+   */
+  updateCpf: async (cpf: string): Promise<ApiResponse<User>> => {
+    const cleanCpf = cpf.replace(/\D/g, "");
+    const res = await apiRequest<User>(
+      "PATCH",
+      "/auth/cpf",
+      { cpf: cleanCpf },
+      true,
+    );
+    if (!res.success && res.status === 404) {
+      return apiService.updateUser({ cpf: cleanCpf });
+    }
+    return res;
+  },
+
   verifyOtp: (otpData: VerifyOtpRequest) =>
     apiRequest<string>("POST", "/user/complet", otpData),
 

@@ -59,10 +59,16 @@ async function handler(
   // upstream) não pode conter dado pessoal/específico de usuário - seguro
   // pro browser guardar por alguns segundos. Some caso o wantsAuth mude
   // de resposta pra resposta, corta o risco de vazar dado autenticado.
+  //
+  // `private`, não `public` (LDMF-348): com `public` o CDN da Vercel
+  // guardava a resposta, e um PATCH não limpa esse cache. Com o
+  // stale-while-revalidate, a tela ficava um salvamento atrás por até ~2 min
+  // para todo mundo. O browser descarta a própria entrada depois de um
+  // PATCH/POST na mesma URL, então só ele guardar não tem esse problema.
   if (request.method === "GET" && !wantsAuth && upstream.ok) {
     responseHeaders.set(
       "Cache-Control",
-      "public, max-age=20, stale-while-revalidate=100",
+      "private, max-age=20, stale-while-revalidate=100",
     );
   } else {
     responseHeaders.set("Cache-Control", "no-store");

@@ -16,6 +16,7 @@ import { formatCep } from "@/utils";
 import {
   Check,
   Clock,
+  CreditCard,
   LocateFixed,
   MapPin,
   Phone,
@@ -57,6 +58,7 @@ type Props = {
   orderType: "delivery" | "pickup";
   setOrderType: Dispatch<SetStateAction<"delivery" | "pickup">>;
   restaurant: Restaurant | null;
+  hasCpf?: boolean;
 };
 
 type FieldProps = {
@@ -102,6 +104,7 @@ export function DeliveryForm({
   orderType,
   setOrderType,
   restaurant,
+  hasCpf,
 }: Props) {
   const [isLoadingCep, setIsLoadingCep] = useState(false);
 
@@ -252,6 +255,25 @@ export function DeliveryForm({
               />
             </div>
           </Field>
+
+          {!hasCpf && (
+            <Field htmlFor="cpf" label="CPF" className="md:col-span-2">
+              <div className="relative">
+                <CreditCard className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  id="cpf"
+                  placeholder="000.000.000-00"
+                  value={deliveryInfo.cpf || ""}
+                  onChange={(e) => handleInputChange("cpf", e.target.value)}
+                  maxLength={14}
+                  className={cn(inputClass, "pl-9")}
+                />
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Necessário para emissão de nota fiscal no seu primeiro pedido.
+              </p>
+            </Field>
+          )}
         </div>
       </section>
 
