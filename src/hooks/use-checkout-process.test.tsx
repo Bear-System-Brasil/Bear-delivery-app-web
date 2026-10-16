@@ -13,6 +13,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const finishOrder = vi.fn();
 const openCart = vi.fn();
+const viewOrder = vi.fn();
 const paymentsCreate = vi.fn();
 const deleteUserAddress = vi.fn();
 const createUserAddress = vi.fn();
@@ -202,7 +203,7 @@ vi.mock("@/lib/geocode", () => ({ parseCoords: vi.fn() }));
 
 vi.mock("@/services/api", () => ({
   apiService: {
-    orders: { finishOrder, openCart },
+    orders: { finishOrder, openCart, viewOrder },
     payments: { create: paymentsCreate },
     address: {
       deleteUserAddress,
@@ -265,8 +266,21 @@ async function submitWith(setup: (h: Hook) => void) {
   return result;
 }
 
+// Carrinho do backend todo da loja do checkout - a conferência antes de
+// finalizar (LDMF-317) passa. Os testes da conferência trocam esta resposta.
+const CART_OF_COMP_1 = {
+  success: true,
+  data: {
+    id: "cart:user-1",
+    companyId: "comp-1",
+    orderedItems: [{ productId: "prod-1", product: { companyId: "comp-1" } }],
+  },
+};
+
 beforeEach(() => {
   openingHoursQuery = { data: undefined, isLoading: false };
+  viewOrder.mockReset();
+  viewOrder.mockResolvedValue(CART_OF_COMP_1);
   AUTH.user = {
     id: "user-1",
     name: "Cliente",
@@ -1050,3 +1064,79 @@ describe("useCheckoutProcess - primeiro pedido e CPF (LDMF-301)", () => {
 });
 
 
+
+describe("useCheckoutProcess - loja do carrinho antes de finalizar (LDMF-317)", () => {
+  beforeEach(() => {
+    finishOrder.mockReset();
+    finishOrder.mockResolvedValue({ success: true, data: { id: "order-1" } });
+    openCart.mockReset();
+    paymentsCreate.mockReset();
+    paymentsCreate.mockResolvedValue({ success: true, data: {} });
+    resetAddressMocks();
+    addressesQuery = ADDRESSES_WITH_DEFAULT;
+    seedAddressBook(ADDRESSES_WITH_DEFAULT);
+  });
+
+  const pickup = (h: Hook) => {
+    h.setOrderType("pickup");
+    h.setPaymentMethod("pix_on_delivery");
+  };
+
+  it("carrinho todo da loja do checkout: confere e finaliza", async () => {
+    await submitWith(pickup);
+
+    expect(viewOrder).toHaveBeenCalledWith("user-1", "cart:user-1");
+    expect(finishOrder).toHaveBeenCalledTimes(1);
+  });
+
+  it("carrinho do backend preso a outra loja: bloqueia e avisa", async () => {
+    // O pedido de 15/10: loja do carrinho = A, checkout achando que é a B
+    viewOrder.mockResolvedValue({
+      success: true,
+      data: {
+        id: "cart:user-1",
+        companyId: "comp-outra",
+        orderedItems: [{ productId: "prod-1", product: { companyId: "comp-1" } }],
+      },
+    });
+
+    await submitWith(pickup);
+
+    expect(finishOrder).not.toHaveBeenCalled();
+    expect(toastError).toHaveBeenCalledWith(
+      "Seu carrinho tem itens de outra loja. Revise o carrinho antes de finalizar o pedido.",
+    );
+  });
+
+  it("item de outra loja dentro do carrinho certo: bloqueia e avisa", async () => {
+    viewOrder.mockResolvedValue({
+      success: true,
+      data: {
+        id: "cart:user-1",
+        companyId: "comp-1",
+        orderedItems: [
+          { productId: "prod-1", product: { companyId: "comp-1" } },
+          { productId: "prod-x", product: { companyId: "comp-outra" } },
+        ],
+      },
+    });
+
+    await submitWith(pickup);
+
+    expect(finishOrder).not.toHaveBeenCalled();
+    expect(toastError).toHaveBeenCalledWith(
+      "Seu carrinho tem itens de outra loja. Revise o carrinho antes de finalizar o pedido.",
+    );
+  });
+
+  it("sem carrinho no backend: não finaliza um pedido vazio", async () => {
+    viewOrder.mockResolvedValue({ success: false, status: 404 });
+
+    await submitWith(pickup);
+
+    expect(finishOrder).not.toHaveBeenCalled();
+    expect(toastError).toHaveBeenCalledWith(
+      expect.stringContaining("Não encontramos os itens do seu carrinho"),
+    );
+  });
+});
