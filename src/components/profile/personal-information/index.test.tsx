@@ -179,7 +179,17 @@ describe("PersonalInformation - data de nascimento (LDMF-303)", () => {
     render(<ValidatedWrapper />);
     const input = screen.getByLabelText(/data de nascimento/i);
 
-    fireEvent.change(input, { target: { value: "31022000" } });
+    // 31/02 digitado nem entra: o campo fica como estava
+    fireEvent.change(input, { target: { value: "" } });
+    for (const ch of "3102") {
+      fireEvent.change(input, { target: { value: (input as HTMLInputElement).value + ch } });
+    }
+    expect(input).toHaveValue("31/0");
+
+    // 29/02 de ano comum colado entra e mostra o aviso
+    (input as HTMLInputElement).setSelectionRange(0, (input as HTMLInputElement).value.length);
+    fireEvent.paste(input, { clipboardData: { getData: () => "29/02/2001" } });
+    expect(input).toHaveValue("29/02/2001");
     expect(await screen.findByText(BIRTH_DATE_MESSAGES.invalid)).toBeInTheDocument();
 
     fireEvent.change(input, {

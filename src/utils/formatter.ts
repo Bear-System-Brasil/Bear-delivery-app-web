@@ -55,16 +55,6 @@ export const BIRTH_DATE_MESSAGES = {
   underage: "É necessário ter pelo menos 18 anos.",
 } as const;
 
-/**
- * Regra única da data de nascimento, usada no cadastro e no perfil (LDMF-301/303).
- * Retorna a mensagem de erro, ou null se a data é aceita: completa, existente,
- * não futura, com 18 anos ou mais e no máximo 120 anos (mesmos limites do back,
- * contrato do LDMF-302 de 16/10).
- *
- * É autodeclaração (triagem), não verificação de idade. O "hoje" é o dia no
- * horário de Brasília, como no back: quem faz 18 anos hoje já é aceito, a
- * qualquer hora e em qualquer fuso do aparelho.
- */
 /** Data (AAAA-MM-DD) do instante `now` no horário de Brasília. */
 const brasiliaDate = (now: Date): string =>
   new Intl.DateTimeFormat("en-CA", {
@@ -74,11 +64,76 @@ const brasiliaDate = (now: Date): string =>
     day: "2-digit",
   }).format(now);
 
+export const isLeapYear = (year: number): boolean =>
+  (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+
+/**
+ * Dias do mês (1-12). Sem o ano, fevereiro conta 29: o ano ainda pode ser
+ * bissexto, e o 29/02 de ano comum vira aviso quando o ano fecha.
+ */
+export const daysInMonth = (month: number, year?: number | null): number => {
+  if (month === 2) return year == null || isLeapYear(year) ? 29 : 28;
+  return [4, 6, 9, 11].includes(month) ? 30 : 31;
+};
+
+const onlyDigits = (value: string) => value.replace(/\D/g, "").slice(0, 8);
+
+/**
+ * O dígito na posição `i` (0-7 de ddmmaaaa) é possível, dados os anteriores?
+ * Dia 01-31, mês 01-12 compatível com o dia já digitado, ano começando em 1 ou 2.
+ */
+const isBirthDateDigitAllowed = (d: number[], i: number): boolean => {
+  const x = d[i];
+  switch (i) {
+    case 0:
+      return x <= 3;
+    case 1:
+      if (d[0] === 0) return x >= 1;
+      if (d[0] === 3) return x <= 1;
+      return true;
+    case 2:
+      return x <= 1;
+    case 3: {
+      if (d[2] === 0 && x === 0) return false;
+      if (d[2] === 1 && x > 2) return false;
+      const day = d[0] * 10 + d[1];
+      return day <= daysInMonth(d[2] * 10 + x);
+    }
+    case 4:
+      return x === 1 || x === 2;
+    default:
+      return true;
+  }
+};
+
+/** Quantos dígitos impossíveis há em ddmmaaaa (0 = todos possíveis até aqui). */
+export const countImpossibleBirthDateDigits = (value: string): number => {
+  const d = onlyDigits(value).split("").map(Number);
+  return d.filter((_, i) => !isBirthDateDigitAllowed(d, i)).length;
+};
+
+/**
+ * Regra única da data de nascimento, usada no cadastro e no perfil (LDMF-301/303).
+ * Retorna a mensagem de erro, ou null se a data é aceita: completa, existente,
+ * não futura, com 18 anos ou mais e no máximo 120 anos (mesmos limites do back,
+ * contrato do LDMF-302 de 16/10).
+ *
+ * Data incompleta que já tem dígito impossível (ex.: colada) é "inválida", não
+ * "incompleta", para o aviso aparecer na hora.
+ *
+ * É autodeclaração (triagem), não verificação de idade. O "hoje" é o dia no
+ * horário de Brasília, como no back: quem faz 18 anos hoje já é aceito, a
+ * qualquer hora e em qualquer fuso do aparelho.
+ */
 export const getBirthDateError = (
   birthDateStr?: string | null,
   now: Date = new Date(),
 ): string | null => {
-  if (!isCompleteDateFormat(birthDateStr)) return BIRTH_DATE_MESSAGES.incomplete;
+  if (!isCompleteDateFormat(birthDateStr)) {
+    return countImpossibleBirthDateDigits(birthDateStr ?? "") > 0
+      ? BIRTH_DATE_MESSAGES.invalid
+      : BIRTH_DATE_MESSAGES.incomplete;
+  }
   const birth = parseDateValue(birthDateStr);
   if (!birth) return BIRTH_DATE_MESSAGES.invalid;
 
@@ -95,10 +150,29 @@ export const getBirthDateError = (
  * sozinhas a partir do 3º e do 5º dígito. Aceita no máximo 8 dígitos.
  */
 export const maskBirthDate = (value: string): string => {
-  const digits = value.replace(/\D/g, "").slice(0, 8);
+  const digits = onlyDigits(value);
   if (digits.length <= 2) return digits;
   if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
   return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+};
+
+/**
+ * Próximo valor do campo de data (LDMF-303). Digitação que cria dígito
+ * impossível é recusada: o dígito nem entra e o campo fica como estava.
+ * Apagar sempre passa. Entrada de vários dígitos de uma vez (colar,
+ * preenchimento automático) aproveita só os números e entra mesmo que não
+ * feche: aí o aviso aparece (getBirthDateError), sem travar o campo.
+ */
+export const nextBirthDateValue = (previous: string, next: string): string => {
+  const before = onlyDigits(previous);
+  const after = onlyDigits(next);
+  const isDeletion = after.length < before.length;
+  const isBulkInsert = after.length - before.length > 1;
+  if (isDeletion || isBulkInsert) return maskBirthDate(after);
+
+  const addsImpossible =
+    countImpossibleBirthDateDigits(after) > countImpossibleBirthDateDigits(before);
+  return maskBirthDate(addsImpossible ? before : after);
 };
 
 /**

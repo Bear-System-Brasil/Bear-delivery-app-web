@@ -12,6 +12,9 @@ import {
   BIRTH_DATE_MESSAGES,
   getBirthDateError,
   maskBirthDate,
+  nextBirthDateValue,
+  daysInMonth,
+  isLeapYear,
   isCompleteDateFormat,
   isValidCep,
   isValidCnpj,
@@ -147,6 +150,144 @@ describe("maskBirthDate (LDMF-303)", () => {
     expect(maskBirthDate("15/10/")).toBe("15/10");
     expect(maskBirthDate("")).toBe("");
   });
+});
+
+describe("nextBirthDateValue: dígito impossível não entra (LDMF-303)", () => {
+  // Digita caractere a caractere, como no teclado, e devolve o valor final
+  const typeChars = (chars: string, start = "") => {
+    let value = start;
+    for (const ch of chars) value = nextBirthDateValue(value, value + ch);
+    return value;
+  };
+
+  it("dia: 1º dígito só de 0 a 3", () => {
+    for (const d of "456789") expect(typeChars(d)).toBe("");
+    for (const d of "0123") expect(typeChars(d)).toBe(d);
+  });
+
+  it("dia: depois do 3, só 0 ou 1", () => {
+    expect(typeChars("32")).toBe("3");
+    expect(typeChars("39")).toBe("3");
+    expect(typeChars("30")).toBe("30");
+    expect(typeChars("31")).toBe("31");
+  });
+
+  it('dia: "00" não entra', () => {
+    expect(typeChars("00")).toBe("0");
+    expect(typeChars("01")).toBe("01");
+  });
+
+  it("mês: 1º dígito só 0 ou 1", () => {
+    for (const d of "23456789") expect(typeChars(`15${d}`)).toBe("15");
+    expect(typeChars("150")).toBe("15/0");
+    expect(typeChars("151")).toBe("15/1");
+  });
+
+  it("mês: depois do 1, só 0, 1 ou 2", () => {
+    expect(typeChars("1513")).toBe("15/1");
+    expect(typeChars("1519")).toBe("15/1");
+    expect(typeChars("1512")).toBe("15/12");
+  });
+
+  it('mês: "00" não entra', () => {
+    expect(typeChars("1500")).toBe("15/0");
+  });
+
+  it("ano: começa só com 1 ou 2", () => {
+    for (const d of "03456789") expect(typeChars(`1510${d}`)).toBe("15/10");
+    expect(typeChars("15101")).toBe("15/10/1");
+    expect(typeChars("15102")).toBe("15/10/2");
+  });
+
+  it("mês que não combina com o dia já digitado não entra", () => {
+    // 31 só em meses de 31 dias
+    for (const m of ["04", "06", "09", "11", "02"]) {
+      expect(typeChars(`31${m}`)).toBe(`31/${m[0]}`);
+    }
+    for (const m of ["01", "03", "05", "07", "08", "10", "12"]) {
+      expect(typeChars(`31${m}`)).toBe(`31/${m}`);
+    }
+    // 30 e 31 nunca em fevereiro
+    expect(typeChars("3002")).toBe("30/0");
+    // 29/02 entra: o ano ainda pode ser bissexto
+    expect(typeChars("2902")).toBe("29/02");
+  });
+
+  it("29/02 em ano comum: os dígitos entram e o aviso aparece quando o ano fecha", () => {
+    const now = new Date("2026-10-16T15:00:00Z");
+    const comum = typeChars("29022001");
+    expect(comum).toBe("29/02/2001");
+    expect(getBirthDateError(comum, now)).toBe(BIRTH_DATE_MESSAGES.invalid);
+
+    const bissexto = typeChars("29022000");
+    expect(bissexto).toBe("29/02/2000");
+    expect(getBirthDateError(bissexto, now)).toBeNull();
+  });
+
+  it("menor de 18 e data futura entram: são aviso, não bloqueio", () => {
+    const now = new Date("2026-10-16T15:00:00Z");
+    expect(typeChars("01012015")).toBe("01/01/2015");
+    expect(getBirthDateError("01/01/2015", now)).toBe(BIRTH_DATE_MESSAGES.underage);
+    expect(typeChars("01012030")).toBe("01/01/2030");
+    expect(getBirthDateError("01/01/2030", now)).toBe(BIRTH_DATE_MESSAGES.future);
+  });
+
+  it("apagar sempre passa", () => {
+    expect(nextBirthDateValue("15/10/2000", "15/10/200")).toBe("15/10/200");
+    expect(nextBirthDateValue("15/1", "15/")).toBe("15");
+    // apagar o dia deixando um mês que não combina não trava o campo
+    expect(nextBirthDateValue("31/01", "3/01")).toBe("30/1");
+  });
+
+  it("trocar um dígito por outro impossível não entra", () => {
+    // seleciona o 1 de "15" e digita 9 no lugar do 1: "95/10/2000"
+    expect(nextBirthDateValue("15/10/2000", "95/10/2000")).toBe("15/10/2000");
+    // trocar o dia para 31 com mês 04 já digitado
+    expect(nextBirthDateValue("30/04/2000", "31/04/2000")).toBe("30/04/2000");
+  });
+});
+
+describe("nextBirthDateValue: colar (LDMF-303)", () => {
+  it("aproveita só os números", () => {
+    expect(nextBirthDateValue("", "Nascido em 15.10.2000")).toBe("15/10/2000");
+    expect(nextBirthDateValue("", "15-10-2000")).toBe("15/10/2000");
+  });
+
+  it("se não fecha, entra assim mesmo e o aviso aparece na hora, sem travar", () => {
+    const now = new Date("2026-10-16T15:00:00Z");
+    const colado = nextBirthDateValue("", "31/04/2000");
+    expect(colado).toBe("31/04/2000");
+    expect(getBirthDateError(colado, now)).toBe(BIRTH_DATE_MESSAGES.invalid);
+
+    // incompleto, mas já impossível: aviso de inválida, não de incompleta
+    const parcial = nextBirthDateValue("", "99/1");
+    expect(parcial).toBe("99/1");
+    expect(getBirthDateError(parcial, now)).toBe(BIRTH_DATE_MESSAGES.invalid);
+
+    // dá para apagar e corrigir depois
+    expect(nextBirthDateValue(colado, "31/04/200")).toBe("31/04/200");
+  });
+});
+
+describe("dias por mês (LDMF-303)", () => {
+  it("daysInMonth considera ano bissexto em fevereiro", () => {
+    expect(daysInMonth(2, 2000)).toBe(29);
+    expect(daysInMonth(2, 2004)).toBe(29);
+    expect(daysInMonth(2, 1900)).toBe(28);
+    expect(daysInMonth(2, 2001)).toBe(28);
+    expect(daysInMonth(2)).toBe(29);
+    expect(daysInMonth(4, 2001)).toBe(30);
+    expect(daysInMonth(1, 2001)).toBe(31);
+    expect(daysInMonth(12, 2001)).toBe(31);
+  });
+
+  it("isLeapYear segue a regra dos 100 e 400 anos", () => {
+    expect(isLeapYear(2000)).toBe(true);
+    expect(isLeapYear(1900)).toBe(false);
+    expect(isLeapYear(2024)).toBe(true);
+    expect(isLeapYear(2023)).toBe(false);
+  });
+
 });
 
 describe("formatPhone", () => {
