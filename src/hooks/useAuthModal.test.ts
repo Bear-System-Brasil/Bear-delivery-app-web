@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { apiService } from "@/services/api";
 import { useAuthStore } from "@/stores";
 import { useAuthModal } from "./useAuthModal";
+import { BIRTH_DATE_MESSAGES } from "@/utils";
 
 vi.mock("@/services/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/services/api")>();
@@ -345,7 +346,28 @@ describe("useAuthModal", () => {
       expect(result.current.step).toBe("form");
       expect(result.current.submitMessage).toEqual({
         type: "error",
-        text: "É necessário ter pelo menos 18 anos para se cadastrar.",
+        text: BIRTH_DATE_MESSAGES.underage,
+      });
+    });
+
+    it("data futura ou inexistente também bloqueia, com a mensagem da regra (LDMF-303)", async () => {
+      const { result } = renderModal("register");
+      act(() => result.current.setAcceptedTerms(true));
+
+      type(result, { ...validRegister, birthDate: "31022000" });
+      expect(result.current.registerData.birthDate).toBe("31/02/2000");
+      expect(result.current.isFormValid()).toBe(false);
+
+      type(result, { birthDate: `0101${new Date().getFullYear() + 1}` });
+      expect(result.current.isFormValid()).toBe(false);
+      await act(async () => {
+        await result.current.handleSubmit();
+      });
+
+      expect(api.createUser).not.toHaveBeenCalled();
+      expect(result.current.submitMessage).toEqual({
+        type: "error",
+        text: BIRTH_DATE_MESSAGES.future,
       });
     });
 

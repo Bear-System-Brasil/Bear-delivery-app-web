@@ -9,7 +9,8 @@ import {
   formatPhoneDisplay,
   formatPhoneRegex,
   getCustomerDisplayName,
-  isAdult,
+  BIRTH_DATE_MESSAGES,
+  getBirthDateError,
   isCompleteDateFormat,
   isValidCep,
   isValidCnpj,
@@ -42,31 +43,74 @@ describe("formatCpfDisplay", () => {
   });
 });
 
-describe("isAdult e isCompleteDateFormat (LDMF-301)", () => {
-  it("isCompleteDateFormat reconhece datas completas em DD/MM/AAAA e AAAA-MM-DD", () => {
+describe("isCompleteDateFormat (LDMF-301)", () => {
+  it("reconhece datas completas em DD/MM/AAAA e AAAA-MM-DD", () => {
     expect(isCompleteDateFormat("15/10/2000")).toBe(true);
     expect(isCompleteDateFormat("2000-10-15")).toBe(true);
     expect(isCompleteDateFormat("15/10/20")).toBe(false);
     expect(isCompleteDateFormat("")).toBe(false);
     expect(isCompleteDateFormat(null)).toBe(false);
   });
+});
 
-  it("isAdult aprova maior de 18 anos", () => {
-    expect(isAdult("01/01/1990")).toBe(true);
-    expect(isAdult("1990-01-01")).toBe(true);
+describe("getBirthDateError (LDMF-303)", () => {
+  // 16/10/2026 ao meio-dia em Brasília (UTC-3)
+  const now = new Date("2026-10-16T15:00:00Z");
+
+  it("aceita quem faz 18 anos exatamente hoje", () => {
+    expect(getBirthDateError("16/10/2008", now)).toBeNull();
   });
 
-  it("isAdult reprova menor de 18 anos", () => {
-    const nextYear = new Date().getFullYear() - 10;
-    expect(isAdult(`01/01/${nextYear}`)).toBe(false);
+  it("recusa quem tem 17 anos e 364 dias (faz 18 amanhã)", () => {
+    expect(getBirthDateError("17/10/2008", now)).toBe(BIRTH_DATE_MESSAGES.underage);
   });
 
-  it("isAdult retorna false para data vazia, nula ou inválida", () => {
-    expect(isAdult("")).toBe(false);
-    expect(isAdult(null)).toBe(false);
-    expect(isAdult(undefined)).toBe(false);
-    expect(isAdult("data-invalida")).toBe(false);
-    expect(isAdult("31/02/2000")).toBe(false);
+  it("usa o dia em Brasília: 23h59 de 16/10 ainda não é aniversário de quem nasceu em 17/10", () => {
+    // 02:59 UTC de 17/10 = 23:59 de 16/10 em Brasília
+    const lateNight = new Date("2026-10-17T02:59:00Z");
+    expect(getBirthDateError("17/10/2008", lateNight)).toBe(BIRTH_DATE_MESSAGES.underage);
+    expect(getBirthDateError("16/10/2008", lateNight)).toBeNull();
+  });
+
+  it("usa o dia em Brasília: à 00h de 17/10 quem nasceu em 17/10 já faz 18", () => {
+    // 03:00 UTC de 17/10 = 00:00 de 17/10 em Brasília
+    const midnight = new Date("2026-10-17T03:00:00Z");
+    expect(getBirthDateError("17/10/2008", midnight)).toBeNull();
+  });
+
+  it("aceita adulto em DD/MM/AAAA e em AAAA-MM-DD", () => {
+    expect(getBirthDateError("01/01/1990", now)).toBeNull();
+    expect(getBirthDateError("1990-01-01", now)).toBeNull();
+  });
+
+  it("recusa data futura", () => {
+    expect(getBirthDateError("17/10/2026", now)).toBe(BIRTH_DATE_MESSAGES.future);
+    expect(getBirthDateError("01/01/2030", now)).toBe(BIRTH_DATE_MESSAGES.future);
+  });
+
+  it("recusa data que não existe", () => {
+    expect(getBirthDateError("31/02/2000", now)).toBe(BIRTH_DATE_MESSAGES.invalid);
+    expect(getBirthDateError("29/02/2001", now)).toBe(BIRTH_DATE_MESSAGES.invalid);
+    expect(getBirthDateError("00/01/2000", now)).toBe(BIRTH_DATE_MESSAGES.invalid);
+    expect(getBirthDateError("15/13/2000", now)).toBe(BIRTH_DATE_MESSAGES.invalid);
+  });
+
+  it("aceita até 120 anos e recusa mais de 120", () => {
+    // 120 anos completos hoje
+    expect(getBirthDateError("16/10/1906", now)).toBeNull();
+    // 120 anos e 364 dias: ainda tem 120
+    expect(getBirthDateError("17/10/1905", now)).toBeNull();
+    // 121 anos completos hoje
+    expect(getBirthDateError("16/10/1905", now)).toBe(BIRTH_DATE_MESSAGES.invalid);
+    expect(getBirthDateError("01/01/1800", now)).toBe(BIRTH_DATE_MESSAGES.invalid);
+  });
+
+  it("pede a data completa quando vazia, nula ou pela metade", () => {
+    expect(getBirthDateError("", now)).toBe(BIRTH_DATE_MESSAGES.incomplete);
+    expect(getBirthDateError(null, now)).toBe(BIRTH_DATE_MESSAGES.incomplete);
+    expect(getBirthDateError(undefined, now)).toBe(BIRTH_DATE_MESSAGES.incomplete);
+    expect(getBirthDateError("15/10/20", now)).toBe(BIRTH_DATE_MESSAGES.incomplete);
+    expect(getBirthDateError("data-invalida", now)).toBe(BIRTH_DATE_MESSAGES.incomplete);
   });
 });
 

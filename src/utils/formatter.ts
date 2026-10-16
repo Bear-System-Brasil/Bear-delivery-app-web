@@ -45,19 +45,49 @@ export const toDateBackendFormat = (
   return d ? d.format("DD/MM/YYYY") : undefined;
 };
 
+export const MIN_BIRTH_AGE = 18;
+export const MAX_BIRTH_AGE = 120;
+
+export const BIRTH_DATE_MESSAGES = {
+  incomplete: "Informe a data completa (dd/mm/aaaa).",
+  invalid: "Data de nascimento inválida.",
+  future: "A data de nascimento não pode ser no futuro.",
+  underage: "É necessário ter pelo menos 18 anos.",
+} as const;
+
 /**
- * Verifica se a data de nascimento informada corresponde a uma pessoa maior de idade (18+ anos).
- * Utiliza autodeclaração como triagem inicial de maioridade (LDMF-301).
+ * Regra única da data de nascimento, usada no cadastro e no perfil (LDMF-301/303).
+ * Retorna a mensagem de erro, ou null se a data é aceita: completa, existente,
+ * não futura, com 18 anos ou mais e no máximo 120 anos (mesmos limites do back,
+ * contrato do LDMF-302 de 16/10).
+ *
+ * É autodeclaração (triagem), não verificação de idade. O "hoje" é o dia no
+ * horário de Brasília, como no back: quem faz 18 anos hoje já é aceito, a
+ * qualquer hora e em qualquer fuso do aparelho.
  */
-export const isAdult = (
+/** Data (AAAA-MM-DD) do instante `now` no horário de Brasília. */
+const brasiliaDate = (now: Date): string =>
+  new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now);
+
+export const getBirthDateError = (
   birthDateStr?: string | null,
-  minAge: number = 18,
-): boolean => {
-  const d = parseDateValue(birthDateStr);
-  if (!d || !d.isValid()) return false;
-  const today = dayjs.utc();
-  const age = today.diff(d, "year");
-  return age >= minAge && age <= 125;
+  now: Date = new Date(),
+): string | null => {
+  if (!isCompleteDateFormat(birthDateStr)) return BIRTH_DATE_MESSAGES.incomplete;
+  const birth = parseDateValue(birthDateStr);
+  if (!birth) return BIRTH_DATE_MESSAGES.invalid;
+
+  const today = dayjs.utc(brasiliaDate(now), "YYYY-MM-DD");
+  if (birth.isAfter(today)) return BIRTH_DATE_MESSAGES.future;
+  const age = today.diff(birth, "year");
+  if (age > MAX_BIRTH_AGE) return BIRTH_DATE_MESSAGES.invalid;
+  if (age < MIN_BIRTH_AGE) return BIRTH_DATE_MESSAGES.underage;
+  return null;
 };
 
 /**

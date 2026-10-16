@@ -162,6 +162,7 @@ export function PersonalInformation({
           label="Data de Nascimento"
           id="birthDate"
           icon={<Calendar className="h-4 w-4" />}
+          error={profileForm.formState.errors.birthDate?.message}
         >
           {editingState.isOpen ? (
             <Input

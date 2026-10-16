@@ -3,7 +3,7 @@ import { apiService } from "@/services/api";
 import { useAuthStore } from "@/stores";
 import { normalizeAuthUser } from "@/stores/auth-store";
 import type { RawAuthUser } from "@/services/api";
-import { isAdult, formatCpfDisplay } from "@/utils";
+import { formatCpfDisplay, getBirthDateError } from "@/utils";
 
 interface UseAuthModalProps {
   isOpen: boolean;
@@ -126,7 +126,7 @@ export function useAuthModal({
         registerData.password &&
         registerData.confirmPassword &&
         registerData.birthDate &&
-        isAdult(registerData.birthDate) &&
+        !getBirthDateError(registerData.birthDate) &&
         passwordErrors.length === 0 &&
         passwordMatch &&
         acceptedTerms
@@ -181,11 +181,9 @@ export function useAuthModal({
           setSubmitMessage({ type: "error", text: loginResponse.message || "Email ou senha incorretos. Tente novamente." });
         }
       } else {
-        if (!isAdult(registerData.birthDate)) {
-          setSubmitMessage({
-            type: "error",
-            text: "É necessário ter pelo menos 18 anos para se cadastrar.",
-          });
+        const birthDateError = getBirthDateError(registerData.birthDate);
+        if (birthDateError) {
+          setSubmitMessage({ type: "error", text: birthDateError });
           return;
         }
 

@@ -17,7 +17,7 @@ import { useAuthModal } from "@/hooks/useAuthModal";
 import { PASSWORD_RECOVERY_UNAVAILABLE } from "@/constants/password-change";
 import { LEGAL_CONTACT_EMAIL } from "@/components/legal-page";
 import type { RawAuthUser } from "@/services/api";
-import { isAdult, isCompleteDateFormat } from "@/utils";
+import { getBirthDateError, isCompleteDateFormat } from "@/utils";
 import {
   ArrowRight,
   Calendar,
@@ -245,9 +245,9 @@ export default function AuthModal({
                         />
                       </div>
                       {isCompleteDateFormat(registerData.birthDate) &&
-                        !isAdult(registerData.birthDate) && (
+                        getBirthDateError(registerData.birthDate) && (
                           <p className="text-xs text-red-600 dark:text-red-400 mt-1">
-                            É necessário ter pelo menos 18 anos para se cadastrar.
+                            {getBirthDateError(registerData.birthDate)}
                           </p>
                         )}
                     </div>
