@@ -7,13 +7,13 @@ import {
   getFulfillmentLabel,
   getFulfillmentToneClass,
   getItemName,
-  getItemSizeLabel,
   getNamedAddOns,
   getOrderLabel,
   getPaymentLabel,
   getPeriodRange,
   getVariationName,
   hasAddOns,
+  hasSizes,
   isSameLocalDay,
   toDateInputValue,
 } from "./helpers";
@@ -167,22 +167,25 @@ describe("getAddOnName / getNamedAddOns", () => {
   });
 });
 
-describe("getItemSizeLabel", () => {
-  it("devolve o nome do tamanho do item", () => {
-    const item = {
-      id: "i1",
-      productId: "p1",
-      quantity: 1,
-      variations: [{ id: "v1", productVariation: { name: "Tradicional (18 cm)" } }],
-    } as KitchenOrderItem;
-    expect(getItemSizeLabel(item)).toBe("Tradicional (18 cm)");
+describe("hasSizes", () => {
+  it("é false quando nenhum item tem tamanho", () => {
+    expect(hasSizes(baseOrder())).toBe(false);
+    const order = baseOrder({
+      orderedItems: [
+        { id: "i1", productId: "p1", quantity: 1, addOns: [{ id: "a1", quantity: 1 }] } as KitchenOrderItem,
+      ],
+    });
+    expect(hasSizes(order)).toBe(false);
   });
 
-  it("é null quando o item não tem tamanho ou o nome não veio", () => {
-    expect(getItemSizeLabel({ id: "i1", productId: "p1", quantity: 1 })).toBeNull();
-    expect(
-      getItemSizeLabel({ id: "i1", productId: "p1", quantity: 1, variations: [{ id: "v1" }] }),
-    ).toBeNull();
+  it("é true quando algum item tem tamanho", () => {
+    const order = baseOrder({
+      orderedItems: [
+        { id: "i1", productId: "p1", quantity: 1 } as KitchenOrderItem,
+        { id: "i2", productId: "p2", quantity: 1, variations: [{ id: "v1" }] } as KitchenOrderItem,
+      ],
+    });
+    expect(hasSizes(order)).toBe(true);
   });
 });
 

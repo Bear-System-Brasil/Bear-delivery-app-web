@@ -89,21 +89,19 @@ export function getNamedAddOns(
 }
 
 /**
- * Tamanho(s) escolhido(s) do item, para o card. `null` quando o item não tem
- * tamanho — o card não mostra nada no lugar.
+ * Algum item do pedido tem tamanho? O card só indica presença ("Com
+ * tamanho"), uma vez por pedido; o nome do tamanho fica no detalhe e na
+ * comanda.
  */
-export function getItemSizeLabel(item: KitchenOrderItem): string | null {
-  const names = (item.variations ?? [])
-    .map(getVariationName)
-    .filter((name): name is string => Boolean(name));
-  return names.length > 0 ? names.join(", ") : null;
+export function hasSizes(order: KitchenOrder): boolean {
+  return (order.orderedItems ?? []).some((item) => (item.variations?.length ?? 0) > 0);
 }
 
 /**
  * Existe adicional em algum item do pedido? Tamanho não conta: tamanho e
- * adicional são coisas diferentes, e o card mostra o tamanho em linha
- * própria. O card não lista cada adicional (viraria uma parede de nomes);
- * só indica presença e manda pro modal.
+ * adicional são coisas diferentes (ver `hasSizes`). O card não lista cada
+ * adicional (viraria uma parede de nomes); só indica presença e manda pro
+ * modal.
  */
 export function hasAddOns(order: KitchenOrder): boolean {
   return (order.orderedItems ?? []).some((item) => (item.addOns?.length ?? 0) > 0);

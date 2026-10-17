@@ -7,7 +7,7 @@ import type { KitchenOrder, KitchenOrderItem } from "./types";
 // laço infinito nos testes deste projeto.
 const noop = vi.fn();
 
-function makeOrder(item: KitchenOrderItem): KitchenOrder {
+function makeOrder(items: KitchenOrderItem[]): KitchenOrder {
   return {
     id: "order-1",
     orderNumber: 8,
@@ -16,14 +16,14 @@ function makeOrder(item: KitchenOrderItem): KitchenOrder {
     statusChangedAt: new Date().toISOString(),
     fulfillmentType: "PICKUP",
     customer: { id: "c1", name: "Cliente Teste" },
-    orderedItems: [item],
+    orderedItems: items,
   };
 }
 
-function renderCard(item: KitchenOrderItem) {
+function renderCard(...items: KitchenOrderItem[]) {
   return render(
     <KitchenOrderCard
-      order={makeOrder(item)}
+      order={makeOrder(items)}
       actionLabel="Iniciar preparo"
       onAdvance={noop}
       onPrint={noop}
@@ -32,45 +32,71 @@ function renderCard(item: KitchenOrderItem) {
   );
 }
 
-const baseItem: KitchenOrderItem = {
-  id: "item-1",
-  productId: "p1",
-  quantity: 1,
-  product: { id: "p1", name: "Pastel de Queijo" },
-  addOns: [],
-  variations: [],
-};
+function item(id: string, overrides: Partial<KitchenOrderItem> = {}): KitchenOrderItem {
+  return {
+    id,
+    productId: `p-${id}`,
+    quantity: 1,
+    product: { id: `p-${id}`, name: `Pastel ${id}` },
+    addOns: [],
+    variations: [],
+    ...overrides,
+  };
+}
 
-const adicional = { id: "add-1", quantity: 1, productAddOns: { name: "Catupiry extra" } };
+const adicional = { id: "add-1", quantity: 4, productAddOns: { name: "Morango" } };
 const tamanho = { id: "var-1", productVariation: { name: "Tradicional (18 cm)" } };
 
-describe("KitchenOrderCard - tamanho e adicional separados", () => {
-  it("item só com tamanho mostra o tamanho e não vira \"Com adicional\"", () => {
-    renderCard({ ...baseItem, variations: [tamanho] });
+/** Texto do botão de detalhes, onde fica o indicador geral do pedido. */
+function indicador() {
+  return screen.getByRole("button", { name: "Ver detalhes do pedido 8" }).textContent;
+}
 
-    expect(screen.getByText("Tamanho: Tradicional (18 cm)")).toBeInTheDocument();
-    expect(screen.getByText("Sem adicional")).toBeInTheDocument();
-    expect(screen.queryByText("Com adicional")).not.toBeInTheDocument();
+describe("KitchenOrderCard - indicador geral de tamanho e adicional", () => {
+  it("pedido só com tamanho mostra \"Com tamanho\", sem nome do tamanho", () => {
+    renderCard(item("a", { variations: [tamanho] }));
+
+    expect(indicador()).toBe("Com tamanho");
+    expect(screen.queryByText(/Tradicional/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Com adicional/)).not.toBeInTheDocument();
   });
 
-  it("item sem tamanho e sem adicional não mostra linha de tamanho", () => {
-    renderCard(baseItem);
+  it("pedido só com adicional mostra \"Com adicional\", sem nome nem quantidade", () => {
+    renderCard(item("a", { addOns: [adicional] }));
 
-    expect(screen.queryByText(/Tamanho/)).not.toBeInTheDocument();
-    expect(screen.getByText("Sem adicional")).toBeInTheDocument();
+    expect(indicador()).toBe("Com adicional");
+    expect(screen.queryByText(/Morango/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/4x/)).not.toBeInTheDocument();
   });
 
-  it("item só com adicional mostra \"Com adicional\" e nenhuma linha de tamanho", () => {
-    renderCard({ ...baseItem, addOns: [adicional] });
+  it("pedido com tamanho e adicional mostra os dois indicadores", () => {
+    renderCard(item("a", { variations: [tamanho], addOns: [adicional] }));
 
-    expect(screen.getByText("Com adicional")).toBeInTheDocument();
-    expect(screen.queryByText(/Tamanho/)).not.toBeInTheDocument();
+    expect(indicador()).toBe("Com tamanho · Com adicional");
   });
 
-  it("item com tamanho e adicional mostra o tamanho e \"Com adicional\"", () => {
-    renderCard({ ...baseItem, variations: [tamanho], addOns: [adicional] });
+  it("pedido sem tamanho e sem adicional mantém \"Sem adicional\"", () => {
+    renderCard(item("a"));
 
-    expect(screen.getByText("Tamanho: Tradicional (18 cm)")).toBeInTheDocument();
-    expect(screen.getByText("Com adicional")).toBeInTheDocument();
+    expect(indicador()).toBe("Sem adicional");
+    expect(screen.queryByText(/Com tamanho/)).not.toBeInTheDocument();
+  });
+
+  it("pedido com vários itens com tamanho mostra o indicador uma vez só, sem linha por item", () => {
+    renderCard(
+      item("a", { variations: [tamanho] }),
+      item("b", { variations: [{ id: "var-2", productVariation: { name: "Gigante (30 cm)" } }] }),
+      item("c", { variations: [tamanho], addOns: [adicional] }),
+      item("d"),
+    );
+
+    expect(screen.getAllByRole("listitem")).toHaveLength(4);
+    expect(screen.getAllByText(/Com tamanho/)).toHaveLength(1);
+    expect(screen.getAllByText(/Com adicional/)).toHaveLength(1);
+    expect(screen.queryByText(/Tamanho:/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Tradicional|Gigante/)).not.toBeInTheDocument();
+    for (const name of ["Pastel a", "Pastel b", "Pastel c", "Pastel d"]) {
+      expect(screen.getByText(name)).toBeInTheDocument();
+    }
   });
 });
