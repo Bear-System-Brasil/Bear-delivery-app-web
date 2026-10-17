@@ -478,12 +478,12 @@ describe("useCheckoutProcess - campo faltando (LDMF-350)", () => {
   const FILL = {
     name: "Cliente",
     phone: "11999999999",
-    zipCode: "13930-000",
-    street: "Rua Coronel Pedro Penteado",
+    zipCode: "29360-000",
+    street: "Rua Jocarly Garcia",
     number: "",
-    neighborhood: "Centro",
-    city: "Serra Negra",
-    state: "SP",
+    neighborhood: "São Miguel",
+    city: "Castelo",
+    state: "ES",
   };
 
   it("endereço novo sem número aponta o número; retirada passa", async () => {

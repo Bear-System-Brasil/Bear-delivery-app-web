@@ -11,17 +11,29 @@ vi.mock("@/components/address-map", () => ({
   AddressMap: () => <div data-testid="mapa" />,
 }));
 
-// Resposta real da BrasilAPI para 13930000 (Serra Negra, CEP único da
-// cidade), medida em 17/10: sem rua e sem bairro.
-const CEP_SEM_RUA = {
-  cep: "13930000",
-  state: "SP",
-  city: "Serra Negra",
+// Respostas reais da BrasilAPI (medidas em 17/10) para as duas cidades do
+// lançamento, ambas de CEP único: sem rua e sem bairro.
+const CEP_CASTELO = {
+  cep: "29360000",
+  state: "ES",
+  city: "Castelo",
   neighborhood: null,
   street: null,
   location: {
     type: "Point",
-    coordinates: { longitude: "-46.70056", latitude: "-22.61222" },
+    coordinates: { longitude: "-41.18472", latitude: "-20.60361" },
+  },
+};
+
+const CEP_ALEGRE = {
+  cep: "29500000",
+  state: "ES",
+  city: "Alegre",
+  neighborhood: null,
+  street: null,
+  location: {
+    type: "Point",
+    coordinates: { longitude: "-41.53306", latitude: "-20.76361" },
   },
 };
 
@@ -106,29 +118,54 @@ describe("DeliveryForm - busca do CEP", () => {
     vi.restoreAllMocks();
   });
 
-  it("CEP sem rua não apaga rua e bairro já digitados e avisa", async () => {
+  it.each([
+    ["Castelo", CEP_CASTELO, "Rua Jocarly Garcia", "São Miguel"],
+    ["Alegre", CEP_ALEGRE, "Rua Monsenhor Pavesi", "Centro"],
+  ])(
+    "CEP único de %s preenche cidade e estado e não apaga o que foi digitado",
+    async (city, payload, street, neighborhood) => {
+      const user = userEvent.setup();
+      mockCep(payload);
+      render(<Harness />);
+
+      await user.type(screen.getByLabelText("Rua"), street);
+      await user.type(screen.getByLabelText("Numero"), "100");
+      await user.type(screen.getByLabelText("Bairro"), neighborhood);
+      await user.type(screen.getByLabelText("CEP"), payload.cep);
+
+      await waitFor(() =>
+        expect(screen.getByLabelText("Cidade")).toHaveValue(city),
+      );
+      expect(screen.getByLabelText("Estado")).toHaveValue("ES");
+      expect(screen.getByLabelText("Rua")).toHaveValue(street);
+      expect(screen.getByLabelText("Numero")).toHaveValue("100");
+      expect(screen.getByLabelText("Bairro")).toHaveValue(neighborhood);
+      expect(
+        screen.getByText(
+          "Este CEP vale para a cidade inteira. Preencha rua, número e bairro abaixo.",
+        ),
+      ).toBeInTheDocument();
+    },
+  );
+
+  it("CEP único antes de digitar deixa rua e bairro vazios e editáveis", async () => {
     const user = userEvent.setup();
-    mockCep(CEP_SEM_RUA);
+    mockCep(CEP_CASTELO);
     render(<Harness />);
 
-    await user.type(screen.getByLabelText("Rua"), "Rua Coronel Pedro Penteado");
-    await user.type(screen.getByLabelText("Bairro"), "Centro");
-    await user.type(screen.getByLabelText("CEP"), "13930000");
-
+    await user.type(screen.getByLabelText("CEP"), "29360000");
     await waitFor(() =>
-      expect(screen.getByLabelText("Cidade")).toHaveValue("Serra Negra"),
+      expect(screen.getByLabelText("Cidade")).toHaveValue("Castelo"),
     );
-    expect(screen.getByLabelText("Estado")).toHaveValue("SP");
-    expect(screen.getByLabelText("Rua")).toHaveValue(
-      "Rua Coronel Pedro Penteado",
-    );
-    expect(screen.getByLabelText("Bairro")).toHaveValue("Centro");
+
+    expect(screen.getByLabelText("Rua")).toHaveValue("");
     expect(screen.getByLabelText("Rua")).toBeEnabled();
-    expect(
-      screen.getByText(
-        "Este CEP não traz a rua ou o bairro. Preencha esses campos abaixo.",
-      ),
-    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Bairro")).toBeEnabled();
+
+    await user.type(screen.getByLabelText("Rua"), "Rua Daniel Zanuncio");
+    await user.type(screen.getByLabelText("Bairro"), "Pouso Alto");
+    expect(screen.getByLabelText("Rua")).toHaveValue("Rua Daniel Zanuncio");
+    expect(screen.getByLabelText("Bairro")).toHaveValue("Pouso Alto");
   });
 
   it("CEP com rua continua preenchendo rua e bairro", async () => {

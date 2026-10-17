@@ -78,6 +78,9 @@ type FieldProps = {
   children: ReactNode;
 };
 
+const CITY_WIDE_CEP_HINT =
+  "Este CEP vale para a cidade inteira. Preencha rua, número e bairro abaixo.";
+
 const fieldLabelClass = "text-[11px] font-bold text-foreground";
 const inputClass =
   "h-9 rounded-lg border-border bg-card text-sm shadow-none focus-visible:border-brand-400 focus-visible:ring-brand-200";
@@ -142,14 +145,15 @@ export function DeliveryForm({
   fieldErrors = {},
 }: Props) {
   const [isLoadingCep, setIsLoadingCep] = useState(false);
-  // CEP de cidade com CEP único (13930000, Serra Negra) volta sem rua e sem
-  // bairro: a tela avisa, em vez de prometer que "os campos serao
-  // preenchidos".
-  const [cepWithoutStreet, setCepWithoutStreet] = useState(false);
+  // CEP único da cidade (29360000 Castelo, 29500000 Alegre - as cidades do
+  // lançamento) volta sem rua e sem bairro: o cliente sempre digita rua,
+  // número e bairro à mão, e a tela diz isso em vez de prometer que "os
+  // campos serao preenchidos".
+  const [cepHint, setCepHint] = useState<string | null>(null);
 
   const handleGetData = async (zipCode: string) => {
     setIsLoadingCep(true);
-    setCepWithoutStreet(false);
+    setCepHint(null);
     try {
       const response = await fetch(
         `https://brasilapi.com.br/api/cep/v2/${zipCode}`,
@@ -173,7 +177,13 @@ export function DeliveryForm({
       if (data.city) handleInputChange("city", data.city);
       if (data.state) handleInputChange("state", data.state);
 
-      setCepWithoutStreet(!data.street || !data.neighborhood);
+      setCepHint(
+        !data.street
+          ? CITY_WIDE_CEP_HINT
+          : !data.neighborhood
+            ? "Este CEP não traz o bairro. Preencha o bairro abaixo."
+            : null,
+      );
 
       // A BrasilAPI já devolve a coordenada do logradouro - usa como ponto de
       // partida e centra o mapa nela. É a fonte de menor prioridade: some
@@ -182,9 +192,11 @@ export function DeliveryForm({
       applyCoords(parseBrasilApiCoords(data), "cep");
 
       toast.success(
-        data.street && data.neighborhood
-          ? "CEP encontrado. Campos preenchidos."
-          : "CEP encontrado. Confira rua e bairro.",
+        !data.street
+          ? "CEP da cidade encontrado. Preencha rua, número e bairro."
+          : !data.neighborhood
+            ? "CEP encontrado. Preencha o bairro."
+            : "CEP encontrado. Campos preenchidos.",
       );
     } catch (error) {
       console.error("Erro ao buscar CEP:", error);
@@ -527,12 +539,18 @@ export function DeliveryForm({
                   />
                 </Field>
 
-                <p className="text-xs font-semibold text-muted-foreground md:col-span-4">
+                <p
+                  className={cn(
+                    "text-xs font-semibold md:col-span-4",
+                    cepHint && !isLoadingCep
+                      ? "text-amber-700 dark:text-amber-400"
+                      : "text-muted-foreground",
+                  )}
+                >
                   {isLoadingCep
                     ? "Buscando CEP..."
-                    : cepWithoutStreet
-                      ? "Este CEP não traz a rua ou o bairro. Preencha esses campos abaixo."
-                      : "Digite o CEP e os campos serao preenchidos."}
+                    : (cepHint ??
+                      "Digite o CEP e os campos serao preenchidos.")}
                 </p>
 
                 <Field

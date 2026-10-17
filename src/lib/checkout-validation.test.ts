@@ -8,12 +8,12 @@ const COMPLETE = {
   name: "Cliente",
   phone: "11999999999",
   cpf: "",
-  zipCode: "13930-000",
-  street: "Rua Coronel Pedro Penteado",
+  zipCode: "29360-000",
+  street: "Rua Jocarly Garcia",
   number: "100",
-  neighborhood: "Centro",
-  city: "Serra Negra",
-  state: "SP",
+  neighborhood: "São Miguel",
+  city: "Castelo",
+  state: "ES",
 };
 
 describe("getCheckoutFieldErrors", () => {
