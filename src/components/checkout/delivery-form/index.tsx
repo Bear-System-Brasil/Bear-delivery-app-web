@@ -270,7 +270,7 @@ export function DeliveryForm({
                 />
               </div>
               <p className="text-[11px] text-muted-foreground mt-0.5">
-                Necessário para emissão de nota fiscal no seu primeiro pedido.
+                Informe seu CPF para concluir o pedido.
               </p>
             </Field>
           )}

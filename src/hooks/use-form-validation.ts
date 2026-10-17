@@ -1,6 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
+import { getBirthDateError } from "@/utils";
 
 /**
  * Schemas de validação reutilizáveis
@@ -16,7 +17,16 @@ export const profileSchema = z.object({
       "CPF deve ter 11 dígitos",
     ),
   phone: z.string().min(10, "Telefone deve ter pelo menos 10 dígitos"),
-  birthDate: z.string().optional(),
+  // Mesma regra do cadastro (LDMF-303). Vazio continua aceito: nesse caso o
+  // perfil não manda birthDate e a data salva no back fica como está.
+  birthDate: z
+    .string()
+    .optional()
+    .superRefine((value, ctx) => {
+      if (!value) return;
+      const error = getBirthDateError(value);
+      if (error) ctx.addIssue({ code: "custom", message: error });
+    }),
 });
 
 /** Valor salvo no número quando o cliente marca "Sem número". */

@@ -28,7 +28,11 @@
 
 import { Coords, ProductCategory, Restaurant } from "@/types/restaurant";
 import { STORAGE_KEYS, storageManager } from "@/utils/storage-manager";
-import { getErrorMessage, toDateBackendFormat } from "@/utils";
+import {
+  BIRTH_DATE_MESSAGES,
+  getErrorMessage,
+  toDateBackendFormat,
+} from "@/utils";
 import { reportApiFailure } from "@/lib/monitoring";
 import type { User as AuthUser } from "@/stores/auth-store";
 
@@ -119,6 +123,31 @@ export interface ApiResponse<T> {
   message?: string;
   /** Status HTTP da resposta, quando houve resposta do servidor. */
   status?: number;
+  /** Código de erro do back (ex.: `UNDERAGE`), quando o corpo traz `code`. */
+  code?: string;
+}
+
+/**
+ * Erros de data de nascimento do back (contrato do LDMF-302, 16/10): vêm com
+ * `code` e `message` em array, e o front mostra `message[0]`.
+ */
+/**
+ * Mensagem para mostrar no campo de data quando o back recusa a data, ou null
+ * se o erro não é de data. `message` já chega como `message[0]` (apiRequest);
+ * se não for texto simples, usa a mensagem local em vez do JSON cru.
+ */
+export function getBirthDateApiError(error: {
+  code?: unknown;
+  message?: unknown;
+}): string | null {
+  const code = error.code;
+  if (code !== "UNDERAGE" && code !== "INVALID_BIRTH_DATE") return null;
+
+  const message = typeof error.message === "string" ? error.message.trim() : "";
+  if (message && !/^[[{]/.test(message)) return message;
+  return code === "UNDERAGE"
+    ? BIRTH_DATE_MESSAGES.underage
+    : BIRTH_DATE_MESSAGES.invalid;
 }
 
 /**
@@ -600,7 +629,12 @@ async function apiRequest<T>(
         message: errorMessage,
       });
 
-      return { success: false, message: errorMessage, status: response.status };
+      return {
+        success: false,
+        message: errorMessage,
+        status: response.status,
+        ...(typeof result?.code === "string" ? { code: result.code } : {}),
+      };
     }
 
     return { success: true, data: result, status: response.status };
@@ -811,6 +845,11 @@ export interface Company {
   isOpen?: boolean;
   categories?: Category[];
   specialty?: Specialty[];
+  /**
+   * Formas aceitas pelo restaurante (LDMF-289). Só vem em GET /company/:id,
+   * não na listagem. Opcional: ausente, o checkout oferece todas.
+   */
+  acceptedPaymentMethods?: PaymentMethod[];
   created_at: string;
   updated_at: string;
 }
@@ -1851,6 +1890,23 @@ export const apiService = {
       ),
 
     getById: (id: string) => apiRequest<Company>("GET", `/company/${id}`),
+
+    /**
+     * Grava as formas de pagamento aceitas (PATCH /company/:id, só admin e
+     * owner). Vai em JSON porque não há arquivo: em multipart o `update`
+     * abaixo transformaria a lista em "CASH,PIX", que o backend recusa. A
+     * lista substitui a anterior inteira, então mande sempre a completa.
+     */
+    updateAcceptedPaymentMethods: (
+      id: string,
+      acceptedPaymentMethods: PaymentMethod[],
+    ) =>
+      apiRequest<Company>(
+        "PATCH",
+        `/company/${id}`,
+        { acceptedPaymentMethods },
+        true,
+      ),
 
     update: async (
       id: string,

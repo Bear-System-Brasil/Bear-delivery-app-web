@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 import { FormField } from "@/components/form-field";
+import { BirthDateInput } from "@/components/birth-date-input";
 import { DataCard } from "@/components/data-card";
 import { ErrorState } from "@/components/states";
 import { UseMutationResult } from "@tanstack/react-query";
@@ -26,7 +27,7 @@ import { ApiResponse } from "@/services";
 
 import { User as UserType } from "@/services";
 import type { UpdateUserRequest } from "@/services/api";
-import { UseFormReturn } from "react-hook-form";
+import { Controller, UseFormReturn } from "react-hook-form";
 import type { ProfileFormData } from "@/hooks";
 import { User as PqTemDoisUserType } from "@/stores/auth-store";
 
@@ -161,14 +162,24 @@ export function PersonalInformation({
         <FormField
           label="Data de Nascimento"
           id="birthDate"
-          icon={<Calendar className="h-4 w-4" />}
+          // Em edição o BirthDateInput traz o próprio ícone e a mensagem de erro
+          icon={editingState.isOpen ? undefined : <Calendar className="h-4 w-4" />}
         >
           {editingState.isOpen ? (
-            <Input
-              id="birthDate"
-              type="date"
-              {...profileForm.register("birthDate")}
-              className="pl-10 rounded-xl border-2 border-border focus:border-brand-400"
+            <Controller
+              control={profileForm.control}
+              name="birthDate"
+              render={({ field, fieldState }) => (
+                <BirthDateInput
+                  id="birthDate"
+                  name={field.name}
+                  value={field.value ?? ""}
+                  onChange={field.onChange}
+                  onBlur={field.onBlur}
+                  error={fieldState.error?.message}
+                  showIncompleteError={profileForm.formState.isSubmitted}
+                />
+              )}
             />
           ) : (
             <Input
