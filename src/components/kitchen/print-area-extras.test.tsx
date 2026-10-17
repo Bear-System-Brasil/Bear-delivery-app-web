@@ -34,6 +34,15 @@ const itemComTamanho: KitchenOrderItem = {
   ],
 };
 
+// O nome do adicional vem em `productAddOns.name`.
+const adicional = {
+  id: "add-1",
+  quantity: 1,
+  priceSnapshot: 2,
+  observations: null,
+  productAddOns: { name: "Catupiry extra" },
+};
+
 const itemSemTamanho: KitchenOrderItem = {
   id: "item-2",
   productId: "p2",
@@ -43,7 +52,7 @@ const itemSemTamanho: KitchenOrderItem = {
   variations: [],
 };
 
-describe("KitchenPrintArea - tamanho na comanda", () => {
+describe("KitchenPrintArea - tamanho e adicionais na comanda", () => {
   it("item com tamanho imprime o nome do tamanho escolhido", () => {
     render(<KitchenPrintArea order={makeOrder([itemComTamanho])} />);
 
@@ -83,5 +92,35 @@ describe("KitchenPrintArea - tamanho na comanda", () => {
     render(<KitchenPrintArea order={makeOrder([item])} />);
 
     expect(screen.getByText("Tamanho: Tradicional (18 cm) (bem fechado)")).toBeInTheDocument();
+  });
+
+  it("item só com adicional imprime \"Adicionais:\" e o nome real, sem linha de tamanho", () => {
+    const item: KitchenOrderItem = { ...itemSemTamanho, addOns: [adicional] };
+    render(<KitchenPrintArea order={makeOrder([item])} />);
+
+    expect(screen.getByText("Adicionais:")).toBeInTheDocument();
+    expect(screen.getByText("+ Catupiry extra")).toBeInTheDocument();
+    expect(screen.queryByText("+ Adicional")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Tamanho/)).not.toBeInTheDocument();
+  });
+
+  it("item com tamanho e adicional imprime os dois em linhas separadas", () => {
+    const item: KitchenOrderItem = { ...itemComTamanho, addOns: [adicional] };
+    render(<KitchenPrintArea order={makeOrder([item])} />);
+
+    expect(screen.getByText("Tamanho: Tradicional (18 cm)")).toBeInTheDocument();
+    expect(screen.getByText("Adicionais:")).toBeInTheDocument();
+    expect(screen.getByText("+ Catupiry extra")).toBeInTheDocument();
+  });
+
+  it("adicional sem nome não vira o genérico \"+ Adicional\"", () => {
+    const item: KitchenOrderItem = {
+      ...itemSemTamanho,
+      addOns: [{ ...adicional, productAddOns: null }],
+    };
+    render(<KitchenPrintArea order={makeOrder([item])} />);
+
+    expect(screen.queryByText("+ Adicional")).not.toBeInTheDocument();
+    expect(screen.queryByText("Adicionais:")).not.toBeInTheDocument();
   });
 });

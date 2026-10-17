@@ -28,6 +28,7 @@ const baseItem: DetailItem = {
 };
 
 // Forma observada em GET /order/company/status/:status.
+const adicional = { productAddOns: { name: "Catupiry extra" }, quantity: 1, priceSnapshot: 2 };
 const tamanho = { productVariation: { name: "Tradicional (18 cm)" }, priceSnapshot: 0 };
 
 describe("OrderDetailSheet - tamanho e adicional separados", () => {
@@ -42,5 +43,27 @@ describe("OrderDetailSheet - tamanho e adicional separados", () => {
 
     expect(screen.queryByText(/Tamanho/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Adiciona/)).not.toBeInTheDocument();
+  });
+
+  it("item só com adicional mostra \"Adicionais:\" e o nome real, sem linha de tamanho", () => {
+    render(<OrderDetailSheet order={makeOrder({ ...baseItem, addOns: [adicional] })} open onClose={onClose} />);
+
+    expect(screen.getByText("Adicionais:")).toBeInTheDocument();
+    expect(screen.getByText("+ Catupiry extra")).toBeInTheDocument();
+    expect(screen.queryByText(/Tamanho/)).not.toBeInTheDocument();
+  });
+
+  it("item com tamanho e adicional mostra os dois separados, com rótulo", () => {
+    render(
+      <OrderDetailSheet
+        order={makeOrder({ ...baseItem, variations: [tamanho], addOns: [adicional] })}
+        open
+        onClose={onClose}
+      />,
+    );
+
+    expect(screen.getByText("Tamanho: Tradicional (18 cm)")).toBeInTheDocument();
+    expect(screen.getByText("Adicionais:")).toBeInTheDocument();
+    expect(screen.getByText("+ Catupiry extra")).toBeInTheDocument();
   });
 });

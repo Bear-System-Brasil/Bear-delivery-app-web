@@ -43,8 +43,8 @@ const ordered: KitchenOrder[] = [
         quantity: 2,
         product: { id: "prod-9", name: "Pizza Margherita" },
         addOns: [
-          { id: "a-1", quantity: 1, productAddOns: { description: "Borda de catupiry" } },
-          { id: "a-2", quantity: 2, productAddOns: { description: "Extra manjericão" } },
+          { id: "a-1", quantity: 1, productAddOns: { name: "Borda de catupiry" } },
+          { id: "a-2", quantity: 2, productAddOns: { name: "Extra manjericão" } },
         ],
         variations: [{ id: "v-1", productVariation: { name: "Grande · 12 fatias" } }],
       },
@@ -53,7 +53,7 @@ const ordered: KitchenOrder[] = [
         productId: "prod-3",
         quantity: 1,
         product: { id: "prod-3", name: "Bruschetta italiana" },
-        addOns: [{ id: "a-3", quantity: 1, productAddOns: { description: "Sem tomate seco" } }],
+        addOns: [{ id: "a-3", quantity: 1, productAddOns: { name: "Sem tomate seco" } }],
       },
       {
         id: "i-3",
@@ -82,8 +82,8 @@ const ordered: KitchenOrder[] = [
         quantity: 1,
         product: { id: "prod-14", name: "Hambúrguer artesanal" },
         addOns: [
-          { id: "a-4", quantity: 1, productAddOns: { description: "Bacon extra" } },
-          { id: "a-5", quantity: 1, productAddOns: { description: "Cheddar duplo" } },
+          { id: "a-4", quantity: 1, productAddOns: { name: "Bacon extra" } },
+          { id: "a-5", quantity: 1, productAddOns: { name: "Cheddar duplo" } },
         ],
         variations: [{ id: "v-3", productVariation: { name: "Ponto ao ponto" } }],
       },
@@ -161,7 +161,7 @@ const inProduction: KitchenOrder[] = [
         productId: "prod-5",
         quantity: 1,
         product: { id: "prod-5", name: "Combinado de sushi 20 peças" },
-        addOns: [{ id: "a-6", quantity: 2, productAddOns: { description: "Shoyu extra" } }],
+        addOns: [{ id: "a-6", quantity: 2, productAddOns: { name: "Shoyu extra" } }],
       },
       {
         id: "i-9",
@@ -212,7 +212,7 @@ const readyForPickup: KitchenOrder[] = [
         productId: "prod-9",
         quantity: 2,
         product: { id: "prod-9", name: "Pizza Margherita" },
-        addOns: [{ id: "a-7", quantity: 1, productAddOns: { description: "Borda recheada" } }],
+        addOns: [{ id: "a-7", quantity: 1, productAddOns: { name: "Borda recheada" } }],
         variations: [{ id: "v-6", productVariation: { name: "Grande" } }],
       },
     ],

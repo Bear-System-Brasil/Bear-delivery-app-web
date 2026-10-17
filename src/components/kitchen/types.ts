@@ -73,7 +73,11 @@ export interface KitchenAddOn {
   priceSnapshot?: number;
   /** Observação específica deste adicional (ex.: "bem crocante"). */
   observations?: string | null;
-  productAddOns?: { description: string } | null;
+  /**
+   * `/order/company/status/:status` devolve o nome do adicional em `name`
+   * (ex.: "Bacon extra") — não existe `description` aqui.
+   */
+  productAddOns?: { name?: string } | null;
 }
 
 export interface KitchenVariation {

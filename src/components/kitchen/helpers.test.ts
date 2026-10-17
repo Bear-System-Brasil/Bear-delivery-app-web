@@ -1,14 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  getAddOnName,
   getCustomerName,
   getDayRange,
   getElapsed,
   getFulfillmentLabel,
   getFulfillmentToneClass,
   getItemName,
+  getItemSizeLabel,
+  getNamedAddOns,
   getOrderLabel,
   getPaymentLabel,
-  getItemSizeLabel,
   getPeriodRange,
   getVariationName,
   hasAddOns,
@@ -134,6 +136,34 @@ describe("getVariationName", () => {
     expect(getVariationName({ id: "v1" })).toBeNull();
     expect(getVariationName({ id: "v1", productVariation: null })).toBeNull();
     expect(getVariationName({ id: "v1", productVariation: { name: "  " } })).toBeNull();
+  });
+});
+
+describe("getAddOnName / getNamedAddOns", () => {
+  it("devolve o nome real do adicional", () => {
+    expect(getAddOnName({ id: "a1", quantity: 1, productAddOns: { name: "Bacon extra" } })).toBe(
+      "Bacon extra",
+    );
+  });
+
+  it("devolve null quando o nome não veio, em vez de um genérico", () => {
+    expect(getAddOnName({ id: "a1", quantity: 1 })).toBeNull();
+    expect(getAddOnName({ id: "a1", quantity: 1, productAddOns: null })).toBeNull();
+  });
+
+  it("lista só os adicionais com nome", () => {
+    const item = {
+      id: "i1",
+      productId: "p1",
+      quantity: 1,
+      addOns: [
+        { id: "a1", quantity: 1, productAddOns: { name: "Bacon extra" }, observations: "crocante" },
+        { id: "a2", quantity: 1, productAddOns: null },
+      ],
+    } as KitchenOrderItem;
+    expect(getNamedAddOns(item)).toEqual([
+      { id: "a1", name: "Bacon extra", observations: "crocante" },
+    ]);
   });
 });
 

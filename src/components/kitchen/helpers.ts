@@ -1,6 +1,7 @@
 import {
   DELIVERY_STATUS_LABELS,
   PAYMENT_METHOD_LABELS,
+  type KitchenAddOn,
   type KitchenDeliveryStatus,
   type KitchenOrder,
   type KitchenOrderItem,
@@ -64,6 +65,25 @@ export function getItemName(item: KitchenOrderItem): string {
  */
 export function getVariationName(variation: KitchenVariation): string | null {
   return variation.productVariation?.name?.trim() || null;
+}
+
+/**
+ * Nome real do adicional (ex.: "Bacon extra"). `null` quando o nome não
+ * veio — quem chama não mostra nada no lugar, em vez de um genérico
+ * "Adicional".
+ */
+export function getAddOnName(addOn: KitchenAddOn): string | null {
+  return addOn.productAddOns?.name?.trim() || null;
+}
+
+/** Adicionais do item que têm nome, prontos para listar. */
+export function getNamedAddOns(
+  item: KitchenOrderItem,
+): Array<{ id: string; name: string; observations?: string | null }> {
+  return (item.addOns ?? []).flatMap((addOn) => {
+    const name = getAddOnName(addOn);
+    return name ? [{ id: addOn.id, name, observations: addOn.observations }] : [];
+  });
 }
 
 /**

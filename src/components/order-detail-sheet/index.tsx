@@ -202,6 +202,11 @@ export function OrderDetailSheet<TOrder extends DetailableOrder>({
                         )}
                       </div>
                     ))}
+                    {(item.addOns?.length ?? 0) > 0 && (
+                      <p className="pl-4 text-xs font-medium text-muted-foreground">
+                        Adicionais:
+                      </p>
+                    )}
                     {item.addOns?.map((addon, i) => (
                       <div key={i} className="pl-4">
                         <p className="text-xs text-muted-foreground">

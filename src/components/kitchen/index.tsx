@@ -21,7 +21,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { CancelKitchenOrderDialog } from "./cancel-kitchen-order-dialog";
 import { KitchenColumn } from "./kitchen-column";
-import { getVariationName } from "./helpers";
+import { getNamedAddOns, getVariationName } from "./helpers";
 import {
   KITCHEN_COLUMN_BY_STATUS,
   KITCHEN_PERIOD_LABELS,
@@ -107,30 +107,34 @@ export function KitchenPrintArea({ order }: { order: KitchenOrder | null }) {
       <p>───────────────────────</p>
 
       <div className="mb-2">
-        {items.map((item) => (
-          <div key={item.id} className="mb-1">
-            <p className="font-bold">
-              {item.quantity}x {getItemName(item)}
-            </p>
-            {item.observations && <p className="pl-2">Obs: {item.observations}</p>}
-            {item.variations?.map((variation) => {
-              const name = getVariationName(variation);
-              if (!name) return null;
-              return (
-                <p key={variation.id} className="pl-2">
-                  Tamanho: {name}
-                  {variation.observations ? ` (${variation.observations})` : ""}
-                </p>
-              );
-            })}
-            {item.addOns?.map((addon) => (
-              <p key={addon.id} className="pl-2">
-                + {addon.productAddOns?.description ?? "Adicional"}
-                {addon.observations ? ` (${addon.observations})` : ""}
+        {items.map((item) => {
+          const addOns = getNamedAddOns(item);
+          return (
+            <div key={item.id} className="mb-1">
+              <p className="font-bold">
+                {item.quantity}x {getItemName(item)}
               </p>
-            ))}
-          </div>
-        ))}
+              {item.observations && <p className="pl-2">Obs: {item.observations}</p>}
+              {item.variations?.map((variation) => {
+                const name = getVariationName(variation);
+                if (!name) return null;
+                return (
+                  <p key={variation.id} className="pl-2">
+                    Tamanho: {name}
+                    {variation.observations ? ` (${variation.observations})` : ""}
+                  </p>
+                );
+              })}
+              {addOns.length > 0 && <p className="pl-2">Adicionais:</p>}
+              {addOns.map((addon) => (
+                <p key={addon.id} className="pl-4">
+                  + {addon.name}
+                  {addon.observations ? ` (${addon.observations})` : ""}
+                </p>
+              ))}
+            </div>
+          );
+        })}
       </div>
 
       {(observations || deliveryObservations) && (

@@ -41,6 +41,7 @@ const baseItem: KitchenOrderItem = {
   variations: [],
 };
 
+const adicional = { id: "add-1", quantity: 1, productAddOns: { name: "Catupiry extra" } };
 const tamanho = { id: "var-1", productVariation: { name: "Tradicional (18 cm)" } };
 
 describe("KitchenOrderCard - tamanho e adicional separados", () => {
@@ -57,5 +58,19 @@ describe("KitchenOrderCard - tamanho e adicional separados", () => {
 
     expect(screen.queryByText(/Tamanho/)).not.toBeInTheDocument();
     expect(screen.getByText("Sem adicional")).toBeInTheDocument();
+  });
+
+  it("item só com adicional mostra \"Com adicional\" e nenhuma linha de tamanho", () => {
+    renderCard({ ...baseItem, addOns: [adicional] });
+
+    expect(screen.getByText("Com adicional")).toBeInTheDocument();
+    expect(screen.queryByText(/Tamanho/)).not.toBeInTheDocument();
+  });
+
+  it("item com tamanho e adicional mostra o tamanho e \"Com adicional\"", () => {
+    renderCard({ ...baseItem, variations: [tamanho], addOns: [adicional] });
+
+    expect(screen.getByText("Tamanho: Tradicional (18 cm)")).toBeInTheDocument();
+    expect(screen.getByText("Com adicional")).toBeInTheDocument();
   });
 });
