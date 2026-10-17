@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DeliveryInfo } from "@/hooks";
+import type { CheckoutFieldErrors } from "@/lib/checkout-validation";
 import { DeliveryForm } from "./index";
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
@@ -54,10 +55,12 @@ function Harness({
   orderType = "delivery",
   addressMode = "new",
   userAddresses = [],
+  fieldErrors,
 }: {
   orderType?: "delivery" | "pickup";
   addressMode?: "select" | "new";
   userAddresses?: { id: string }[];
+  fieldErrors?: CheckoutFieldErrors;
 }) {
   const [info, setInfo] = useState<DeliveryInfo>(EMPTY);
 
@@ -82,6 +85,7 @@ function Harness({
       setOrderType={noop}
       restaurant={null}
       hasCpf
+      fieldErrors={fieldErrors}
     />
   );
 }
@@ -141,5 +145,47 @@ describe("DeliveryForm - busca do CEP", () => {
     expect(
       screen.getByText("Digite o CEP e os campos serao preenchidos."),
     ).toBeInTheDocument();
+  });
+});
+
+describe("DeliveryForm - campos faltando", () => {
+  it("destaca o campo e mostra a mensagem nele", () => {
+    render(
+      <Harness
+        fieldErrors={{
+          number: "Informe o número.",
+          phone: "Informe seu telefone.",
+        }}
+      />,
+    );
+
+    const number = screen.getByLabelText("Numero");
+    expect(number).toHaveAttribute("aria-invalid", "true");
+    expect(number).toHaveAccessibleDescription("Informe o número.");
+    expect(screen.getByLabelText("Telefone")).toHaveAccessibleDescription(
+      "Informe seu telefone.",
+    );
+    expect(screen.getByLabelText("Rua")).not.toHaveAttribute("aria-invalid");
+  });
+
+  it("endereço salvo incompleto avisa o que falta", () => {
+    render(
+      <Harness
+        addressMode="select"
+        userAddresses={[{ id: "addr-1" }]}
+        fieldErrors={{ number: "Informe o número." }}
+      />,
+    );
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Este endereço está incompleto (falta Número).",
+    );
+  });
+
+  it("retirada não mostra endereço nem cobra os campos dele", () => {
+    render(<Harness orderType="pickup" />);
+
+    expect(screen.queryByLabelText("Rua")).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });

@@ -474,6 +474,46 @@ describe("useCheckoutProcess - CEP do endereço novo", () => {
   });
 });
 
+describe("useCheckoutProcess - campo faltando (LDMF-350)", () => {
+  const FILL = {
+    name: "Cliente",
+    phone: "11999999999",
+    zipCode: "13930-000",
+    street: "Rua Coronel Pedro Penteado",
+    number: "",
+    neighborhood: "Centro",
+    city: "Serra Negra",
+    state: "SP",
+  };
+
+  it("endereço novo sem número aponta o número; retirada passa", async () => {
+    const { result } = renderCheckout();
+
+    act(() => {
+      result.current.setOrderType("delivery");
+      result.current.setAddressMode("new");
+      Object.entries(FILL).forEach(([field, value]) =>
+        result.current.handleInputChange(field, value),
+      );
+    });
+
+    expect(result.current.getDeliveryErrors()).toEqual({
+      number: "Informe o número.",
+    });
+    expect(result.current.isDeliveryValid()).toBe(false);
+
+    act(() => result.current.setOrderType("pickup"));
+    expect(result.current.getDeliveryErrors()).toEqual({});
+    expect(result.current.isDeliveryValid()).toBe(true);
+
+    act(() => {
+      result.current.setOrderType("delivery");
+      result.current.handleInputChange("number", "100");
+    });
+    expect(result.current.isDeliveryValid()).toBe(true);
+  });
+});
+
 describe("useCheckoutProcess - isFormValid e o troco", () => {
   it("libera o valor exato do total e barra abaixo dele", async () => {
     const { result } = renderCheckout();

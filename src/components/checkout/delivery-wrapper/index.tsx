@@ -12,8 +12,14 @@ import { useAuth } from "@/contexts/auth-provider";
 
 import { ArrowLeft, ShieldCheck, Store, ThumbsUp } from "lucide-react";
 
+import {
+  CHECKOUT_ADDRESS_FIELDS,
+  CHECKOUT_FIELD_LABELS,
+  describeMissingFields,
+  type CheckoutField,
+  type CheckoutFieldErrors,
+} from "@/lib/checkout-validation";
 import { cn } from "@/lib/utils";
-import { isValidCpf } from "@/utils";
 
 import { AnimatedBackground } from "@/components/ui/animated-background";
 import { GradientButton } from "@/components/ui/gradient-button";
@@ -32,6 +38,9 @@ export function DeliveryWrapper() {
   const submitLockRef = useRef(false);
   const [step, setStep] = useState<1 | 2>(1);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  // Depois da primeira tentativa de avançar, os campos que faltam ficam
+  // destacados - e o destaque some sozinho conforme o cliente preenche.
+  const [showFieldErrors, setShowFieldErrors] = useState(false);
 
   const {
     userAddresses,
@@ -44,7 +53,7 @@ export function DeliveryWrapper() {
     handleAddressSelect,
     orderType,
     setOrderType,
-    isDeliveryValid,
+    getDeliveryErrors,
     hasCpf,
     deliveryInfo,
     addressCoords,
@@ -75,6 +84,9 @@ export function DeliveryWrapper() {
   } = useCheckoutProcess();
 
   const isSubmittingOrder = isProcessing || isNavigating;
+  const fieldErrors: CheckoutFieldErrors = showFieldErrors
+    ? getDeliveryErrors()
+    : {};
   const isStoreOpen = isRestaurantOpen !== false;
 
   const handleBack = () => {
@@ -96,22 +108,35 @@ export function DeliveryWrapper() {
       return;
     }
 
-    if (!isDeliveryValid()) {
+    const errors = getDeliveryErrors();
+    const missing = Object.keys(errors) as CheckoutField[];
+
+    if (missing.length > 0) {
+      setShowFieldErrors(true);
       toast.dismiss?.();
-      if (
-        !hasCpf &&
-        deliveryInfo?.name &&
-        deliveryInfo?.phone &&
-        !isValidCpf(deliveryInfo?.cpf || "")
-      ) {
-        toast.error("Informe um CPF válido para continuar.");
+
+      // Endereço salvo selecionado e incompleto: os campos dele não estão na
+      // tela, então não adianta mandar "preencher" - diz o que falta e o que
+      // fazer (o aviso no formulário repete isso).
+      const missingAddress = missing.filter((field) =>
+        CHECKOUT_ADDRESS_FIELDS.includes(field),
+      );
+      const isSavedAddress =
+        orderType === "delivery" &&
+        addressMode === "select" &&
+        userAddresses.length > 0;
+
+      if (isSavedAddress && missingAddress.length === missing.length) {
+        toast.error(
+          `O endereço selecionado está incompleto (falta ${missingAddress
+            .map((field) => CHECKOUT_FIELD_LABELS[field])
+            .join(", ")}). Escolha outro ou cadastre um novo.`,
+        );
         return;
       }
-      toast.error(
-        orderType === "pickup"
-          ? "Preencha nome e telefone para continuar."
-          : "Preencha nome, telefone e endereço para continuar.",
-      );
+
+      toast.error(describeMissingFields(errors));
+      document.getElementById(missing[0])?.focus();
       return;
     }
 
@@ -325,6 +350,7 @@ export function DeliveryWrapper() {
               setOrderType={setOrderType}
               restaurant={restaurant}
               hasCpf={hasCpf}
+              fieldErrors={fieldErrors}
             />
           ) : (
             <PaymentMethod

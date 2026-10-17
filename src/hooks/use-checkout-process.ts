@@ -42,6 +42,7 @@ import { useUserAddresses } from "./use-addresses";
 import { useRestaurantOpeningHours } from "./use-opening-hours";
 import { resolveRestaurantOpenStatus } from "@/constants/opening-hours";
 import { resolveAcceptedPaymentMethods } from "@/lib/accepted-payment-methods";
+import { getCheckoutFieldErrors } from "@/lib/checkout-validation";
 
 function showCheckoutError(message: string) {
   toast.dismiss?.();
@@ -440,36 +441,22 @@ export const useCheckoutProcess = () => {
   };
 
   /**
-   * Valida os dados de entrega (etapa 1 do checkout)
-   * Endereço so e obrigatório quando o pedido e para entrega
+   * O que falta na etapa 1 do checkout, campo a campo (LDMF-350). Endereço
+   * só é obrigatório quando o pedido é para entrega.
+   *
+   * CEP tem de estar completo: um CEP pela metade entrava no banco pelo
+   * POST, que é mais permissivo, e depois qualquer PATCH naquele endereço
+   * falhava com "CEP inválido" - inclusive o que só queria mudar o padrão.
    */
-  const isDeliveryValid = () => {
-    const hasCpf = Boolean(user?.cpf && onlyNumbers(user.cpf).length === 11);
-    const cpfValid = hasCpf || isValidCpf(deliveryInfo.cpf);
-    const contactValid = Boolean(
-      deliveryInfo.name && deliveryInfo.phone && cpfValid,
-    );
+  const getDeliveryErrors = () =>
+    getCheckoutFieldErrors({
+      values: deliveryInfo,
+      orderType,
+      hasCpf: Boolean(user?.cpf && onlyNumbers(user.cpf).length === 11),
+    });
 
-    if (orderType === "pickup") {
-      return contactValid;
-    }
-
-    // CEP tem de estar completo. Aqui só se exigia "não vazio", enquanto o
-    // formulário do perfil pede 8 dígitos e o PATCH do backend recusa o que
-    // estiver fora do formato. Resultado: um CEP pela metade digitado no
-    // checkout entrava no banco pelo POST, que é mais permissivo, e depois
-    // qualquer PATCH naquele endereço falhava com "CEP inválido" - inclusive
-    // o que só queria mudar o endereço padrão.
-    return Boolean(
-      contactValid &&
-      deliveryInfo.street &&
-      deliveryInfo.number &&
-      deliveryInfo.neighborhood &&
-      deliveryInfo.city &&
-      deliveryInfo.state &&
-      onlyNumbers(deliveryInfo.zipCode).length === 8,
-    );
-  };
+  /** Valida os dados de entrega (etapa 1 do checkout). */
+  const isDeliveryValid = () => Object.keys(getDeliveryErrors()).length === 0;
 
   /**
    * Valida formulário antes de submeter
@@ -915,6 +902,7 @@ export const useCheckoutProcess = () => {
     orderType,
     setOrderType,
     isDeliveryValid,
+    getDeliveryErrors,
     hasCpf,
 
     // Form state

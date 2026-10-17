@@ -37,6 +37,12 @@ import {
   type CoordinateSource,
   type SourcedCoords,
 } from "@/lib/address-coordinates";
+import {
+  CHECKOUT_ADDRESS_FIELDS,
+  CHECKOUT_FIELD_LABELS,
+  type CheckoutField,
+  type CheckoutFieldErrors,
+} from "@/lib/checkout-validation";
 import { Address } from "@/services/api";
 import { Restaurant } from "@/stores/cart-store";
 import { Coords } from "@/types/restaurant";
@@ -59,6 +65,8 @@ type Props = {
   setOrderType: Dispatch<SetStateAction<"delivery" | "pickup">>;
   restaurant: Restaurant | null;
   hasCpf?: boolean;
+  /** Campos que travaram o avanço, com a mensagem de cada um. */
+  fieldErrors?: CheckoutFieldErrors;
 };
 
 type FieldProps = {
@@ -66,14 +74,32 @@ type FieldProps = {
   label: string;
   optional?: boolean;
   className?: string;
+  error?: string;
   children: ReactNode;
 };
 
 const fieldLabelClass = "text-[11px] font-bold text-foreground";
 const inputClass =
   "h-9 rounded-lg border-border bg-card text-sm shadow-none focus-visible:border-brand-400 focus-visible:ring-brand-200";
+const inputErrorClass =
+  "border-red-500 focus-visible:border-red-500 focus-visible:ring-red-200 dark:border-red-500";
 
-function Field({ htmlFor, label, optional, className, children }: FieldProps) {
+/** Props do Input de um campo que pode estar faltando. */
+function errorProps(field: CheckoutField, error?: string) {
+  return {
+    "aria-invalid": error ? true : undefined,
+    "aria-describedby": error ? `${field}-error` : undefined,
+  };
+}
+
+function Field({
+  htmlFor,
+  label,
+  optional,
+  className,
+  error,
+  children,
+}: FieldProps) {
   return (
     <div className={cn("space-y-1.5", className)}>
       <Label htmlFor={htmlFor} className={fieldLabelClass}>
@@ -83,6 +109,14 @@ function Field({ htmlFor, label, optional, className, children }: FieldProps) {
         )}
       </Label>
       {children}
+      {error && (
+        <p
+          id={`${htmlFor}-error`}
+          className="text-[11px] font-semibold text-red-600 dark:text-red-400"
+        >
+          {error}
+        </p>
+      )}
     </div>
   );
 }
@@ -105,6 +139,7 @@ export function DeliveryForm({
   setOrderType,
   restaurant,
   hasCpf,
+  fieldErrors = {},
 }: Props) {
   const [isLoadingCep, setIsLoadingCep] = useState(false);
   // CEP de cidade com CEP único (13930000, Serra Negra) volta sem rua e sem
@@ -205,6 +240,17 @@ export function DeliveryForm({
   const shouldShowNewAddress =
     !loadingAddresses && (addressMode === "new" || userAddresses.length === 0);
 
+  // Endereço salvo selecionado, mas incompleto: os campos dele não aparecem
+  // na tela, então o aviso tem de dizer o que falta e como sair dali.
+  const missingInSavedAddress = CHECKOUT_ADDRESS_FIELDS.filter(
+    (field) => fieldErrors[field],
+  ).map((field) => CHECKOUT_FIELD_LABELS[field]);
+  const showSavedAddressWarning =
+    orderType === "delivery" &&
+    !shouldShowNewAddress &&
+    !loadingAddresses &&
+    missingInSavedAddress.length > 0;
+
   return (
     <form className="space-y-3">
       <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1">
@@ -245,7 +291,7 @@ export function DeliveryForm({
         </div>
 
         <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2">
-          <Field htmlFor="name" label="Nome completo">
+          <Field htmlFor="name" label="Nome completo" error={fieldErrors.name}>
             <div className="relative">
               <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -253,12 +299,17 @@ export function DeliveryForm({
                 placeholder="Seu nome completo"
                 value={deliveryInfo.name}
                 onChange={(e) => handleInputChange("name", e.target.value)}
-                className={cn(inputClass, "pl-9")}
+                className={cn(
+                  inputClass,
+                  "pl-9",
+                  fieldErrors.name && inputErrorClass,
+                )}
+                {...errorProps("name", fieldErrors.name)}
               />
             </div>
           </Field>
 
-          <Field htmlFor="phone" label="Telefone">
+          <Field htmlFor="phone" label="Telefone" error={fieldErrors.phone}>
             <div className="relative">
               <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -266,13 +317,23 @@ export function DeliveryForm({
                 placeholder="(11) 99999-9999"
                 value={deliveryInfo.phone}
                 onChange={(e) => handleInputChange("phone", e.target.value)}
-                className={cn(inputClass, "pl-9")}
+                className={cn(
+                  inputClass,
+                  "pl-9",
+                  fieldErrors.phone && inputErrorClass,
+                )}
+                {...errorProps("phone", fieldErrors.phone)}
               />
             </div>
           </Field>
 
           {!hasCpf && (
-            <Field htmlFor="cpf" label="CPF" className="md:col-span-2">
+            <Field
+              htmlFor="cpf"
+              label="CPF"
+              className="md:col-span-2"
+              error={fieldErrors.cpf}
+            >
               <div className="relative">
                 <CreditCard className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
@@ -281,7 +342,12 @@ export function DeliveryForm({
                   value={deliveryInfo.cpf || ""}
                   onChange={(e) => handleInputChange("cpf", e.target.value)}
                   maxLength={14}
-                  className={cn(inputClass, "pl-9")}
+                  className={cn(
+                    inputClass,
+                    "pl-9",
+                    fieldErrors.cpf && inputErrorClass,
+                  )}
+                  {...errorProps("cpf", fieldErrors.cpf)}
                 />
               </div>
               <p className="text-[11px] text-muted-foreground mt-0.5">
@@ -395,6 +461,17 @@ export function DeliveryForm({
               </div>
             )}
 
+          {showSavedAddressWarning && (
+            <div
+              role="alert"
+              className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-400"
+            >
+              Este endereço está incompleto (falta{" "}
+              {missingInSavedAddress.join(", ")}). Escolha outro ou toque em
+              &quot;Novo endereço&quot;.
+            </div>
+          )}
+
           {shouldShowNewAddress && (
             <div className="space-y-3">
               {userAddresses.length === 0 && (
@@ -404,7 +481,7 @@ export function DeliveryForm({
               )}
 
               <div className="grid grid-cols-1 gap-2.5 md:grid-cols-4">
-                <Field htmlFor="zipCode" label="CEP">
+                <Field htmlFor="zipCode" label="CEP" error={fieldErrors.zipCode}>
                   <Input
                     id="zipCode"
                     placeholder="00000-000"
@@ -412,27 +489,41 @@ export function DeliveryForm({
                     maxLength={9}
                     onChange={(e) => handleZipCode(formatCep(e.target.value))}
                     disabled={isLoadingCep}
-                    className={inputClass}
+                    className={cn(
+                      inputClass,
+                      fieldErrors.zipCode && inputErrorClass,
+                    )}
+                    {...errorProps("zipCode", fieldErrors.zipCode)}
                   />
                 </Field>
 
-                <Field htmlFor="state" label="Estado">
+                <Field
+                  htmlFor="state"
+                  label="Estado"
+                  error={fieldErrors.state}
+                >
                   <Input
                     id="state"
                     placeholder="SP"
                     value={deliveryInfo.state}
                     onChange={(e) => handleInputChange("state", e.target.value)}
-                    className={inputClass}
+                    className={cn(inputClass, fieldErrors.state && inputErrorClass)}
+                    {...errorProps("state", fieldErrors.state)}
                   />
                 </Field>
 
-                <Field htmlFor="city" label="Cidade" className="md:col-span-2">
+                <Field
+                  htmlFor="city"
+                  label="Cidade" className="md:col-span-2"
+                  error={fieldErrors.city}
+                >
                   <Input
                     id="city"
                     placeholder="Sao Paulo"
                     value={deliveryInfo.city}
                     onChange={(e) => handleInputChange("city", e.target.value)}
-                    className={inputClass}
+                    className={cn(inputClass, fieldErrors.city && inputErrorClass)}
+                    {...errorProps("city", fieldErrors.city)}
                   />
                 </Field>
 
@@ -448,6 +539,7 @@ export function DeliveryForm({
                   htmlFor="neighborhood"
                   label="Bairro"
                   className="md:col-span-2"
+                  error={fieldErrors.neighborhood}
                 >
                   <Input
                     id="neighborhood"
@@ -456,11 +548,12 @@ export function DeliveryForm({
                     onChange={(e) =>
                       handleInputChange("neighborhood", e.target.value)
                     }
-                    className={inputClass}
+                    className={cn(inputClass, fieldErrors.neighborhood && inputErrorClass)}
+                    {...errorProps("neighborhood", fieldErrors.neighborhood)}
                   />
                 </Field>
 
-                <Field htmlFor="street" label="Rua">
+                <Field htmlFor="street" label="Rua" error={fieldErrors.street}>
                   <Input
                     id="street"
                     placeholder="Rua das Flores"
@@ -468,11 +561,12 @@ export function DeliveryForm({
                     onChange={(e) =>
                       handleInputChange("street", e.target.value)
                     }
-                    className={inputClass}
+                    className={cn(inputClass, fieldErrors.street && inputErrorClass)}
+                    {...errorProps("street", fieldErrors.street)}
                   />
                 </Field>
 
-                <Field htmlFor="number" label="Numero">
+                <Field htmlFor="number" label="Numero" error={fieldErrors.number}>
                   <Input
                     id="number"
                     placeholder="123"
@@ -480,7 +574,8 @@ export function DeliveryForm({
                     onChange={(e) =>
                       handleInputChange("number", e.target.value)
                     }
-                    className={inputClass}
+                    className={cn(inputClass, fieldErrors.number && inputErrorClass)}
+                    {...errorProps("number", fieldErrors.number)}
                   />
                 </Field>
 
