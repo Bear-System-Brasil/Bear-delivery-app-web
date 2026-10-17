@@ -22,6 +22,7 @@ import { useEffect, useRef, useState } from "react";
 import { CancelKitchenOrderDialog } from "./cancel-kitchen-order-dialog";
 import { KitchenColumn } from "./kitchen-column";
 import { getNamedAddOns, getVariationName } from "./helpers";
+import { withAddOnQuantity } from "@/constants/order-management";
 import {
   KITCHEN_COLUMN_BY_STATUS,
   KITCHEN_PERIOD_LABELS,
@@ -128,7 +129,7 @@ export function KitchenPrintArea({ order }: { order: KitchenOrder | null }) {
               {addOns.length > 0 && <p className="pl-2">Adicionais:</p>}
               {addOns.map((addon) => (
                 <p key={addon.id} className="pl-4">
-                  + {addon.name}
+                  + {withAddOnQuantity(addon.name, addon.quantity)}
                   {addon.observations ? ` (${addon.observations})` : ""}
                 </p>
               ))}

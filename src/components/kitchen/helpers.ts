@@ -79,10 +79,12 @@ export function getAddOnName(addOn: KitchenAddOn): string | null {
 /** Adicionais do item que têm nome, prontos para listar. */
 export function getNamedAddOns(
   item: KitchenOrderItem,
-): Array<{ id: string; name: string; observations?: string | null }> {
+): Array<{ id: string; name: string; quantity: number; observations?: string | null }> {
   return (item.addOns ?? []).flatMap((addOn) => {
     const name = getAddOnName(addOn);
-    return name ? [{ id: addOn.id, name, observations: addOn.observations }] : [];
+    return name
+      ? [{ id: addOn.id, name, quantity: addOn.quantity, observations: addOn.observations }]
+      : [];
   });
 }
 

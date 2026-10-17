@@ -9,6 +9,7 @@ import {
   getOrderStatusLabel,
   getPaymentMethodLabel,
   getVariationLabel,
+  withAddOnQuantity,
 } from "./order-management";
 
 function orderWithStatus(status: string): CompanyOrder {
@@ -73,6 +74,18 @@ describe("getAddOnLabel / getVariationLabel", () => {
       getVariationLabel({ productVariation: { name: "Tamanho grande" } }),
     ).toBe("Tamanho grande");
     expect(getVariationLabel({})).toBe("Variação");
+  });
+});
+
+describe("withAddOnQuantity", () => {
+  it("quantidade 1 ou ausente fica só com o nome", () => {
+    expect(withAddOnQuantity("Morango", 1)).toBe("Morango");
+    expect(withAddOnQuantity("Morango")).toBe("Morango");
+    expect(withAddOnQuantity("Morango", null)).toBe("Morango");
+  });
+
+  it("quantidade maior que 1 vira \"4x Morango\"", () => {
+    expect(withAddOnQuantity("Morango", 4)).toBe("4x Morango");
   });
 });
 

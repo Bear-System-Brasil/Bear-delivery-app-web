@@ -18,6 +18,7 @@ import {
   getOrderItemTotal,
   getPaymentMethodLabel,
   getVariationLabel,
+  withAddOnQuantity,
 } from "@/constants/order-management";
 import {
   Clock,
@@ -210,7 +211,7 @@ export function OrderDetailSheet<TOrder extends DetailableOrder>({
                     {item.addOns?.map((addon, i) => (
                       <div key={i} className="pl-4">
                         <p className="text-xs text-muted-foreground">
-                          + {getAddOnLabel(addon)}
+                          + {withAddOnQuantity(getAddOnLabel(addon), addon.quantity)}
                         </p>
                         {addon.observations && (
                           <p className="text-xs italic text-muted-foreground/80 pl-2">

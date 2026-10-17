@@ -162,7 +162,7 @@ describe("getAddOnName / getNamedAddOns", () => {
       ],
     } as KitchenOrderItem;
     expect(getNamedAddOns(item)).toEqual([
-      { id: "a1", name: "Bacon extra", observations: "crocante" },
+      { id: "a1", name: "Bacon extra", quantity: 1, observations: "crocante" },
     ]);
   });
 });

@@ -66,4 +66,18 @@ describe("OrderDetailSheet - tamanho e adicional separados", () => {
     expect(screen.getByText("Adicionais:")).toBeInTheDocument();
     expect(screen.getByText("+ Catupiry extra")).toBeInTheDocument();
   });
+
+  it("adicional com quantidade 1 mostra só o nome", () => {
+    render(<OrderDetailSheet order={makeOrder({ ...baseItem, addOns: [adicional] })} open onClose={onClose} />);
+
+    expect(screen.getByText("+ Catupiry extra")).toBeInTheDocument();
+    expect(screen.queryByText(/1x Catupiry/)).not.toBeInTheDocument();
+  });
+
+  it("adicional com quantidade maior que 1 mostra \"4x Morango\"", () => {
+    const morango = { productAddOns: { name: "Morango" }, quantity: 4, priceSnapshot: 1 };
+    render(<OrderDetailSheet order={makeOrder({ ...baseItem, addOns: [morango] })} open onClose={onClose} />);
+
+    expect(screen.getByText("+ 4x Morango")).toBeInTheDocument();
+  });
 });

@@ -230,6 +230,15 @@ export function getAddOnLabel(addon: AddOnLabelSource): string {
   )
 }
 
+/**
+ * Prefixa a quantidade do adicional quando passa de 1 ("4x Morango").
+ * Quantidade 1 (ou ausente) fica só com o nome. A quantidade é por unidade
+ * do produto (ver order-item.md), igual ao que o cliente escolheu.
+ */
+export function withAddOnQuantity(name: string, quantity?: number | null): string {
+  return quantity && quantity > 1 ? `${quantity}x ${name}` : name
+}
+
 interface VariationLabelSource {
   variation?: { name?: string; description?: string } | null
   productVariation?: { name?: string; description?: string } | null

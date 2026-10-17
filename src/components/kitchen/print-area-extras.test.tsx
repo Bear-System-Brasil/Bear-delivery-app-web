@@ -123,4 +123,22 @@ describe("KitchenPrintArea - tamanho e adicionais na comanda", () => {
     expect(screen.queryByText("+ Adicional")).not.toBeInTheDocument();
     expect(screen.queryByText("Adicionais:")).not.toBeInTheDocument();
   });
+
+  it("adicional com quantidade 1 imprime só o nome", () => {
+    const item: KitchenOrderItem = { ...itemSemTamanho, addOns: [{ ...adicional, quantity: 1 }] };
+    render(<KitchenPrintArea order={makeOrder([item])} />);
+
+    expect(screen.getByText("+ Catupiry extra")).toBeInTheDocument();
+    expect(screen.queryByText(/1x Catupiry/)).not.toBeInTheDocument();
+  });
+
+  it("adicional com quantidade maior que 1 imprime \"4x Morango\"", () => {
+    const item: KitchenOrderItem = {
+      ...itemSemTamanho,
+      addOns: [{ ...adicional, id: "add-2", quantity: 4, productAddOns: { name: "Morango" } }],
+    };
+    render(<KitchenPrintArea order={makeOrder([item])} />);
+
+    expect(screen.getByText("+ 4x Morango")).toBeInTheDocument();
+  });
 });
