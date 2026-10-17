@@ -79,7 +79,8 @@ describe("AcceptConfirmDialog", () => {
     });
 
     it("pagamento que não é dinheiro não mostra troco", () => {
-      renderDialog({ delivery: withPayment("PIX", "151") });
+      // O checkout só envia `changeFor` em pagamento em dinheiro.
+      renderDialog({ delivery: withPayment("PIX") });
 
       expect(screen.queryByText(/Cliente paga com/)).not.toBeInTheDocument();
       expect(screen.queryByText(/de troco/)).not.toBeInTheDocument();

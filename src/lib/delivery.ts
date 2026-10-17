@@ -387,17 +387,12 @@ export function getOrderPaymentSummary(
   // - o pedido já foi pago: o campo fica no pedido e sobrevive ao pagamento
   //   ser concluído, mas quem não recebe nada também não devolve troco;
   // - o cliente paga o valor exato;
-  // - `changeFor` menor que a conta, que é dado incoerente;
-  // - nada a receber em dinheiro: o campo também sobrevive à troca da forma
-  //   de pagamento na tela do entregador, e cartão ou PIX não têm troco.
+  // - `changeFor` menor que a conta, que é dado incoerente.
   //
-  // Nesses casos a tela mostra "a receber" e pronto, em vez de anunciar troco
+  // Nos três a tela mostra "a receber" e pronto, em vez de anunciar troco
   // zero, negativo ou sobre dinheiro que ninguém vai entregar.
-  const receivesCash = pending.some(
-    (payment) => payment.paymentMethod === PaymentMethod.CASH,
-  );
   const changeDue =
-    !isPaid && receivesCash && paysWith !== null && paysWith > amountDue
+    !isPaid && paysWith !== null && paysWith > amountDue
       ? roundMoney(paysWith - amountDue)
       : null;
 
