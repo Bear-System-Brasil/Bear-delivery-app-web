@@ -11,11 +11,15 @@ const DELIVERY = {
   updated_at: new Date().toISOString(),
 } as Delivery;
 
-function renderDialog(state: { isAccepting?: boolean; isLocating?: boolean }) {
+function renderDialog(state: {
+  isAccepting?: boolean;
+  isLocating?: boolean;
+  delivery?: Delivery;
+}) {
   const onClose = vi.fn();
   render(
     <AcceptConfirmDialog
-      delivery={DELIVERY}
+      delivery={state.delivery ?? DELIVERY}
       isAccepting={state.isAccepting ?? false}
       isLocating={state.isLocating}
       onClose={onClose}
@@ -44,5 +48,41 @@ describe("AcceptConfirmDialog", () => {
 
     expect(screen.getByRole("button", { name: "Aceitando..." })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Voltar" })).toBeDisabled();
+  });
+
+  describe("troco", () => {
+    // Formato observado em GET /delivery/delivery-person/me: `changeFor`
+    // vem como texto dentro do pedido.
+    const withPayment = (paymentMethod: string, changeFor?: string) =>
+      ({
+        ...DELIVERY,
+        order: {
+          totalValue: 14,
+          changeFor,
+          payments: [{ id: "p1", paymentMethod, status: "PENDING", amount: 14 }],
+        },
+      }) as unknown as Delivery;
+
+    it("pedido em dinheiro com troco mostra quanto o cliente paga e o troco", () => {
+      renderDialog({ delivery: withPayment("CASH", "151") });
+
+      expect(screen.getByText(/Cliente paga com R\$\s*151,00/)).toBeInTheDocument();
+      expect(screen.getByText(/Levar R\$\s*137,00 de troco/)).toBeInTheDocument();
+    });
+
+    it("pedido em dinheiro sem troco não mostra troco", () => {
+      renderDialog({ delivery: withPayment("CASH") });
+
+      expect(screen.getByText(/Receber na entrega/)).toBeInTheDocument();
+      expect(screen.queryByText(/Cliente paga com/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/de troco/)).not.toBeInTheDocument();
+    });
+
+    it("pagamento que não é dinheiro não mostra troco", () => {
+      renderDialog({ delivery: withPayment("PIX", "151") });
+
+      expect(screen.queryByText(/Cliente paga com/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/de troco/)).not.toBeInTheDocument();
+    });
   });
 });
