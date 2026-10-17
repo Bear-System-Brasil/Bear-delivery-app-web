@@ -152,6 +152,19 @@ describe("getPaymentSummary", () => {
     expect(summary?.amountDue).toBe(35.9);
     expect(summary?.methods).toEqual(["Dinheiro", "PIX"]);
   });
+
+  it("forma trocada para cartão não anuncia troco, mesmo com changeFor", () => {
+    // O campo fica no pedido: trocar a forma de pagamento na tela do
+    // entregador não o apaga, e cartão não tem troco.
+    const summary = getPaymentSummary(
+      makeDelivery([makePayment({ paymentMethod: PaymentMethod.DEBIT_CARD })], {
+        changeFor: 50,
+      }),
+    );
+
+    expect(summary?.changeDue).toBeNull();
+    expect(summary?.paysWith).toBeNull();
+  });
 });
 
 describe("isSameMoney", () => {
