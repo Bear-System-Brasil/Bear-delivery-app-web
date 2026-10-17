@@ -4,6 +4,7 @@ import { useSound } from "@/hooks/use-sound";
 import type { Product, ProductVariation } from "@/services/api";
 import { apiService } from "@/services/api";
 import { getCartItemStock, getCartStockIssues } from "@/lib/cart-stock";
+import { getRestaurant } from "@/services/restaurant";
 import { useCartStore } from "@/stores";
 import { useAuthStore } from "@/stores/auth-store";
 import { getErrorMessage } from "@/utils";
@@ -65,15 +66,56 @@ const enqueueQuantityRequest = (itemId: string, send: () => Promise<void>) => {
   return request;
 };
 
+// Carrinhos sendo apagados no backend porque ficaram vazios (LDMF-317). O
+// próximo "Adicionar" espera: se o POST /order chegasse antes do DELETE,
+// o backend devolveria o carrinho velho, preso à loja antiga.
+let pendingCartResets: Promise<unknown>[] = [];
+
+const trackCartReset = (promise: Promise<unknown>) => {
+  pendingCartResets.push(promise);
+  promise.finally(() => {
+    pendingCartResets = pendingCartResets.filter((p) => p !== promise);
+  });
+};
+
+const waitForCartResets = async () => {
+  while (pendingCartResets.length) {
+    await Promise.allSettled([...pendingCartResets]);
+  }
+};
+
 const waitForPendingWrites = async () => {
   // Em laço: uma escrita nova pode entrar enquanto as anteriores assentam
-  while (pendingAddPromises.length || pendingQuantityWrites.length) {
-    await Promise.allSettled([...pendingAddPromises, ...pendingQuantityWrites]);
+  while (
+    pendingAddPromises.length ||
+    pendingQuantityWrites.length ||
+    pendingCartResets.length
+  ) {
+    await Promise.allSettled([
+      ...pendingAddPromises,
+      ...pendingQuantityWrites,
+      ...pendingCartResets,
+    ]);
   }
 };
 
 const hasPendingWrites = () =>
-  pendingAddPromises.length > 0 || pendingQuantityWrites.length > 0;
+  pendingAddPromises.length > 0 ||
+  pendingQuantityWrites.length > 0 ||
+  pendingCartResets.length > 0;
+
+/**
+ * DELETE /order/:id. 404 conta como sucesso: o carrinho já não existe, que
+ * é o que se queria. `apiRequest` não lança em 4xx - por isso o `success`.
+ */
+const deleteBackendCart = async (userId: string, cartId: string) => {
+  try {
+    const response = await apiService.orders.clearCart(userId, cartId);
+    return response.success || response.status === 404;
+  } catch {
+    return false;
+  }
+};
 
 const SYNC_MAX_ATTEMPTS = 3;
 
@@ -110,7 +152,7 @@ interface BackendCartItem {
   unitPrice: number;
   quantity: number;
   addIngredient?: Record<string, unknown>;
-  product?: { name?: string; imageURL?: { url: string }[] };
+  product?: { name?: string; companyId?: string; imageURL?: { url: string }[] };
   addOns?: BackendCartAddOn[];
   variations?: BackendCartVariation[];
 }
@@ -187,6 +229,30 @@ export const useCartActions = () => {
   const burstFinishers = useRef<Map<string, () => void>>(new Map());
 
   /**
+   * Nome da loja pelo id. O carrinho do backend só traz `companyId`; o nome
+   * vem do mesmo cache do `useRestaurant` (GET /company/:id). Devolve null
+   * quando não dá para saber - quem chama decide, em vez de mostrar o nome
+   * de outra loja ou um "Restaurante" genérico (LDMF-317).
+   */
+  const resolveRestaurantName = async (
+    companyId: string,
+  ): Promise<string | null> => {
+    const current = useCartStore.getState().restaurant;
+    if (current?.id === companyId && current.name) return current.name;
+
+    try {
+      const company = await queryClient.fetchQuery({
+        queryKey: ["restaurant", companyId],
+        queryFn: () => getRestaurant(companyId),
+        staleTime: 15 * 60 * 1000,
+      });
+      return company?.tradeName?.trim() || null;
+    } catch {
+      return null;
+    }
+  };
+
+  /**
    * Busca carrinho do backend e atualiza estado local
    * IMPORTANTE: Erro 404 é ESPERADO quando o usuário não tem carrinho ativo
    * (ex: primeira vez acessando ou após finalizar pedido)
@@ -225,20 +291,22 @@ export const useCartActions = () => {
 
       if (response.success && response.data) {
         const backendCart = response.data as BackendCart;
-        const orderId = backendCart.id;
-
-        setOrderId(orderId);
 
         const orderedItems = backendCart.orderedItems;
         const hasItems = orderedItems && orderedItems.length > 0;
 
         if (orderedItems && hasItems) {
+          setOrderId(backendCart.id);
+
+          // A loja vem do backend; id e nome sempre da mesma loja. Antes o
+          // nome vinha do store local, e o carrinho mostrava o id de uma
+          // loja com o nome de outra, ou só "Restaurante" (LDMF-317).
           const companyId = backendCart.companyId || "";
+          let restaurantName = "";
           if (companyId) {
-            setRestaurant({
-              id: companyId,
-              name: restaurant?.name || "Restaurante",
-            });
+            restaurantName = (await resolveRestaurantName(companyId)) ?? "";
+            if (isStale()) return false;
+            setRestaurant({ id: companyId, name: restaurantName });
           }
 
           // Antes de sobrescrever `items`, guarda o que já tínhamos por
@@ -455,7 +523,10 @@ export const useCartActions = () => {
                   item.product?.imageURL?.[0]?.url || existing?.imageUrl,
                 restaurantId: companyId,
                 restaurantName:
-                  restaurant?.name || existing?.restaurantName || "Restaurante",
+                  restaurantName ||
+                  (existing?.restaurantId === companyId
+                    ? existing.restaurantName
+                    : ""),
                 customizations:
                   item.addIngredient || existing?.customizations || undefined,
                 variationLabel: variationLabel || existing?.variationLabel,
@@ -469,6 +540,11 @@ export const useCartActions = () => {
           );
           setItems(cartItems);
         } else {
+          // Carrinho vazio no backend continua preso à loja antiga: guardar
+          // o orderId dele faria o próximo item, de qualquer loja, cair
+          // nele sem aviso (LDMF-317). Sem orderId, o próximo "Adicionar"
+          // passa pelo POST /order, que confere a loja.
+          setOrderId(null);
           setRestaurant(null);
           setItems([]);
         }
@@ -477,6 +553,96 @@ export const useCartActions = () => {
       // 404 é esperado quando não há carrinho ativo
     }
     return true;
+  };
+
+  /**
+   * "Trocar de restaurante?" com o nome real da loja do carrinho. Sem
+   * conseguir o nome, não pergunta às cegas: avisa e não adiciona.
+   */
+  const confirmRestaurantChange = async (
+    currentRestaurantId: string,
+    newRestaurantName: string,
+  ) => {
+    const currentName = await resolveRestaurantName(currentRestaurantId);
+    if (!currentName) {
+      toast.error(
+        "Não conseguimos confirmar a loja do seu carrinho. Tente novamente.",
+      );
+      return false;
+    }
+
+    return confirm({
+      title: "Trocar de restaurante?",
+      currentRestaurant: currentName,
+      newRestaurant: newRestaurantName,
+      confirmText: "Sim, limpar carrinho",
+      cancelText: "Não, manter atual",
+      variant: "danger",
+    });
+  };
+
+  /**
+   * POST /order para a loja pedida. Com carrinho já existente, o backend
+   * devolve ele com a loja ANTIGA e ignora o `companyId` enviado (medido
+   * em 15/10, LDMF-317) - aceitar calado põe o item na loja errada.
+   * - Carrinho devolvido vazio: apaga e pede de novo.
+   * - Com itens: pergunta "Trocar de restaurante?" (só com `interactive`;
+   *   sem, lança erro). Cancelando, devolve null e o local passa a mostrar
+   *   o carrinho real.
+   */
+  const openCartFor = async (
+    restaurantId: string,
+    restaurantName: string,
+    { interactive }: { interactive: boolean },
+  ): Promise<string | null> => {
+    const userId = user!.id;
+
+    // Duas voltas: a segunda só acontece depois de apagar o carrinho velho
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const response = await apiService.orders.openCart(userId, {
+        companyId: restaurantId,
+        discount: 0,
+        totalShipping: 0,
+        totalValue: 0,
+        status: "CART",
+      });
+
+      if (!response.success || !response.data?.id) {
+        throw new Error("Erro ao criar carrinho");
+      }
+
+      const cart = response.data as unknown as BackendCart;
+      if (!cart.companyId || cart.companyId === restaurantId) return cart.id;
+
+      const hasItems = (cart.orderedItems?.length ?? 0) > 0;
+      if (hasItems) {
+        if (!interactive) {
+          throw new Error(
+            "Seu carrinho tem itens de outra loja. Revise o carrinho e tente novamente.",
+          );
+        }
+
+        const confirmChange = await confirmRestaurantChange(
+          cart.companyId,
+          restaurantName,
+        );
+        if (!confirmChange) {
+          await syncCartFromBackend();
+          return null;
+        }
+      }
+
+      if (!(await deleteBackendCart(userId, cart.id))) {
+        throw new Error(
+          "Não foi possível limpar o carrinho anterior. Tente novamente.",
+        );
+      }
+      if (hasItems) clearCartLocal();
+    }
+
+    throw new Error(
+      "Não foi possível abrir um carrinho para esta loja. Tente novamente.",
+    );
   };
 
   /**
@@ -530,57 +696,73 @@ export const useCartActions = () => {
         // Ignora falha de requisição de horários para não travar indevidamente
       }
 
-      // Flag para saber se precisamos criar um novo carrinho
-      let needsNewCart = !orderId;
+      // Um carrinho que acabou de esvaziar ainda pode estar sendo apagado
+      await waitForCartResets();
 
-      // Validação: verificar se há itens de outro restaurante
-      if (restaurant && restaurant.id !== item.restaurantId) {
-        const confirmChange = await confirm({
-          title: "Trocar de restaurante?",
-          currentRestaurant: restaurant.name,
-          newRestaurant: item.restaurantName,
-          confirmText: "Sim, limpar carrinho",
-          cancelText: "Não, manter atual",
-          variant: "danger",
-        });
+      // Lê do store, não do render: o closure pode estar atrasado (ex.:
+      // "Repetir pedido" chama esta função em laço com o render do clique).
+      let { restaurant: cartRestaurant, orderId: cartOrderId } =
+        useCartStore.getState();
+
+      // orderId sem loja: carrinho de antes de recarregar a página, ainda
+      // não lido. Sem ler antes, o item cairia nele sem o aviso de troca.
+      if (cartOrderId && !cartRestaurant) {
+        await syncCartFromBackend();
+        ({ restaurant: cartRestaurant, orderId: cartOrderId } =
+          useCartStore.getState());
+      }
+
+      // Sem loja conhecida, o carrinho existente (se houver) não é
+      // reaproveitado às cegas: o POST /order devolve ele e confere a loja.
+      let needsNewCart = !cartOrderId || !cartRestaurant;
+
+      // Compara com a loja real do carrinho - a do backend, depois do sync
+      if (cartRestaurant && cartRestaurant.id !== item.restaurantId) {
+        const confirmChange = await confirmRestaurantChange(
+          cartRestaurant.id,
+          item.restaurantName,
+        );
 
         if (!confirmChange) {
           setLoading(false);
           return false;
         }
 
-        // Limpar carrinho e resetar estado (sem mostrar toast de sucesso)
-        await handleClearCart(false);
-        // Após limpar, precisamos criar um novo carrinho
+        // Limpar carrinho e resetar estado (sem mostrar toast de sucesso).
+        // Se o backend não limpou, para aqui: o erro já foi mostrado.
+        if (!(await handleClearCart(false))) {
+          setLoading(false);
+          return false;
+        }
         needsNewCart = true;
       }
 
+      // Criar carrinho no backend se necessário
+      let currentOrderId = cartOrderId;
+      if (needsNewCart) {
+        // Uma leitura do backend em voo agora traria o carrinho de antes
+        cartWriteVersion++;
+        const openedId = await openCartFor(
+          item.restaurantId,
+          item.restaurantName,
+          { interactive: true },
+        );
+        if (!openedId) {
+          setLoading(false);
+          return false;
+        }
+        currentOrderId = openedId;
+        // IMPORTANTE: Não remover o prefixo 'cart:' - o backend precisa dele
+        setOrderId(currentOrderId);
+      }
+
       // Atualizar restaurant no estado se for novo ou diferente
-      if (!restaurant || restaurant.id !== item.restaurantId) {
+      const latestRestaurant = useCartStore.getState().restaurant;
+      if (!latestRestaurant || latestRestaurant.id !== item.restaurantId) {
         setRestaurant({
           id: item.restaurantId,
           name: item.restaurantName,
         });
-      }
-
-      // Criar carrinho no backend se necessário
-      let currentOrderId = orderId;
-      if (needsNewCart) {
-        const orderResponse = await apiService.orders.openCart(user.id, {
-          companyId: item.restaurantId,
-          discount: 0,
-          totalShipping: 0,
-          totalValue: 0,
-          status: "CART",
-        });
-
-        if (orderResponse.success && orderResponse.data?.id) {
-          currentOrderId = orderResponse.data.id;
-          // IMPORTANTE: Não remover o prefixo 'cart:' - o backend precisa dele
-          setOrderId(currentOrderId);
-        } else {
-          throw new Error("Erro ao criar carrinho");
-        }
       }
 
       // Verificar se temos um orderId válido
@@ -664,7 +846,7 @@ export const useCartActions = () => {
       // essa tentativa somou preserva a mudança da outra em vez de apagá-la.
       const addedQuantity = item.quantity || 1;
 
-      const revertAddToCart = (message?: string) => {
+      const revertAddToCart = (message?: string, { silent = false } = {}) => {
         const currentItems = useCartStore.getState().items;
         const existing = currentItems.find((i) => i.id === cartItemKey);
         const revertedItems =
@@ -675,8 +857,11 @@ export const useCartActions = () => {
                 : i,
             )
             : currentItems.filter((i) => i.id !== cartItemKey);
+        cartWriteVersion++;
         setItems(revertedItems);
-        toast.error(message || "Erro ao adicionar item. Tente novamente.");
+        if (!silent) {
+          toast.error(message || "Erro ao adicionar item. Tente novamente.");
+        }
       };
 
       const addItemToBackend = async (signal: AbortSignal) => {
@@ -699,18 +884,26 @@ export const useCartActions = () => {
         // Nesse caso abrimos um carrinho novo e tentamos de novo, em vez de
         // insistir num id morto e falhar toda adição de item.
         if (!response.success && response.status === 404) {
-          const recreated = await apiService.orders.openCart(user.id, {
-            companyId: item.restaurantId,
-            discount: 0,
-            totalShipping: 0,
-            totalValue: 0,
-            status: "CART",
-          });
+          // Em segundo plano não dá para perguntar nada: carrinho de outra
+          // loja com itens vira erro e o item é desfeito.
+          let recreatedId: string | null;
+          try {
+            recreatedId = await openCartFor(
+              item.restaurantId,
+              item.restaurantName,
+              { interactive: false },
+            );
+          } catch (error) {
+            return {
+              success: false,
+              message: getErrorMessage(error, "Erro ao criar carrinho"),
+            };
+          }
 
-          if (recreated.success && recreated.data?.id) {
-            setOrderId(recreated.data.id);
+          if (recreatedId) {
+            setOrderId(recreatedId);
             response = await apiService.orderItems.addProductToCart(
-              recreated.data.id,
+              recreatedId,
               item.id,
               user.id,
               item.quantity || 1,
@@ -723,8 +916,10 @@ export const useCartActions = () => {
         return response;
       };
 
+      // Devolve o companyId do carrinho quando o item caiu no carrinho de
+      // outra loja (já desfeito), ou null
       const backgroundAdd = addItemToBackend(abortController.signal)
-        .then((response) => {
+        .then(async (response): Promise<string | null> => {
           clearTimeout(timeoutId);
           pendingRequests.current.delete(cartItemKey);
 
@@ -733,17 +928,38 @@ export const useCartActions = () => {
           // mantinha o item no carrinho local como se tivesse sido salvo
           if (!response.success) {
             revertAddToCart(response.message);
+            return null;
           }
+
+          // Outra aba pode ter trocado o carrinho do backend sem esta saber:
+          // o mesmo `cart:<userId>`, agora preso a outra loja. O backend
+          // aceita o item mesmo assim (LDMF-347) - desfaz aqui, antes de
+          // qualquer leitura do carrinho, e quem chamou pergunta depois.
+          const cart = response.data as unknown as BackendCart | undefined;
+          if (cart?.companyId && cart.companyId !== item.restaurantId) {
+            await apiService.orderItems
+              .removeProductFromCart(
+                user.id,
+                cart.id || currentOrderId,
+                item.id,
+                addedQuantity,
+              )
+              .catch(() => undefined);
+            revertAddToCart(undefined, { silent: true });
+            return cart.companyId;
+          }
+          return null;
         })
         .catch((error) => {
           clearTimeout(timeoutId);
           pendingRequests.current.delete(cartItemKey);
 
           // Ignorar erros de abort (esperado)
-          if (error.name === "AbortError") return;
+          if (error.name === "AbortError") return null;
 
           console.error("Erro ao adicionar item:", error);
           revertAddToCart();
+          return null;
         });
 
       // Registrado pra quem for sincronizar do backend (ex: ao entrar em
@@ -754,6 +970,21 @@ export const useCartActions = () => {
         pendingAddPromises = pendingAddPromises.filter(
           (p) => p !== backgroundAdd,
         );
+      });
+
+      // Fora da promessa registrada: o sync aqui dentro esperaria por ela
+      // mesma. O local passa a mostrar o carrinho real e o cliente escolhe.
+      backgroundAdd.then(async (foreignCompanyId) => {
+        if (!foreignCompanyId) return;
+
+        await syncCartFromBackend();
+        const confirmChange = await confirmRestaurantChange(
+          foreignCompanyId,
+          item.restaurantName,
+        );
+        if (!confirmChange) return;
+        if (!(await handleClearCart(false))) return;
+        await handleAddToCart(item);
       });
 
       // Retornar true imediatamente (optimistic)
@@ -804,8 +1035,14 @@ export const useCartActions = () => {
     const newItems = items.filter((i) => i.id !== itemId);
     setItems(newItems);
 
-    if (newItems.length === 0) {
+    // Último item: o carrinho inteiro sai, no backend e no local. Guardar o
+    // orderId fazia o próximo item, de qualquer loja, cair no carrinho
+    // vazio preso à loja antiga - e o pedido ia para ela (LDMF-317).
+    const isLastItem = newItems.length === 0;
+    const previousRestaurant = useCartStore.getState().restaurant;
+    if (isLastItem) {
       setRestaurant(null);
+      setOrderId(null);
     }
 
     toast.success("Item removido do carrinho");
@@ -820,6 +1057,27 @@ export const useCartActions = () => {
     const userId = user.id;
     const currentOrderId = orderId;
     const quantityToRemove = unsentBase ?? item.quantity;
+
+    if (isLastItem) {
+      const request = enqueueQuantityRequest(itemId, async () => {
+        if (await deleteBackendCart(userId, currentOrderId)) return;
+
+        // Falhou: o carrinho continua no backend - devolve tudo como estava
+        setItems([...useCartStore.getState().items, item]);
+        setRestaurant(
+          previousRestaurant ?? {
+            id: item.restaurantId,
+            name: item.restaurantName,
+          },
+        );
+        setOrderId(currentOrderId);
+        toast.error("Erro ao remover. Tente novamente.");
+      });
+      trackQuantityWrite(request);
+      trackCartReset(request);
+      return;
+    }
+
     const request = enqueueQuantityRequest(itemId, () =>
       apiService.orderItems
         .removeProductFromCart(
@@ -1021,25 +1279,32 @@ export const useCartActions = () => {
    * Limpa o carrinho (backend + local)
    */
   const handleClearCart = async (showToast: boolean = true) => {
-    if (!user?.id || !orderId) {
+    // Do store, não do render: pode ser chamada logo depois de outra escrita
+    const currentOrderId = useCartStore.getState().orderId;
+    if (!user?.id || !currentOrderId) {
       clearCartLocal();
-      return;
+      return true;
     }
 
-    try {
-      setLoading(true);
-      await apiService.orders.clearCart(user.id, orderId);
-      clearCartLocal();
-      if (showToast) {
-        toast.success("Carrinho limpo com sucesso");
-      }
-    } catch (error) {
-      console.error("Erro ao limpar carrinho:", error);
-      // Limpar local mesmo se der erro no backend
-      clearCartLocal();
-    } finally {
-      setLoading(false);
+    setLoading(true);
+    const request = deleteBackendCart(user.id, currentOrderId);
+    trackCartReset(request);
+    const deleted = await request;
+    setLoading(false);
+
+    // Limpar só o local deixava o carrinho de pé no backend, preso à loja
+    // antiga - o próximo item caía nele (LDMF-317). Mantém o carrinho na
+    // tela para o cliente tentar de novo.
+    if (!deleted) {
+      toast.error("Não foi possível limpar o carrinho. Tente novamente.");
+      return false;
     }
+
+    clearCartLocal();
+    if (showToast) {
+      toast.success("Carrinho limpo com sucesso");
+    }
+    return true;
   };
 
   /**

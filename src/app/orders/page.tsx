@@ -192,11 +192,12 @@ function OrderHistoryContent() {
     setRepeatingOrderId(orderId);
 
     try {
-      const itemsResponse = await apiService.orderItems.listByOrder(
-        orderId,
-        user.id,
-      );
-      const orderItems = itemsResponse.data || [];
+      // Itens pelo próprio pedido. GET /order-item/order/:id devolve os itens
+      // do carrinho aberto, e não os do pedido, quando há carrinho (medido em
+      // 16/10; correção no back: LDMF-356) - o "Repetir" repetia o carrinho
+      // de outra loja em vez do pedido (LDMF-317).
+      const orderResponse = await apiService.orders.getCustomerOrder(orderId);
+      const orderItems = orderResponse.data?.orderedItems || [];
       const companyId = getCompanyId(order);
       const restaurantName = getRestaurantBrand(
         order,
