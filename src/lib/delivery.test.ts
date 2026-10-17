@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  getCashChange,
   getChangeablePayment,
   getPaymentSummary,
   isSameMoney,
@@ -164,6 +165,42 @@ describe("getPaymentSummary", () => {
 
     expect(summary?.changeDue).toBeNull();
     expect(summary?.paysWith).toBeNull();
+  });
+});
+
+describe("getCashChange", () => {
+  // Formato observado em /order/company/status/:status e no socket da
+  // cozinha: `changeFor` vem como texto, o pagamento como número.
+  const order = (
+    payments: Array<{ paymentMethod: string; status?: string; amount?: number }>,
+    changeFor?: number | string | null,
+  ) => ({ payments, changeFor });
+
+  it("pedido em dinheiro com troco devolve quanto o cliente paga e o troco", () => {
+    expect(
+      getCashChange(order([{ paymentMethod: "CASH", status: "PENDING", amount: 9 }], "137")),
+    ).toEqual({ paysWith: 137, changeDue: 128 });
+  });
+
+  it("pedido em dinheiro sem troco não mostra nada", () => {
+    const cash = [{ paymentMethod: "CASH", status: "PENDING", amount: 9 }];
+
+    expect(getCashChange(order(cash))).toBeNull();
+    expect(getCashChange(order(cash, null))).toBeNull();
+  });
+
+  it("pagamento que não é dinheiro não mostra troco, mesmo com changeFor", () => {
+    expect(
+      getCashChange(order([{ paymentMethod: "DEBIT_CARD", status: "PENDING", amount: 9 }], 137)),
+    ).toBeNull();
+    expect(
+      getCashChange(order([{ paymentMethod: "PIX", status: "PENDING", amount: 9 }], 137)),
+    ).toBeNull();
+  });
+
+  it("sem pedido ou sem pagamento não mostra nada", () => {
+    expect(getCashChange(null)).toBeNull();
+    expect(getCashChange(order([], 137))).toBeNull();
   });
 });
 
