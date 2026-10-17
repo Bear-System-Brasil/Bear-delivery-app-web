@@ -5,6 +5,7 @@ import {
   type KitchenOrder,
   type KitchenOrderItem,
   type KitchenPeriod,
+  type KitchenVariation,
 } from "./types";
 
 /**
@@ -54,6 +55,15 @@ export function getElapsed(dateString: string): ElapsedInfo {
 
 export function getItemName(item: KitchenOrderItem): string {
   return item.product?.name || `Produto ${item.productId.slice(0, 6)}`;
+}
+
+/**
+ * Nome do tamanho escolhido (ex.: "Tradicional (18 cm)"), o mesmo que o
+ * cliente vê no carrinho. `null` quando o nome não veio — quem chama não
+ * mostra nada no lugar, em vez de um genérico "Variação".
+ */
+export function getVariationName(variation: KitchenVariation): string | null {
+  return variation.productVariation?.name?.trim() || null;
 }
 
 /**

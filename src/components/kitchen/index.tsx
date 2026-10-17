@@ -21,6 +21,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { CancelKitchenOrderDialog } from "./cancel-kitchen-order-dialog";
 import { KitchenColumn } from "./kitchen-column";
+import { getVariationName } from "./helpers";
 import {
   KITCHEN_COLUMN_BY_STATUS,
   KITCHEN_PERIOD_LABELS,
@@ -82,7 +83,7 @@ function KitchenCounterTile({
 // Área de impressão (oculta — visível apenas em @media print)
 // ─────────────────────────────────────────────────────────────────────────────
 
-function KitchenPrintArea({ order }: { order: KitchenOrder | null }) {
+export function KitchenPrintArea({ order }: { order: KitchenOrder | null }) {
   if (!order) return null;
 
   const items = order.orderedItems ?? [];
@@ -118,12 +119,20 @@ function KitchenPrintArea({ order }: { order: KitchenOrder | null }) {
                 {addon.observations ? ` (${addon.observations})` : ""}
               </p>
             ))}
-            {item.variations?.map((variation) => (
-              <p key={variation.id} className="pl-2">
-                {variation.productVariation?.description ?? "Variação"}
-                {variation.observations ? ` (${variation.observations})` : ""}
-              </p>
-            ))}
+            {item.variations?.map((variation) => {
+              const label = [
+                getVariationName(variation),
+                variation.observations ? `(${variation.observations})` : null,
+              ]
+                .filter(Boolean)
+                .join(" ");
+              if (!label) return null;
+              return (
+                <p key={variation.id} className="pl-2">
+                  {label}
+                </p>
+              );
+            })}
           </div>
         ))}
       </div>

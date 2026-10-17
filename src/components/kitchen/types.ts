@@ -81,7 +81,11 @@ export interface KitchenVariation {
   priceSnapshot?: number;
   /** Observação específica desta variação (ex.: "sem pimenta"). */
   observations?: string | null;
-  productVariation?: { description: string } | null;
+  /**
+   * Tamanho escolhido. `/order/company/status/:status` devolve o nome em
+   * `name` (ex.: "Tradicional (18 cm)") — não existe `description` aqui.
+   */
+  productVariation?: { name?: string } | null;
 }
 
 export interface KitchenOrderItem {

@@ -9,6 +9,7 @@ import {
   getOrderLabel,
   getPaymentLabel,
   getPeriodRange,
+  getVariationName,
   hasAddOnsOrVariations,
   isSameLocalDay,
   toDateInputValue,
@@ -118,6 +119,20 @@ describe("getItemName", () => {
   it("cai para o id truncado quando não há produto", () => {
     const item = { productId: "abcdef123456" } as KitchenOrderItem;
     expect(getItemName(item)).toBe("Produto abcdef");
+  });
+});
+
+describe("getVariationName", () => {
+  it("devolve o nome do tamanho escolhido", () => {
+    expect(
+      getVariationName({ id: "v1", productVariation: { name: "Tradicional (18 cm)" } }),
+    ).toBe("Tradicional (18 cm)");
+  });
+
+  it("devolve null quando o nome não veio, em vez de um genérico", () => {
+    expect(getVariationName({ id: "v1" })).toBeNull();
+    expect(getVariationName({ id: "v1", productVariation: null })).toBeNull();
+    expect(getVariationName({ id: "v1", productVariation: { name: "  " } })).toBeNull();
   });
 });
 
