@@ -190,6 +190,18 @@ export function OrderDetailSheet<TOrder extends DetailableOrder>({
                         {`"${item.observations}"`}
                       </p>
                     )}
+                    {item.variations?.map((v, i) => (
+                      <div key={i} className="pl-4">
+                        <p className="text-xs text-muted-foreground">
+                          Tamanho: {getVariationLabel(v)}
+                        </p>
+                        {v.observations && (
+                          <p className="text-xs italic text-muted-foreground/80 pl-2">
+                            {`"${v.observations}"`}
+                          </p>
+                        )}
+                      </div>
+                    ))}
                     {item.addOns?.map((addon, i) => (
                       <div key={i} className="pl-4">
                         <p className="text-xs text-muted-foreground">
@@ -198,18 +210,6 @@ export function OrderDetailSheet<TOrder extends DetailableOrder>({
                         {addon.observations && (
                           <p className="text-xs italic text-muted-foreground/80 pl-2">
                             {`"${addon.observations}"`}
-                          </p>
-                        )}
-                      </div>
-                    ))}
-                    {item.variations?.map((v, i) => (
-                      <div key={i} className="pl-4">
-                        <p className="text-xs text-muted-foreground">
-                          {getVariationLabel(v)}
-                        </p>
-                        {v.observations && (
-                          <p className="text-xs italic text-muted-foreground/80 pl-2">
-                            {`"${v.observations}"`}
                           </p>
                         )}
                       </div>

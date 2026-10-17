@@ -47,14 +47,17 @@ describe("KitchenPrintArea - tamanho na comanda", () => {
   it("item com tamanho imprime o nome do tamanho escolhido", () => {
     render(<KitchenPrintArea order={makeOrder([itemComTamanho])} />);
 
-    expect(screen.getByText("Tradicional (18 cm)")).toBeInTheDocument();
+    expect(screen.getByText("Tamanho: Tradicional (18 cm)")).toBeInTheDocument();
     expect(screen.queryByText("Variação")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Adiciona/)).not.toBeInTheDocument();
   });
 
-  it("item sem tamanho não imprime nada no lugar", () => {
+  it("item sem tamanho e sem adicional não imprime nenhuma dessas linhas", () => {
     const { container } = render(<KitchenPrintArea order={makeOrder([itemSemTamanho])} />);
 
     expect(screen.getByText("2x Caldo de Cana")).toBeInTheDocument();
+    expect(screen.queryByText(/Tamanho/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Adiciona/)).not.toBeInTheDocument();
     expect(screen.queryByText("Variação")).not.toBeInTheDocument();
     expect(container.querySelectorAll("p.pl-2")).toHaveLength(0);
   });
@@ -79,6 +82,6 @@ describe("KitchenPrintArea - tamanho na comanda", () => {
     };
     render(<KitchenPrintArea order={makeOrder([item])} />);
 
-    expect(screen.getByText("Tradicional (18 cm) (bem fechado)")).toBeInTheDocument();
+    expect(screen.getByText("Tamanho: Tradicional (18 cm) (bem fechado)")).toBeInTheDocument();
   });
 });

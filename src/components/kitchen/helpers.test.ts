@@ -8,9 +8,10 @@ import {
   getItemName,
   getOrderLabel,
   getPaymentLabel,
+  getItemSizeLabel,
   getPeriodRange,
   getVariationName,
-  hasAddOnsOrVariations,
+  hasAddOns,
   isSameLocalDay,
   toDateInputValue,
 } from "./helpers";
@@ -136,16 +137,35 @@ describe("getVariationName", () => {
   });
 });
 
-describe("hasAddOnsOrVariations", () => {
-  it("é false quando não há itens", () => {
-    expect(hasAddOnsOrVariations(baseOrder())).toBe(false);
+describe("getItemSizeLabel", () => {
+  it("devolve o nome do tamanho do item", () => {
+    const item = {
+      id: "i1",
+      productId: "p1",
+      quantity: 1,
+      variations: [{ id: "v1", productVariation: { name: "Tradicional (18 cm)" } }],
+    } as KitchenOrderItem;
+    expect(getItemSizeLabel(item)).toBe("Tradicional (18 cm)");
   });
 
-  it("é false quando os itens não têm adicionais nem variações", () => {
+  it("é null quando o item não tem tamanho ou o nome não veio", () => {
+    expect(getItemSizeLabel({ id: "i1", productId: "p1", quantity: 1 })).toBeNull();
+    expect(
+      getItemSizeLabel({ id: "i1", productId: "p1", quantity: 1, variations: [{ id: "v1" }] }),
+    ).toBeNull();
+  });
+});
+
+describe("hasAddOns", () => {
+  it("é false quando não há itens", () => {
+    expect(hasAddOns(baseOrder())).toBe(false);
+  });
+
+  it("é false quando os itens não têm adicionais", () => {
     const order = baseOrder({
       orderedItems: [{ id: "i1", productId: "p1", quantity: 1 } as KitchenOrderItem],
     });
-    expect(hasAddOnsOrVariations(order)).toBe(false);
+    expect(hasAddOns(order)).toBe(false);
   });
 
   it("é true quando algum item tem adicional", () => {
@@ -154,16 +174,16 @@ describe("hasAddOnsOrVariations", () => {
         { id: "i1", productId: "p1", quantity: 1, addOns: [{ id: "a1", quantity: 1 }] } as KitchenOrderItem,
       ],
     });
-    expect(hasAddOnsOrVariations(order)).toBe(true);
+    expect(hasAddOns(order)).toBe(true);
   });
 
-  it("é true quando algum item tem variação", () => {
+  it("é false quando o item só tem tamanho — tamanho não é adicional", () => {
     const order = baseOrder({
       orderedItems: [
         { id: "i1", productId: "p1", quantity: 1, variations: [{ id: "v1" }] } as KitchenOrderItem,
       ],
     });
-    expect(hasAddOnsOrVariations(order)).toBe(true);
+    expect(hasAddOns(order)).toBe(false);
   });
 });
 

@@ -113,26 +113,22 @@ export function KitchenPrintArea({ order }: { order: KitchenOrder | null }) {
               {item.quantity}x {getItemName(item)}
             </p>
             {item.observations && <p className="pl-2">Obs: {item.observations}</p>}
+            {item.variations?.map((variation) => {
+              const name = getVariationName(variation);
+              if (!name) return null;
+              return (
+                <p key={variation.id} className="pl-2">
+                  Tamanho: {name}
+                  {variation.observations ? ` (${variation.observations})` : ""}
+                </p>
+              );
+            })}
             {item.addOns?.map((addon) => (
               <p key={addon.id} className="pl-2">
                 + {addon.productAddOns?.description ?? "Adicional"}
                 {addon.observations ? ` (${addon.observations})` : ""}
               </p>
             ))}
-            {item.variations?.map((variation) => {
-              const label = [
-                getVariationName(variation),
-                variation.observations ? `(${variation.observations})` : null,
-              ]
-                .filter(Boolean)
-                .join(" ");
-              if (!label) return null;
-              return (
-                <p key={variation.id} className="pl-2">
-                  {label}
-                </p>
-              );
-            })}
           </div>
         ))}
       </div>

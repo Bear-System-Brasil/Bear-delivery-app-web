@@ -19,9 +19,10 @@ import {
   getFulfillmentLabel,
   getFulfillmentToneClass,
   getItemName,
+  getItemSizeLabel,
   getOrderLabel,
   getPaymentLabel,
-  hasAddOnsOrVariations,
+  hasAddOns,
 } from "./helpers";
 import type { KitchenOrder } from "./types";
 
@@ -56,7 +57,7 @@ export function KitchenOrderCard({
   const observations = order.observations?.trim();
   const hasActions = actionLabel !== null;
   const isCanceled = order.status === "CANCELED";
-  const hasExtras = hasAddOnsOrVariations(order);
+  const hasExtras = hasAddOns(order);
 
   return (
     <article
@@ -91,12 +92,20 @@ export function KitchenOrderCard({
         </p>
 
         <ul className="space-y-1.5">
-          {items.map((item) => (
-            <li key={item.id} className="text-lg leading-snug text-foreground">
-              <span className="font-black">{item.quantity}×</span>{" "}
-              <span className="font-semibold">{getItemName(item)}</span>
-            </li>
-          ))}
+          {items.map((item) => {
+            const size = getItemSizeLabel(item);
+            return (
+              <li key={item.id} className="text-lg leading-snug text-foreground">
+                <span className="font-black">{item.quantity}×</span>{" "}
+                <span className="font-semibold">{getItemName(item)}</span>
+                {size && (
+                  <span className="block pl-6 text-base font-medium text-muted-foreground">
+                    Tamanho: {size}
+                  </span>
+                )}
+              </li>
+            );
+          })}
 
           {items.length === 0 && (
             <li className="text-base text-muted-foreground">Sem itens registrados</li>

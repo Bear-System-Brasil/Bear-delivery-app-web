@@ -67,14 +67,24 @@ export function getVariationName(variation: KitchenVariation): string | null {
 }
 
 /**
- * Existe adicional ou variação em algum item do pedido? O card não lista
- * cada um (viraria uma parede de "+ Adicional"); só indica presença e manda
- * pro modal, que já mostra o nome de verdade de cada um.
+ * Tamanho(s) escolhido(s) do item, para o card. `null` quando o item não tem
+ * tamanho — o card não mostra nada no lugar.
  */
-export function hasAddOnsOrVariations(order: KitchenOrder): boolean {
-  return (order.orderedItems ?? []).some(
-    (item) => (item.addOns?.length ?? 0) > 0 || (item.variations?.length ?? 0) > 0,
-  );
+export function getItemSizeLabel(item: KitchenOrderItem): string | null {
+  const names = (item.variations ?? [])
+    .map(getVariationName)
+    .filter((name): name is string => Boolean(name));
+  return names.length > 0 ? names.join(", ") : null;
+}
+
+/**
+ * Existe adicional em algum item do pedido? Tamanho não conta: tamanho e
+ * adicional são coisas diferentes, e o card mostra o tamanho em linha
+ * própria. O card não lista cada adicional (viraria uma parede de nomes);
+ * só indica presença e manda pro modal.
+ */
+export function hasAddOns(order: KitchenOrder): boolean {
+  return (order.orderedItems ?? []).some((item) => (item.addOns?.length ?? 0) > 0);
 }
 
 export function getOrderLabel(order: KitchenOrder): string {
