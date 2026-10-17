@@ -41,7 +41,7 @@ describe("KitchenOrderCard - troco", () => {
     renderCard(makeOrder("CASH", "137"));
 
     expect(screen.getByText(/Cliente paga com R\$\s*137,00/)).toBeInTheDocument();
-    expect(screen.getByText(/Levar R\$\s*128,00 de troco/)).toBeInTheDocument();
+    expect(screen.getByText(/Separar R\$\s*128,00 de troco/)).toBeInTheDocument();
   });
 
   it("pedido em dinheiro sem troco não mostra troco", () => {

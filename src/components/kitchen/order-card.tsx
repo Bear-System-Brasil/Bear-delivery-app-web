@@ -175,7 +175,7 @@ export function KitchenOrderCard({
                 Cliente paga com {formatCurrency(change.paysWith)}
               </p>
               <p className="text-base font-bold text-emerald-900 dark:text-emerald-200">
-                Levar {formatCurrency(change.changeDue)} de troco
+                Separar {formatCurrency(change.changeDue)} de troco
               </p>
             </div>
           </div>

@@ -377,7 +377,7 @@ export function OrderDetailSheet<TOrder extends DetailableOrder>({
                     Cliente paga com {formatCurrency(change.paysWith)}
                   </p>
                   <p className="text-sm font-bold">
-                    Levar {formatCurrency(change.changeDue)} de troco
+                    Separar {formatCurrency(change.changeDue)} de troco
                   </p>
                 </div>
               )}

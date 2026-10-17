@@ -146,7 +146,7 @@ export function KitchenPrintArea({ order }: { order: KitchenOrder | null }) {
           <p>───────────────────────</p>
           <p>Pagamento: {getPaymentLabel(order)}</p>
           <p>Cliente paga com {formatCurrency(change.paysWith)}</p>
-          <p className="font-bold">Levar {formatCurrency(change.changeDue)} de troco</p>
+          <p className="font-bold">Separar {formatCurrency(change.changeDue)} de troco</p>
         </>
       )}
 

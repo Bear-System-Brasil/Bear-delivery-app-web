@@ -28,7 +28,7 @@ describe("KitchenPrintArea - troco na comanda", () => {
 
     expect(screen.getByText("Pagamento: Dinheiro")).toBeInTheDocument();
     expect(screen.getByText(/Cliente paga com R\$\s*151,00/)).toBeInTheDocument();
-    expect(screen.getByText(/Levar R\$\s*137,00 de troco/)).toBeInTheDocument();
+    expect(screen.getByText(/Separar R\$\s*137,00 de troco/)).toBeInTheDocument();
   });
 
   it("pedido em dinheiro sem troco não imprime troco", () => {
