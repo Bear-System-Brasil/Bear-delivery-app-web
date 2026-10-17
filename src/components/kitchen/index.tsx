@@ -2,10 +2,12 @@
 
 import { Button } from "@/components/ui/button";
 import { OrderDetailSheet } from "@/components/order-detail-sheet";
-import { getCustomerName, getItemName, getOrderLabel, toDateInputValue } from "./helpers";
+import { getCustomerName, getItemName, getOrderLabel, getPaymentLabel, toDateInputValue } from "./helpers";
 import { useKitchenOrders } from "@/hooks/use-kitchen-orders";
 import { useAuthStore } from "@/stores";
+import { getCashChange } from "@/lib/delivery";
 import { cn } from "@/lib/utils";
+import { formatCurrency } from "@/utils";
 import {
   Ban,
   Bell,
@@ -82,12 +84,13 @@ function KitchenCounterTile({
 // Área de impressão (oculta — visível apenas em @media print)
 // ─────────────────────────────────────────────────────────────────────────────
 
-function KitchenPrintArea({ order }: { order: KitchenOrder | null }) {
+export function KitchenPrintArea({ order }: { order: KitchenOrder | null }) {
   if (!order) return null;
 
   const items = order.orderedItems ?? [];
   const observations = order.observations?.trim();
   const deliveryObservations = order.delivery?.observations?.trim();
+  const change = getCashChange(order);
 
   return (
     <div className="print-area hidden print:mx-auto print:block print:w-[80mm] print:bg-card print:font-mono print:text-xs print:text-black">
@@ -135,6 +138,15 @@ function KitchenPrintArea({ order }: { order: KitchenOrder | null }) {
           {deliveryObservations && (
             <p className="font-bold">ENTREGA: {deliveryObservations}</p>
           )}
+        </>
+      )}
+
+      {change && (
+        <>
+          <p>───────────────────────</p>
+          <p>Pagamento: {getPaymentLabel(order)}</p>
+          <p>Cliente paga com {formatCurrency(change.paysWith)}</p>
+          <p className="font-bold">Levar {formatCurrency(change.changeDue)} de troco</p>
         </>
       )}
 
