@@ -5,8 +5,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useAuthStore } from "@/stores/auth-store";
 import { useCartStore, type CartItem } from "@/stores/cart-store";
 import { useCartActions } from "./use-cart-actions";
-import { apiService, type Order } from "@/services/api";
+import { apiService, type Company, type Order } from "@/services/api";
 import { toast } from "sonner";
+import {
+  getCartRestaurantProblem,
+  type CartRestaurantSnapshot,
+} from "@/lib/cart-restaurant";
 
 // Os testes só leem o id do pedido; o resto do Order não importa aqui.
 const orderStub = (id: string) => ({ id }) as Order;
@@ -50,6 +54,7 @@ vi.mock("@/services/api", async (importOriginal) => {
       productAddOns: { getAllPublic: vi.fn() },
       productVariations: { getAllPublic: vi.fn() },
       openingHours: { getByCompany: vi.fn() },
+      companies: { getById: vi.fn() },
     },
   };
 });
@@ -225,7 +230,10 @@ describe("useCartActions", () => {
 
     it("reusa o orderId existente, sem criar um novo carrinho", async () => {
       login();
-      act(() => useCartStore.getState().setOrderId("order-existing"));
+      act(() => {
+        useCartStore.getState().setOrderId("order-existing");
+        useCartStore.getState().setRestaurant({ id: "r1", name: "Pizzaria" });
+      });
       vi.mocked(apiService.orderItems.addProductToCart).mockResolvedValue({ success: true });
 
       const { result } = renderCartActions();
@@ -519,9 +527,10 @@ describe("useCartActions", () => {
         restaurantId: "r1",
         restaurantName: "Pizzaria",
       };
+      const other: CartItem = { ...item, id: "linha-2", productId: "prod-2", name: "Calzone" };
       act(() => {
         useCartStore.getState().setOrderId("order-1");
-        useCartStore.getState().setItems([item]);
+        useCartStore.getState().setItems([item, other]);
       });
       vi.mocked(apiService.orderItems.removeProductFromCart).mockRejectedValue(
         new Error("falhou"),
@@ -534,9 +543,10 @@ describe("useCartActions", () => {
       });
 
       await waitFor(() => {
-        expect(useCartStore.getState().items).toHaveLength(1);
+        expect(useCartStore.getState().items).toHaveLength(2);
       });
       expect(toast.error).toHaveBeenCalledWith("Erro ao remover. Tente novamente.");
+      expect(apiService.orders.clearCart).not.toHaveBeenCalled();
     });
 
     it("sem orderId, não faz nada (carrinho local já reflete o backend vazio)", async () => {
@@ -731,6 +741,8 @@ describe("useCartActions", () => {
       let quantity = initial;
       const posts: Deferred[] = [];
       const deletes: Deferred[] = [];
+      // DELETE /order: o carrinho inteiro sai (último item removido, LDMF-317)
+      const cartDeletes: Deferred[] = [];
 
       vi.mocked(apiService.orderItems.addProductToCart).mockImplementation(
         (_orderId, _productId, _userId, sent, _extras, signal) =>
@@ -760,6 +772,19 @@ describe("useCartActions", () => {
             });
           }),
       );
+      vi.mocked(apiService.orders.clearCart).mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            cartDeletes.push({
+              quantity: 0,
+              resolve: () => {
+                quantity = 0;
+                resolve({ success: true });
+              },
+              fail: (message) => resolve({ success: false, message }),
+            });
+          }),
+      );
       vi.mocked(apiService.orders.viewOrder).mockImplementation(async () => ({
         success: true,
         data: backendCart(quantity),
@@ -768,6 +793,7 @@ describe("useCartActions", () => {
       return {
         posts,
         deletes,
+        cartDeletes,
         get quantity() {
           return quantity;
         },
@@ -921,7 +947,7 @@ describe("useCartActions", () => {
       expect(shownQuantity()).toBe(5);
     });
 
-    it("\"–\" até zero numa rajada só remove a quantidade que o backend tem, não a da tela", async () => {
+    it("\"–\" até zero na última linha apaga o carrinho, e a rajada descartada não sai depois", async () => {
       const backend = fakeBackend(3);
       const { result } = setup(3);
 
@@ -930,13 +956,15 @@ describe("useCartActions", () => {
       await click(result, -1); // 0 -> remove a linha
 
       expect(useCartStore.getState().items).toEqual([]);
-      expect(backend.deletes.map((d) => d.quantity)).toEqual([3]);
-      await release(backend.deletes[0]);
+      // Última linha: o carrinho inteiro sai (LDMF-317), sem DELETE por item
+      expect(backend.cartDeletes).toHaveLength(1);
+      await release(backend.cartDeletes[0]);
 
       await act(() => sleep(350));
       expect(backend.posts).toHaveLength(0);
-      expect(backend.deletes).toHaveLength(1); // a rajada descartada não sai depois
+      expect(backend.deletes).toHaveLength(0);
       expect(backend.quantity).toBe(0);
+      expect(useCartStore.getState().orderId).toBeNull();
     });
 
     it("remover a linha com um \"+\" em voo espera o POST antes do DELETE", async () => {
@@ -949,10 +977,10 @@ describe("useCartActions", () => {
         await result.current.handleRemoveFromCart(LINE);
       });
 
-      expect(backend.deletes).toHaveLength(0);
+      expect(backend.cartDeletes).toHaveLength(0);
       await release(backend.posts[0]);
-      expect(backend.deletes.map((d) => d.quantity)).toEqual([5]);
-      await release(backend.deletes[0]);
+      expect(backend.cartDeletes).toHaveLength(1);
+      await release(backend.cartDeletes[0]);
       expect(backend.quantity).toBe(0);
     });
 
@@ -1017,7 +1045,7 @@ describe("useCartActions", () => {
       expect(toast.success).toHaveBeenCalledWith("Carrinho limpo com sucesso");
     });
 
-    it("mesmo se a API falhar, limpa o carrinho local (não deixa o usuário travado)", async () => {
+    it("se a API falhar, mostra o erro e mantém o carrinho para tentar de novo (LDMF-317)", async () => {
       login();
       act(() => {
         useCartStore.getState().setOrderId("order-1");
@@ -1029,11 +1057,46 @@ describe("useCartActions", () => {
 
       const { result } = renderCartActions();
 
+      let cleared: boolean | undefined;
+      await act(async () => {
+        cleared = await result.current.handleClearCart();
+      });
+
+      expect(cleared).toBe(false);
+      expect(useCartStore.getState().items).toHaveLength(1);
+      expect(useCartStore.getState().orderId).toBe("order-1");
+      expect(toast.error).toHaveBeenCalledWith(
+        "Não foi possível limpar o carrinho. Tente novamente.",
+      );
+
+      // Tentar de novo funciona
+      vi.mocked(apiService.orders.clearCart).mockResolvedValue({ success: true });
+      await act(async () => {
+        cleared = await result.current.handleClearCart();
+      });
+      expect(cleared).toBe(true);
+      expect(useCartStore.getState().items).toEqual([]);
+      expect(useCartStore.getState().orderId).toBeNull();
+    });
+
+    it("resposta de erro do backend (sem exceção) também não limpa o local", async () => {
+      login();
+      act(() => {
+        useCartStore.getState().setOrderId("order-1");
+        useCartStore.getState().setItems([
+          { id: "l1", productId: "p1", name: "X", price: 1, quantity: 1, restaurantId: "r1", restaurantName: "R" } as CartItem,
+        ]);
+      });
+      // apiRequest não lança em 4xx/5xx: devolve success:false
+      vi.mocked(apiService.orders.clearCart).mockResolvedValue({ success: false, status: 500 });
+
+      const { result } = renderCartActions();
       await act(async () => {
         await result.current.handleClearCart();
       });
 
-      expect(useCartStore.getState().items).toEqual([]);
+      expect(useCartStore.getState().items).toHaveLength(1);
+      expect(toast.error).toHaveBeenCalled();
     });
 
     it("sem orderId, limpa só localmente sem chamar a API", async () => {
@@ -1383,6 +1446,446 @@ describe("useCartActions", () => {
       expect(finalItems[0].quantity).toBe(2);
       expect(finalItems[0].name).toBe("Caldo de Cana");
       expect(finalItems[0].variationLabel).toBe("300 ml");
+    });
+  });
+
+  describe("loja do carrinho (LDMF-317)", () => {
+    const LOJAS: Record<string, string> = { rA: "Loja A", rB: "Loja B" };
+    const PRODUTO_DA_LOJA: Record<string, string> = {
+      "prod-a": "rA",
+      "prod-b1": "rB",
+      "prod-b2": "rB",
+    };
+
+    const itemDa = (productId: string, quantity = 1) => ({
+      id: productId,
+      name: productId,
+      price: 10,
+      quantity,
+      restaurantId: PRODUTO_DA_LOJA[productId],
+      restaurantName: LOJAS[PRODUTO_DA_LOJA[productId]],
+    });
+
+    /**
+     * Backend falso com o comportamento medido na API real em 15/10:
+     * - um carrinho por cliente (`cart:user-1`), loja gravada na criação;
+     * - POST /order com carrinho existente devolve ELE, com a loja antiga;
+     * - POST /order-item/cart aceita produto de qualquer loja;
+     * - carrinho vazio continua de pé, preso à loja.
+     */
+    function realisticBackend(initial?: { companyId: string; products: string[] }) {
+      let cart: {
+        companyId: string;
+        items: { productId: string; quantity: number }[];
+      } | null = initial
+        ? {
+          companyId: initial.companyId,
+          items: initial.products.map((productId) => ({ productId, quantity: 1 })),
+        }
+        : null;
+
+      const view = () =>
+        ({
+          id: "cart:user-1",
+          companyId: cart!.companyId,
+          orderedItems: cart!.items.map((i) => ({
+            productId: i.productId,
+            unitPrice: 10,
+            quantity: i.quantity,
+            product: { name: i.productId, companyId: PRODUTO_DA_LOJA[i.productId] },
+          })),
+        }) as unknown as Order;
+
+      vi.mocked(apiService.orders.openCart).mockImplementation(async (_u, data) => {
+        if (!cart) cart = { companyId: data.companyId, items: [] };
+        return { success: true, data: view() };
+      });
+      vi.mocked(apiService.orders.viewOrder).mockImplementation(async () =>
+        cart ? { success: true, data: view() } : { success: false, status: 404 },
+      );
+      vi.mocked(apiService.orders.clearCart).mockImplementation(async () => {
+        cart = null;
+        return { success: true };
+      });
+      vi.mocked(apiService.orderItems.addProductToCart).mockImplementation(
+        async (_orderId, productId, _u, quantity) => {
+          if (!cart) return { success: false, status: 404 };
+          cart.items.push({ productId, quantity });
+          return { success: true, data: view() };
+        },
+      );
+      vi.mocked(apiService.orderItems.removeProductFromCart).mockImplementation(
+        async (_u, _orderId, productId, quantity) => {
+          if (!cart) return { success: false, status: 404 };
+          const line = cart.items.find((i) => i.productId === productId);
+          if (line) line.quantity -= quantity;
+          cart.items = cart.items.filter((i) => i.quantity > 0);
+          return { success: true };
+        },
+      );
+
+      return {
+        get cart() {
+          return cart ? view() : null;
+        },
+      };
+    }
+
+    beforeEach(() => {
+      vi.mocked(apiService.productAddOns.getAllPublic).mockResolvedValue({ success: false });
+      vi.mocked(apiService.productVariations.getAllPublic).mockResolvedValue({ success: false });
+      vi.mocked(apiService.companies.getById).mockImplementation(async (id: string) =>
+        LOJAS[id]
+          ? { success: true, data: { id, tradeName: LOJAS[id] } as unknown as Company }
+          : { success: false },
+      );
+    });
+
+    async function add(
+      result: { current: ReturnType<typeof useCartActions> },
+      productId: string,
+    ) {
+      let added: boolean | undefined;
+      await act(async () => {
+        added = await result.current.handleAddToCart(itemDa(productId));
+        await sleep(0);
+      });
+      return added;
+    }
+
+    it("roteiro reproduzido: A, remove, B, sync, outra da B - o pedido sai na loja B", async () => {
+      login();
+      const backend = realisticBackend();
+      const { result } = renderCartActions();
+
+      // 1. item da loja A
+      expect(await add(result, "prod-a")).toBe(true);
+      expect(backend.cart?.companyId).toBe("rA");
+
+      // 2. remove o último item: o carrinho sai no backend e no local
+      await act(async () => {
+        await result.current.handleRemoveFromCart("prod-a::::");
+        await sleep(0);
+      });
+      expect(backend.cart).toBeNull();
+      expect(useCartStore.getState().orderId).toBeNull();
+
+      // 3. item da loja B: carrinho novo, da loja B, sem aviso
+      expect(await add(result, "prod-b1")).toBe(true);
+      expect(backend.cart?.companyId).toBe("rB");
+
+      // 4. sync
+      await act(() => result.current.syncCartFromBackend());
+      expect(useCartStore.getState().restaurant).toEqual({ id: "rB", name: "Loja B" });
+
+      // 5. outro item da loja B: sem "Trocar de restaurante?"
+      expect(await add(result, "prod-b2")).toBe(true);
+      expect(confirmMock).not.toHaveBeenCalled();
+
+      // 6. finalizar: a conferência do checkout passa, carrinho todo da B
+      expect(backend.cart?.companyId).toBe("rB");
+      expect(
+        getCartRestaurantProblem(backend.cart as unknown as CartRestaurantSnapshot, "rB"),
+      ).toBeNull();
+      expect(backend.cart?.orderedItems?.map((i) => i.productId)).toEqual([
+        "prod-b1",
+        "prod-b2",
+      ]);
+    });
+
+    describe("1. carrinho que fica vazio não guarda o orderId", () => {
+      it("o próximo item espera o DELETE do carrinho antes de pedir um novo", async () => {
+        login();
+        realisticBackend({ companyId: "rA", products: ["prod-a"] });
+        act(() => {
+          useCartStore.getState().setOrderId("cart:user-1");
+          useCartStore.getState().setRestaurant({ id: "rA", name: "Loja A" });
+          useCartStore.getState().setItems([{ ...itemDa("prod-a"), id: "prod-a::::", productId: "prod-a" }]);
+        });
+
+        let finishDelete: () => void = () => {};
+        vi.mocked(apiService.orders.clearCart).mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              finishDelete = () => resolve({ success: true });
+            }),
+        );
+
+        const { result } = renderCartActions();
+        await act(async () => {
+          await result.current.handleRemoveFromCart("prod-a::::");
+        });
+
+        let adding: Promise<boolean> = Promise.resolve(false);
+        await act(async () => {
+          adding = result.current.handleAddToCart(itemDa("prod-b1"));
+          await sleep(0);
+        });
+        expect(apiService.orders.openCart).not.toHaveBeenCalled();
+
+        await act(async () => {
+          finishDelete();
+          await adding;
+        });
+        expect(apiService.orders.openCart).toHaveBeenCalledWith(
+          "user-1",
+          expect.objectContaining({ companyId: "rB" }),
+        );
+      });
+
+      it("se o DELETE do carrinho falhar, devolve o item, a loja e o orderId", async () => {
+        login();
+        const item = { ...itemDa("prod-a"), id: "prod-a::::", productId: "prod-a" };
+        act(() => {
+          useCartStore.getState().setOrderId("cart:user-1");
+          useCartStore.getState().setRestaurant({ id: "rA", name: "Loja A" });
+          useCartStore.getState().setItems([item]);
+        });
+        vi.mocked(apiService.orders.clearCart).mockResolvedValue({ success: false, status: 500 });
+
+        const { result } = renderCartActions();
+        await act(async () => {
+          await result.current.handleRemoveFromCart("prod-a::::");
+          await sleep(0);
+        });
+
+        expect(useCartStore.getState().items).toEqual([item]);
+        expect(useCartStore.getState().orderId).toBe("cart:user-1");
+        expect(useCartStore.getState().restaurant).toEqual({ id: "rA", name: "Loja A" });
+        expect(toast.error).toHaveBeenCalledWith("Erro ao remover. Tente novamente.");
+      });
+
+      it("sync que encontra o carrinho do backend vazio não guarda o orderId dele", async () => {
+        login();
+        realisticBackend({ companyId: "rA", products: [] });
+        act(() => useCartStore.getState().setOrderId("cart:user-1"));
+
+        const { result } = renderCartActions();
+        await act(() => result.current.syncCartFromBackend());
+
+        expect(useCartStore.getState().orderId).toBeNull();
+        expect(useCartStore.getState().restaurant).toBeNull();
+      });
+    });
+
+    describe("2. POST /order devolve carrinho de outra loja", () => {
+      it("vazio: apaga e cria de novo, sem perguntar nada", async () => {
+        login();
+        const backend = realisticBackend({ companyId: "rA", products: [] });
+        const { result } = renderCartActions();
+
+        expect(await add(result, "prod-b1")).toBe(true);
+
+        expect(confirmMock).not.toHaveBeenCalled();
+        expect(apiService.orders.clearCart).toHaveBeenCalledTimes(1);
+        expect(apiService.orders.openCart).toHaveBeenCalledTimes(2);
+        expect(backend.cart?.companyId).toBe("rB");
+      });
+
+      it("com itens: pergunta com o nome certo das duas lojas e, confirmando, troca", async () => {
+        login();
+        const backend = realisticBackend({ companyId: "rA", products: ["prod-a"] });
+        const { result } = renderCartActions();
+
+        expect(await add(result, "prod-b1")).toBe(true);
+
+        expect(confirmMock).toHaveBeenCalledWith(
+          expect.objectContaining({
+            title: "Trocar de restaurante?",
+            currentRestaurant: "Loja A",
+            newRestaurant: "Loja B",
+          }),
+        );
+        expect(backend.cart?.companyId).toBe("rB");
+        expect(backend.cart?.orderedItems?.map((i) => i.productId)).toEqual(["prod-b1"]);
+      });
+
+      it("com itens e cancelando: não adiciona e o local passa a mostrar o carrinho real", async () => {
+        login();
+        const backend = realisticBackend({ companyId: "rA", products: ["prod-a"] });
+        confirmMock.mockResolvedValueOnce(false);
+        const { result } = renderCartActions();
+
+        expect(await add(result, "prod-b1")).toBe(false);
+
+        expect(backend.cart?.orderedItems?.map((i) => i.productId)).toEqual(["prod-a"]);
+        expect(useCartStore.getState().restaurant).toEqual({ id: "rA", name: "Loja A" });
+        expect(useCartStore.getState().items.map((i) => i.productId)).toEqual(["prod-a"]);
+      });
+
+      it("se o backend insistir na loja errada, avisa e não adiciona", async () => {
+        login();
+        vi.mocked(apiService.orders.openCart).mockResolvedValue({
+          success: true,
+          data: { id: "cart:user-1", companyId: "rA", orderedItems: [] } as unknown as Order,
+        });
+        vi.mocked(apiService.orders.clearCart).mockResolvedValue({ success: true });
+        const { result } = renderCartActions();
+
+        expect(await add(result, "prod-b1")).toBe(false);
+
+        expect(apiService.orderItems.addProductToCart).not.toHaveBeenCalled();
+        expect(toast.error).toHaveBeenCalledWith(
+          "Não foi possível abrir um carrinho para esta loja. Tente novamente.",
+        );
+      });
+    });
+
+    describe("3. trocar de restaurante com erro ao limpar", () => {
+      it("não limpa o local nem adiciona o item novo", async () => {
+        login();
+        const item = { ...itemDa("prod-a"), id: "prod-a::::", productId: "prod-a" };
+        act(() => {
+          useCartStore.getState().setOrderId("cart:user-1");
+          useCartStore.getState().setRestaurant({ id: "rA", name: "Loja A" });
+          useCartStore.getState().setItems([item]);
+        });
+        vi.mocked(apiService.orders.clearCart).mockResolvedValue({ success: false, status: 500 });
+        const { result } = renderCartActions();
+
+        expect(await add(result, "prod-b1")).toBe(false);
+
+        expect(useCartStore.getState().items).toEqual([item]);
+        expect(apiService.orders.openCart).not.toHaveBeenCalled();
+        expect(toast.error).toHaveBeenCalledWith(
+          "Não foi possível limpar o carrinho. Tente novamente.",
+        );
+      });
+    });
+
+    describe("4. sync atualiza id e nome da loja juntos", () => {
+      it("loja do backend diferente da local: id e nome da loja do backend", async () => {
+        login();
+        realisticBackend({ companyId: "rA", products: ["prod-b1"] });
+        act(() => {
+          useCartStore.getState().setOrderId("cart:user-1");
+          useCartStore.getState().setRestaurant({ id: "rB", name: "Loja B" });
+        });
+
+        const { result } = renderCartActions();
+        await act(() => result.current.syncCartFromBackend());
+
+        expect(useCartStore.getState().restaurant).toEqual({ id: "rA", name: "Loja A" });
+        expect(useCartStore.getState().items[0]).toMatchObject({
+          restaurantId: "rA",
+          restaurantName: "Loja A",
+        });
+      });
+
+      it("sem conseguir o nome, não inventa: nem o da outra loja nem \"Restaurante\"", async () => {
+        login();
+        realisticBackend({ companyId: "rA", products: ["prod-a"] });
+        vi.mocked(apiService.companies.getById).mockResolvedValue({ success: false });
+        act(() => {
+          useCartStore.getState().setOrderId("cart:user-1");
+          useCartStore.getState().setRestaurant({ id: "rB", name: "Loja B" });
+        });
+
+        const { result } = renderCartActions();
+        await act(() => result.current.syncCartFromBackend());
+
+        const restaurant = useCartStore.getState().restaurant;
+        expect(restaurant?.id).toBe("rA");
+        expect(restaurant?.name).not.toBe("Loja B");
+        expect(restaurant?.name).not.toBe("Restaurante");
+        expect(useCartStore.getState().items[0].restaurantName).not.toBe("Restaurante");
+      });
+    });
+
+    describe("5. o aviso compara com a loja real do carrinho", () => {
+      it("depois de recarregar (orderId sem loja), lê o carrinho antes de decidir", async () => {
+        login();
+        const backend = realisticBackend({ companyId: "rA", products: ["prod-a"] });
+        // Estado de depois do F5: só o orderId persistido
+        act(() => useCartStore.getState().setOrderId("cart:user-1"));
+        confirmMock.mockResolvedValueOnce(false);
+        const { result } = renderCartActions();
+
+        expect(await add(result, "prod-b1")).toBe(false);
+
+        expect(confirmMock).toHaveBeenCalledWith(
+          expect.objectContaining({ currentRestaurant: "Loja A", newRestaurant: "Loja B" }),
+        );
+        expect(backend.cart?.orderedItems?.map((i) => i.productId)).toEqual(["prod-a"]);
+      });
+
+      it("depois do sync, item da mesma loja do backend não pergunta nada", async () => {
+        login();
+        const backend = realisticBackend({ companyId: "rB", products: ["prod-b1"] });
+        act(() => useCartStore.getState().setOrderId("cart:user-1"));
+        const { result } = renderCartActions();
+        await act(() => result.current.syncCartFromBackend());
+
+        expect(await add(result, "prod-b2")).toBe(true);
+
+        expect(confirmMock).not.toHaveBeenCalled();
+        expect(backend.cart?.orderedItems?.map((i) => i.productId)).toEqual([
+          "prod-b1",
+          "prod-b2",
+        ]);
+      });
+    });
+
+    describe("outra aba trocou o carrinho, sem recarregar esta", () => {
+      // Esta aba ainda acha que o carrinho é da Loja B; outra aba esvaziou e
+      // encheu o mesmo `cart:user-1` com a Loja A
+      function setupStaleTab() {
+        login();
+        const backend = realisticBackend({ companyId: "rA", products: ["prod-a"] });
+        act(() => {
+          useCartStore.getState().setOrderId("cart:user-1");
+          useCartStore.getState().setRestaurant({ id: "rB", name: "Loja B" });
+          useCartStore.getState().setItems([
+            { ...itemDa("prod-b1"), id: "prod-b1::::", productId: "prod-b1" },
+          ]);
+        });
+        return backend;
+      }
+
+      it("desfaz o item no backend e pergunta com os nomes certos; confirmando, troca", async () => {
+        const backend = setupStaleTab();
+        const { result } = renderCartActions();
+
+        await add(result, "prod-b2");
+
+        await waitFor(() =>
+          expect(confirmMock).toHaveBeenCalledWith(
+            expect.objectContaining({
+              title: "Trocar de restaurante?",
+              currentRestaurant: "Loja A",
+              newRestaurant: "Loja B",
+            }),
+          ),
+        );
+        // O item que caiu no carrinho da Loja A saiu de lá
+        expect(apiService.orderItems.removeProductFromCart).toHaveBeenCalledWith(
+          "user-1",
+          "cart:user-1",
+          "prod-b2",
+          1,
+        );
+
+        await waitFor(() => expect(backend.cart?.companyId).toBe("rB"));
+        await waitFor(() =>
+          expect(backend.cart?.orderedItems?.map((i) => i.productId)).toEqual(["prod-b2"]),
+        );
+        expect(useCartStore.getState().restaurant).toEqual({ id: "rB", name: "Loja B" });
+      });
+
+      it("cancelando, o carrinho da outra loja fica como estava e a tela mostra ele", async () => {
+        const backend = setupStaleTab();
+        confirmMock.mockResolvedValueOnce(false);
+        const { result } = renderCartActions();
+
+        await add(result, "prod-b2");
+
+        await waitFor(() => expect(confirmMock).toHaveBeenCalled());
+        await act(() => sleep(0));
+        expect(backend.cart?.companyId).toBe("rA");
+        expect(backend.cart?.orderedItems?.map((i) => i.productId)).toEqual(["prod-a"]);
+        expect(useCartStore.getState().restaurant).toEqual({ id: "rA", name: "Loja A" });
+        expect(useCartStore.getState().items.map((i) => i.productId)).toEqual(["prod-a"]);
+      });
     });
   });
 });

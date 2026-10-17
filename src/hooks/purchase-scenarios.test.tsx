@@ -12,7 +12,7 @@ import {
 } from "@/stores/cart-store";
 import { useCartActions } from "./use-cart-actions";
 import { useCheckoutProcess } from "./use-checkout-process";
-import { apiService } from "@/services/api";
+import { apiService, type Order } from "@/services/api";
 
 // Mocks hoisted
 const {
@@ -390,6 +390,19 @@ describe("Cenários de Compra (Jornada Completa do Cliente)", () => {
   });
 
   describe("3. Finalização de Compra (Checkout) - Cenários de Entrega e Pagamento", () => {
+    // Carrinho do backend todo da loja do checkout: a conferência antes de
+    // finalizar (LDMF-317) passa
+    beforeEach(() => {
+      vi.mocked(apiService.orders.viewOrder).mockResolvedValue({
+        success: true,
+        data: {
+          id: "cart-order-1",
+          companyId: "rest-1",
+          orderedItems: [{ productId: "p1", product: { companyId: "rest-1" } }],
+        } as unknown as Order,
+      });
+    });
+
     it("Cenário A: Compra com Entrega, Endereço Padrão e Cartão de Crédito", async () => {
       loginUser();
       act(() => {

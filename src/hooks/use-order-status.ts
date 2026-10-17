@@ -7,6 +7,7 @@ import {
 } from "@/lib/order-status";
 import type { SoundName } from "@/lib/sound";
 import { useAuthStore } from "@/stores/auth-store";
+import { isClientRole } from "@/utils/role-helpers";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -60,11 +61,28 @@ export interface OrderInfo {
   isCanceled: boolean;
 }
 
+/**
+ * Itens do pedido. Para cliente, vêm do próprio pedido: GET
+ * /order-item/order/:id devolve os itens do carrinho aberto, e não os do
+ * pedido, quando há carrinho (medido em 16/10; correção no back: LDMF-356).
+ * GET /order/customer/me/:id responde 403 para quem não é cliente (dono
+ * que comprou cai aqui pelo checkout) - esses seguem na rota antiga.
+ */
+function fetchOrderItems(orderId: string, userId: string, role?: string) {
+  if (!isClientRole(role)) {
+    return apiService.orderItems.listByOrder(orderId, userId);
+  }
+  return apiService.orders
+    .getCustomerOrder(orderId)
+    .then((response) => ({ ...response, data: response.data?.orderedItems }));
+}
+
 async function fetchOrderData(
   orderId: string,
   userId: string,
   userName?: string,
   userPhone?: string,
+  role?: string,
 ): Promise<OrderInfo> {
   // As três chamadas são independentes entre si (nenhuma usa o resultado da
   // outra) - rodar em paralelo em vez de em sequência corta o tempo de
@@ -72,7 +90,7 @@ async function fetchOrderData(
   // das três" pra "a mais lenta das três".
   const [orderData, orderItemsData, deliveriesResponse] = await Promise.all([
     apiService.orders.viewOrder(userId, orderId),
-    apiService.orderItems.listByOrder(orderId, userId),
+    fetchOrderItems(orderId, userId, role),
     apiService.deliveries.getCustomerDeliveries().catch(() => null),
   ]);
 
@@ -167,8 +185,9 @@ export const useOrderStatus = () => {
     refetch,
     dataUpdatedAt,
   } = useQuery({
-    queryKey: ["order-status", orderId, user?.id],
-    queryFn: () => fetchOrderData(orderId!, user!.id, user?.name, user?.phone),
+    queryKey: ["order-status", orderId, user?.id, user?.role],
+    queryFn: () =>
+      fetchOrderData(orderId!, user!.id, user?.name, user?.phone, user?.role),
     enabled: Boolean(orderId && user?.id),
     staleTime: 10_000, // 10s — evita refetch imediato ao remontar
     gcTime: 5 * 60_000, // 5 min na memória
