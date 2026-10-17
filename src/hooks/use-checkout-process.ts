@@ -29,6 +29,10 @@ import {
 import { isClientRole } from "@/utils/role-helpers";
 import { parseCoords } from "@/lib/geocode";
 import {
+  getCartRestaurantProblem,
+  type CartRestaurantSnapshot,
+} from "@/lib/cart-restaurant";
+import {
   parseShippingCoords,
   resolveCheckoutShipping,
 } from "@/lib/shipping-fee";
@@ -677,6 +681,23 @@ export const useCheckoutProcess = () => {
           parsedChangeFor >= total
           ? parsedChangeFor
           : undefined;
+
+      // O backend finaliza na loja do carrinho, mesmo com itens de outra
+      // (LDMF-317; a trava do backend é o LDMF-347). Confere antes.
+      const cartResponse = await apiService.orders.viewOrder(
+        user.id,
+        currentOrderId,
+      );
+      const cartProblem = getCartRestaurantProblem(
+        cartResponse.success
+          ? (cartResponse.data as unknown as CartRestaurantSnapshot)
+          : null,
+        restaurant.id,
+      );
+      if (cartProblem) {
+        showCheckoutError(cartProblem);
+        return;
+      }
 
       const finishOrderResponse = await apiService.orders.finishOrder(
         user.id,
