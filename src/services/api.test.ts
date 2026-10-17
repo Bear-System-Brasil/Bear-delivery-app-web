@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { apiService, PaymentMethod } from "./api";
+import { apiService, getBirthDateApiError, PaymentMethod } from "./api";
+import { BIRTH_DATE_MESSAGES } from "@/utils";
 
 /**
  * `apiRequest` (o único ponto que fala HTTP nesse arquivo) não é exportado -
