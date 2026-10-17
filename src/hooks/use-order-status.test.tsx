@@ -29,7 +29,7 @@ vi.mock("@/services/api", async (importOriginal) => {
   return {
     ...actual,
     apiService: {
-      orders: { viewOrder: vi.fn() },
+      orders: { viewOrder: vi.fn(), getCustomerOrder: vi.fn() },
       orderItems: { listByOrder: vi.fn() },
       deliveries: { getCustomerDeliveries: vi.fn() },
       address: { getUserAddresses: vi.fn() },
@@ -107,12 +107,22 @@ describe("useOrderStatus", () => {
       success: true,
       data: { id: "o1", orderNumber: 42, status: orderStatus, totalValue: 57.5 } as unknown as Order,
     }));
+    // Itens do pedido: cliente lê de GET /order/customer/me/:id (LDMF-317)
+    api.orders.getCustomerOrder.mockResolvedValue({
+      success: true,
+      data: {
+        id: "o1",
+        orderedItems: [
+          { quantity: 2, unitPrice: 20, product: { name: "Pizza", salePrice: 25 } },
+          { quantity: 0, product: { salePrice: 9 } },
+        ],
+      } as never,
+    });
+    // GET /order-item/order/:id com carrinho aberto devolve o carrinho, não
+    // o pedido (medido em 16/10, LDMF-356)
     api.orderItems.listByOrder.mockResolvedValue({
       success: true,
-      data: [
-        { quantity: 2, unitPrice: 20, product: { name: "Pizza", salePrice: 25 } },
-        { quantity: 0, product: { salePrice: 9 } },
-      ] as never,
+      data: [{ quantity: 1, unitPrice: 10, product: { name: "Burger do carrinho" } }] as never,
     });
     api.deliveries.getCustomerDeliveries.mockImplementation(async () => ({
       success: true,
@@ -151,7 +161,7 @@ describe("useOrderStatus", () => {
       await renderLoaded();
 
       expect(api.orders.viewOrder).toHaveBeenCalledWith("user-1", "o1");
-      expect(api.orderItems.listByOrder).toHaveBeenCalledWith("o1", "user-1");
+      expect(api.orders.getCustomerOrder).toHaveBeenCalledWith("o1");
       expect(api.deliveries.getCustomerDeliveries).toHaveBeenCalled();
     });
 
@@ -178,6 +188,42 @@ describe("useOrderStatus", () => {
         { name: "Item", quantity: 1, price: 9 },
       ]);
       expect(result.current.error).toBeNull();
+    });
+
+    it("cliente com carrinho aberto de outra loja vê os itens do pedido, não os do carrinho (LDMF-317)", async () => {
+      api.orders.getCustomerOrder.mockResolvedValue({
+        success: true,
+        data: {
+          id: "o1",
+          orderedItems: [
+            { quantity: 1, unitPrice: 10, product: { name: "Sorvete B1" } },
+            { quantity: 1, unitPrice: 10, product: { name: "Sorvete B2" } },
+          ],
+        } as never,
+      });
+
+      const { result } = await renderLoaded();
+
+      expect(result.current.order!.items.map((item) => item.name)).toEqual([
+        "Sorvete B1",
+        "Sorvete B2",
+      ]);
+      expect(api.orderItems.listByOrder).not.toHaveBeenCalled();
+    });
+
+    it("quem não é cliente (dono que comprou) segue na rota antiga até o LDMF-356", async () => {
+      // GET /order/customer/me/:id responde 403 para quem não é cliente
+      useAuthStore.setState({
+        user: { ...useAuthStore.getState().user!, role: "owner" },
+      });
+
+      const { result } = await renderLoaded();
+
+      expect(api.orderItems.listByOrder).toHaveBeenCalledWith("o1", "user-1");
+      expect(api.orders.getCustomerOrder).not.toHaveBeenCalled();
+      expect(result.current.order!.items.map((item) => item.name)).toEqual([
+        "Burger do carrinho",
+      ]);
     });
 
     it("erro no pedido vira a mensagem do backend", async () => {
