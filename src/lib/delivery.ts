@@ -411,15 +411,25 @@ export function getOrderPaymentSummary(
 }
 
 /**
- * Troco do pedido em dinheiro, com os números que a tela mostra: "Cliente
- * paga com `paysWith`" e "Levar `changeDue` de troco". Null quando não há
- * troco - sem `changeFor`, pago de outra forma, já pago ou valor exato.
+ * Troco do pedido em dinheiro, para a cozinha: quanto o cliente entrega
+ * (`paysWith`) e quanto separar de troco (`changeDue`). Null quando não há
+ * troco - sem `changeFor`, já pago, valor exato ou nada a receber em
+ * dinheiro (cartão ou PIX não têm troco).
  */
 export function getCashChange(
   order: PaymentSummaryOrder | null | undefined,
 ): { paysWith: number; changeDue: number } | null {
   const summary = getOrderPaymentSummary(order);
   if (summary?.changeDue == null || summary.paysWith == null) return null;
+
+  const receivesCash = order?.payments?.some(
+    (payment) =>
+      payment?.paymentMethod === PaymentMethod.CASH &&
+      payment.status !== PaymentStatus.COMPLETED &&
+      !DEAD_PAYMENT_STATUSES.has(payment.status as PaymentStatus),
+  );
+  if (!receivesCash) return null;
+
   return { paysWith: summary.paysWith, changeDue: summary.changeDue };
 }
 
