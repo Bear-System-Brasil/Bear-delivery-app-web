@@ -1,11 +1,12 @@
 import { apiService, type Address, type Specialty } from "@/services/api";
 import { PASSWORD_CHANGE_UNAVAILABLE } from "@/constants/password-change";
+import { CepNotFoundError, fetchCepAddress } from "@/lib/cep";
 import { unsetDefaultAddress } from "@/lib/default-address";
 import { geocodeAddress } from "@/lib/geocode";
 import { useAuthStore } from "@/stores";
 import { getErrorMessage, onlyNumbers } from "@/utils";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 /**
@@ -28,6 +29,16 @@ async function withStoreCoordinates<T extends AddressFormData>(address: T) {
 
   return { ...address, latitude: coords.lat, longitude: coords.lng };
 }
+
+// Mesmas mensagens do checkout (LDMF-350): as duas telas se comportam igual.
+const CITY_WIDE_CEP_HINT =
+  "Este CEP vale para a cidade inteira. Preencha rua, número e bairro abaixo.";
+const NO_NEIGHBORHOOD_CEP_HINT =
+  "Este CEP não traz o bairro. Preencha o bairro abaixo.";
+const CEP_NOT_FOUND_HINT =
+  "CEP não encontrado. Confira o número ou preencha cidade, UF, rua, número e bairro à mão.";
+const CEP_LOOKUP_FAILED_HINT =
+  "Não conseguimos consultar o CEP agora. Preencha cidade, UF, rua, número e bairro à mão.";
 
 /**
  * complement/reference no formulário sempre são string ("" quando vazio),
@@ -128,6 +139,13 @@ export const useCompanyProfileManagement = () => {
     reference: "",
     isDefault: false,
   });
+  const [isSearchingZipCode, setIsSearchingZipCode] = useState(false);
+  // Orientação abaixo do CEP: cidade de CEP único, CEP sem bairro ou busca
+  // que falhou. null = sem aviso.
+  const [zipCodeHint, setZipCodeHint] = useState<string | null>(null);
+  // Último CEP pedido: resposta de um CEP anterior que chegue atrasada não
+  // pode preencher o formulário.
+  const lastZipCodeSearch = useRef<string | null>(null);
 
   // Password change state
   const [isChangingPassword, setIsChangingPassword] = useState(false);
@@ -502,17 +520,7 @@ export const useCompanyProfileManagement = () => {
         }
         await fetchAddresses();
         setIsAddingAddress(false);
-        setNewAddress({
-          zipCode: "",
-          state: "",
-          city: "",
-          neighborhood: "",
-          street: "",
-          number: "",
-          complement: "",
-          reference: "",
-          isDefault: false,
-        });
+        resetAddressForm();
       } else {
         toast.error(response.message || "Erro ao adicionar endereço");
       }
@@ -543,34 +551,71 @@ export const useCompanyProfileManagement = () => {
   };
 
   /**
-   * Busca endereço pelo CEP (ViaCEP)
+   * Busca endereço pelo CEP (BrasilAPI, a mesma fonte do checkout).
+   *
+   * Só sobrescreve o que o CEP trouxe. Antes cada campo recebia
+   * `data.x || ""`, e um CEP sem rua (cidade de CEP único, como 29360000
+   * Castelo e 29500000 Alegre) apagava a rua e o bairro que o dono já tinha
+   * digitado (LDMF-364). Se a busca falhar, nada é apagado e os campos
+   * continuam editáveis para preencher à mão.
    */
   const handleSearchZipCode = async (zipCode: string) => {
     const cleanZip = zipCode.replace(/\D/g, "");
     if (cleanZip.length !== 8) return;
 
-    try {
-      const response = await fetch(
-        `https://viacep.com.br/ws/${cleanZip}/json/`,
-      );
-      const data = await response.json();
+    lastZipCodeSearch.current = cleanZip;
+    setIsSearchingZipCode(true);
+    setZipCodeHint(null);
 
-      if (!data.erro) {
-        setNewAddress((prevAddress) => ({
-          ...prevAddress,
-          zipCode: cleanZip,
-          street: data.logradouro || "",
-          neighborhood: data.bairro || "",
-          city: data.localidade || "",
-          state: data.uf || "",
-        }));
-        toast.success("CEP encontrado!");
-      } else {
-        toast.error("CEP não encontrado");
-      }
+    try {
+      const result = await fetchCepAddress(cleanZip);
+      if (lastZipCodeSearch.current !== cleanZip) return;
+
+      setNewAddress((prevAddress) => ({
+        ...prevAddress,
+        zipCode: cleanZip,
+        street: result.street || prevAddress.street,
+        neighborhood: result.neighborhood || prevAddress.neighborhood,
+        city: result.city || prevAddress.city,
+        state: result.state || prevAddress.state,
+      }));
+
+      setZipCodeHint(
+        !result.street
+          ? CITY_WIDE_CEP_HINT
+          : !result.neighborhood
+            ? NO_NEIGHBORHOOD_CEP_HINT
+            : null,
+      );
+      toast.success(
+        !result.street
+          ? "CEP da cidade encontrado. Preencha rua, número e bairro."
+          : !result.neighborhood
+            ? "CEP encontrado. Preencha o bairro."
+            : "CEP encontrado!",
+      );
     } catch (error) {
-      toast.error("Erro ao buscar CEP");
+      if (lastZipCodeSearch.current !== cleanZip) return;
+
+      if (error instanceof CepNotFoundError) {
+        setZipCodeHint(CEP_NOT_FOUND_HINT);
+        toast.error("CEP não encontrado");
+      } else {
+        setZipCodeHint(CEP_LOOKUP_FAILED_HINT);
+        toast.error("Erro ao buscar CEP. Preencha o endereço à mão.");
+      }
+    } finally {
+      if (lastZipCodeSearch.current === cleanZip) setIsSearchingZipCode(false);
     }
+  };
+
+  /**
+   * Limpa o aviso do CEP e descarta busca em andamento
+   */
+  const clearZipCodeSearch = () => {
+    lastZipCodeSearch.current = null;
+    setIsSearchingZipCode(false);
+    setZipCodeHint(null);
   };
 
   /**
@@ -580,6 +625,8 @@ export const useCompanyProfileManagement = () => {
     field: keyof AddressFormData,
     value: string | boolean,
   ) => {
+    // CEP mudou: o aviso e a busca anteriores não valem mais.
+    if (field === "zipCode") clearZipCodeSearch();
     setNewAddress((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -587,6 +634,7 @@ export const useCompanyProfileManagement = () => {
    * Abrir formulário para editar endereço
    */
   const handleEditAddress = (address: Address) => {
+    clearZipCodeSearch();
     setEditingAddressId(address.id);
     setEditingAddressOriginal({
       complement: address.complement || "",
@@ -730,6 +778,7 @@ export const useCompanyProfileManagement = () => {
    * Limpa formulário de endereço
    */
   const resetAddressForm = () => {
+    clearZipCodeSearch();
     setNewAddress({
       zipCode: "",
       state: "",
@@ -856,6 +905,8 @@ export const useCompanyProfileManagement = () => {
     handleCancelAddressEdit,
     handleDeleteAddress,
     handleSearchZipCode,
+    isSearchingZipCode,
+    zipCodeHint,
     updateAddressField,
     resetAddressForm,
     formatZipCode,
