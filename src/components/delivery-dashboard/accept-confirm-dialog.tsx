@@ -119,6 +119,16 @@ export function AcceptConfirmDialog({
                         : ""
                     }`
                   : payment.methods.join(" + ")}
+                {payment.changeDue !== null && payment.paysWith !== null && (
+                  <>
+                    <span className="mt-1 block font-semibold">
+                      Cliente paga com {formatCurrency(payment.paysWith)}
+                    </span>
+                    <span className="block">
+                      Levar {formatCurrency(payment.changeDue)} de troco
+                    </span>
+                  </>
+                )}
               </p>
             )}
 

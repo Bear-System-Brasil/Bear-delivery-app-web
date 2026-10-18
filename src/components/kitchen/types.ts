@@ -146,6 +146,12 @@ export interface KitchenOrder {
   customer?: KitchenCustomer | null;
   orderedItems?: KitchenOrderItem[] | null;
   payments?: KitchenPayment[] | null;
+  /**
+   * Troco para quanto: o valor que o cliente entrega em dinheiro, não o
+   * troco. Chega como texto (`"137"`) em `/order/company/status/:status` e
+   * no `orderCreated` do socket. Ausente ou null sem troco.
+   */
+  changeFor?: number | string | null;
   /** Só relevante quando `fulfillmentType === "DELIVERY"`; pode ser `null` antes da entrega ser criada. */
   delivery?: KitchenDelivery | null;
 }
