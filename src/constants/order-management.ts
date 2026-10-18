@@ -239,6 +239,30 @@ export function withAddOnQuantity(name: string, quantity?: number | null): strin
   return quantity && quantity > 1 ? `${quantity}x ${name}` : name
 }
 
+/**
+ * Rótulo da lista de adicionais. Com mais de uma unidade do prato, deixa
+ * claro que a quantidade de cada adicional é por unidade.
+ */
+export function getAddOnsHeading(itemQuantity: number): string {
+  return itemQuantity > 1 ? 'Adicionais, em cada um:' : 'Adicionais:'
+}
+
+/**
+ * Linha do adicional. Prato com 1 unidade: "4x Com limão". Com mais de uma,
+ * soma o total do pedido no fim, para a cozinha separar de uma vez:
+ * "4x Com limão (24 no total)" em 6 caldos; adicional de quantidade 1 fica
+ * "Com limão (6 no total)".
+ */
+export function formatAddOnLine(
+  name: string,
+  addOnQuantity: number | null | undefined,
+  itemQuantity: number,
+): string {
+  const label = withAddOnQuantity(name, addOnQuantity)
+  if (itemQuantity <= 1) return label
+  return `${label} (${(addOnQuantity || 1) * itemQuantity} no total)`
+}
+
 interface VariationLabelSource {
   variation?: { name?: string; description?: string } | null
   productVariation?: { name?: string; description?: string } | null

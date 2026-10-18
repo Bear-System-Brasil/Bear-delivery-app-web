@@ -11,15 +11,16 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import {
+  formatAddOnLine,
   formatCurrency,
   getAddOnLabel,
+  getAddOnsHeading,
   getElapsedTime,
   getOrderItemDisplayName,
   getOrderItemTotal,
   getPaymentMethodLabel,
   getVariationLabel,
   mergeIdenticalItems,
-  withAddOnQuantity,
 } from "@/constants/order-management";
 import {
   Clock,
@@ -211,13 +212,13 @@ export function OrderDetailSheet<TOrder extends DetailableOrder>({
                     ))}
                     {(item.addOns?.length ?? 0) > 0 && (
                       <p className="pl-4 text-xs font-medium text-muted-foreground">
-                        Adicionais:
+                        {getAddOnsHeading(item.quantity)}
                       </p>
                     )}
                     {item.addOns?.map((addon, i) => (
                       <div key={i} className="pl-4">
                         <p className="text-xs text-muted-foreground">
-                          + {withAddOnQuantity(getAddOnLabel(addon), addon.quantity)}
+                          + {formatAddOnLine(getAddOnLabel(addon), addon.quantity, item.quantity)}
                         </p>
                         {addon.observations && (
                           <p className="text-xs italic text-muted-foreground/80 pl-2">

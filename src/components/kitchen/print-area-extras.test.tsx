@@ -95,7 +95,7 @@ describe("KitchenPrintArea - tamanho e adicionais na comanda", () => {
   });
 
   it("item só com adicional imprime \"Adicionais:\" e o nome real, sem linha de tamanho", () => {
-    const item: KitchenOrderItem = { ...itemSemTamanho, addOns: [adicional] };
+    const item: KitchenOrderItem = { ...itemSemTamanho, quantity: 1, addOns: [adicional] };
     render(<KitchenPrintArea order={makeOrder([item])} />);
 
     expect(screen.getByText("Adicionais:")).toBeInTheDocument();
@@ -125,7 +125,7 @@ describe("KitchenPrintArea - tamanho e adicionais na comanda", () => {
   });
 
   it("adicional com quantidade 1 imprime só o nome", () => {
-    const item: KitchenOrderItem = { ...itemSemTamanho, addOns: [{ ...adicional, quantity: 1 }] };
+    const item: KitchenOrderItem = { ...itemSemTamanho, quantity: 1, addOns: [{ ...adicional, quantity: 1 }] };
     render(<KitchenPrintArea order={makeOrder([item])} />);
 
     expect(screen.getByText("+ Catupiry extra")).toBeInTheDocument();
@@ -135,6 +135,7 @@ describe("KitchenPrintArea - tamanho e adicionais na comanda", () => {
   it("adicional com quantidade maior que 1 imprime \"4x Morango\"", () => {
     const item: KitchenOrderItem = {
       ...itemSemTamanho,
+      quantity: 1,
       addOns: [{ ...adicional, id: "add-2", quantity: 4, productAddOns: { name: "Morango" } }],
     };
     render(<KitchenPrintArea order={makeOrder([item])} />);
@@ -168,5 +169,27 @@ describe("KitchenPrintArea - tamanho e adicionais na comanda", () => {
     expect(screen.queryByText("3x Caldo de Cana")).not.toBeInTheDocument();
     expect(screen.getByText("Tamanho: 600ml")).toBeInTheDocument();
     expect(screen.getByText("Tamanho: 300 ml")).toBeInTheDocument();
+  });
+
+  describe("adicionais por unidade", () => {
+    const limao = { id: "l", quantity: 4, productAddOns: { name: "Com limão" } };
+    const gelo = { id: "g", quantity: 1, productAddOns: { name: "Gelo" } };
+
+    it("prato com 1 unidade mantém \"Adicionais:\" sem total", () => {
+      render(<KitchenPrintArea order={makeOrder([{ ...itemSemTamanho, quantity: 1, addOns: [limao, gelo] }])} />);
+
+      expect(screen.getByText("Adicionais:")).toBeInTheDocument();
+      expect(screen.getByText("+ 4x Com limão")).toBeInTheDocument();
+      expect(screen.getByText("+ Gelo")).toBeInTheDocument();
+      expect(screen.queryByText(/no total/)).not.toBeInTheDocument();
+    });
+
+    it("prato com mais de 1 unidade usa \"em cada um\" e mostra o total", () => {
+      render(<KitchenPrintArea order={makeOrder([{ ...itemSemTamanho, quantity: 6, addOns: [limao, gelo] }])} />);
+
+      expect(screen.getByText("Adicionais, em cada um:")).toBeInTheDocument();
+      expect(screen.getByText("+ 4x Com limão (24 no total)")).toBeInTheDocument();
+      expect(screen.getByText("+ Gelo (6 no total)")).toBeInTheDocument();
+    });
   });
 });

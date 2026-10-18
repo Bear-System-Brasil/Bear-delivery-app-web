@@ -123,4 +123,30 @@ describe("OrderDetailSheet - tamanho e adicional separados", () => {
     // 6 x (6,00 + 4 x 0,01) = 36,24
     expect(screen.getByText(/36,24/)).toBeInTheDocument();
   });
+
+  describe("adicionais por unidade", () => {
+    const limao = { productAddOns: { name: "Com limão" }, quantity: 4, priceSnapshot: 0.01 };
+    const gelo = { productAddOns: { name: "Gelo" }, quantity: 1, priceSnapshot: 0 };
+
+    it("prato com 1 unidade mantém \"Adicionais:\" sem total", () => {
+      render(
+        <OrderDetailSheet order={makeOrder({ ...baseItem, quantity: 1, addOns: [limao, gelo] })} open onClose={onClose} />,
+      );
+
+      expect(screen.getByText("Adicionais:")).toBeInTheDocument();
+      expect(screen.getByText("+ 4x Com limão")).toBeInTheDocument();
+      expect(screen.getByText("+ Gelo")).toBeInTheDocument();
+      expect(screen.queryByText(/no total/)).not.toBeInTheDocument();
+    });
+
+    it("prato com mais de 1 unidade usa \"em cada um\" e mostra o total", () => {
+      render(
+        <OrderDetailSheet order={makeOrder({ ...baseItem, quantity: 6, addOns: [limao, gelo] })} open onClose={onClose} />,
+      );
+
+      expect(screen.getByText("Adicionais, em cada um:")).toBeInTheDocument();
+      expect(screen.getByText("+ 4x Com limão (24 no total)")).toBeInTheDocument();
+      expect(screen.getByText("+ Gelo (6 no total)")).toBeInTheDocument();
+    });
+  });
 });

@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CompanyOrder } from "./order-management";
 import {
+  formatAddOnLine,
+  getAddOnsHeading,
   getAddOnLabel,
   getColumnForOrder,
   getElapsedTime,
@@ -142,6 +144,21 @@ describe("mergeIdenticalItems", () => {
     const pastel = { productId: "pastel", quantity: 1, id: "p" };
     const merged = mergeIdenticalItems([{ ...caldo600, id: "a" }, pastel, { ...caldo600, id: "b" }]);
     expect(merged.map((item) => item.productId)).toEqual(["caldo", "pastel"]);
+  });
+});
+
+describe("getAddOnsHeading / formatAddOnLine", () => {
+  it("prato com 1 unidade: rótulo e linha como antes", () => {
+    expect(getAddOnsHeading(1)).toBe("Adicionais:");
+    expect(formatAddOnLine("Com limão", 4, 1)).toBe("4x Com limão");
+    expect(formatAddOnLine("Com limão", 1, 1)).toBe("Com limão");
+  });
+
+  it("prato com mais de 1 unidade: \"em cada um\" e o total no fim", () => {
+    expect(getAddOnsHeading(6)).toBe("Adicionais, em cada um:");
+    expect(formatAddOnLine("Com limão", 4, 6)).toBe("4x Com limão (24 no total)");
+    expect(formatAddOnLine("Com limão", 1, 6)).toBe("Com limão (6 no total)");
+    expect(formatAddOnLine("Com limão", undefined, 6)).toBe("Com limão (6 no total)");
   });
 });
 
