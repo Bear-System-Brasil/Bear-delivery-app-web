@@ -121,6 +121,9 @@ export function OrderDetailSheet<TOrder extends DetailableOrder>({
   if (!order) return null;
 
   const items = order.orderedItems || [];
+  // Unidades, não linhas: 3 + 3 + 1 Caldo de Cana são 7 itens, como no
+  // histórico de pedidos do cliente.
+  const unitCount = items.reduce((sum, item) => sum + item.quantity, 0);
   const orderNumber = order.orderNumber || order.id.slice(0, 6);
   const customerName = order.customer?.name || "Cliente";
   const customerPhone = order.customer?.phone;
@@ -177,7 +180,7 @@ export function OrderDetailSheet<TOrder extends DetailableOrder>({
           <section>
             <h3 className="text-sm font-semibold mb-2 flex items-center gap-1.5">
               <Package className="h-4 w-4" />
-              Itens do Pedido ({items.length})
+              {unitCount} {unitCount === 1 ? "item" : "itens"} do pedido
             </h3>
             <div className="space-y-3">
               {items.map((item) => (

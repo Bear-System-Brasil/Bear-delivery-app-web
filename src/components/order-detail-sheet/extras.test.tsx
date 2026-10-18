@@ -80,4 +80,24 @@ describe("OrderDetailSheet - tamanho e adicional separados", () => {
 
     expect(screen.getByText("+ 4x Morango")).toBeInTheDocument();
   });
+
+  it("o contador soma as unidades, não as linhas (3 + 3 + 1 = 7 itens)", () => {
+    const order: DetailableOrder = {
+      ...makeOrder(baseItem),
+      orderedItems: [
+        { ...baseItem, id: "a", quantity: 3, variations: [tamanho] },
+        { ...baseItem, id: "b", quantity: 3, variations: [tamanho] },
+        { ...baseItem, id: "c", quantity: 1 },
+      ],
+    };
+    render(<OrderDetailSheet order={order} open onClose={onClose} />);
+
+    expect(screen.getByText("7 itens do pedido")).toBeInTheDocument();
+  });
+
+  it("uma unidade usa o singular", () => {
+    render(<OrderDetailSheet order={makeOrder(baseItem)} open onClose={onClose} />);
+
+    expect(screen.getByText("1 item do pedido")).toBeInTheDocument();
+  });
 });
