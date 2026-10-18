@@ -99,4 +99,21 @@ describe("KitchenOrderCard - indicador geral de tamanho e adicional", () => {
       expect(screen.getByText(name)).toBeInTheDocument();
     }
   });
+
+  it("linhas do mesmo prato viram uma só, com a quantidade somada (3 + 3 + 1 = 7)", () => {
+    const caldo = { id: "caldo", name: "Caldo de Cana" };
+    renderCard(
+      item("a", { productId: "caldo", product: caldo, quantity: 3, variations: [tamanho] }),
+      item("b", { productId: "caldo", product: caldo, quantity: 3, variations: [tamanho] }),
+      item("c", {
+        productId: "caldo",
+        product: caldo,
+        quantity: 1,
+        variations: [{ id: "var-2", productVariation: { name: "300 ml" } }],
+      }),
+    );
+
+    expect(screen.getAllByRole("listitem")).toHaveLength(1);
+    expect(screen.getByRole("listitem")).toHaveTextContent("7× Caldo de Cana");
+  });
 });

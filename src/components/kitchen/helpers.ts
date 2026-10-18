@@ -59,6 +59,31 @@ export function getItemName(item: KitchenOrderItem): string {
 }
 
 /**
+ * Resumo do card: uma linha por prato, somando as quantidades de todas as
+ * linhas do mesmo produto (3 + 3 + 1 Caldo de Cana viram "7× Caldo de
+ * Cana"), mesmo com tamanho ou adicional diferente. A separação por tamanho
+ * e adicional fica no detalhe e na comanda. Mantém a ordem da primeira
+ * aparição.
+ */
+export function groupItemsByProduct(
+  items: KitchenOrderItem[],
+): Array<{ productId: string; name: string; quantity: number }> {
+  const groups = new Map<string, { productId: string; name: string; quantity: number }>();
+  for (const item of items) {
+    const group = groups.get(item.productId);
+    if (group) group.quantity += item.quantity;
+    else {
+      groups.set(item.productId, {
+        productId: item.productId,
+        name: getItemName(item),
+        quantity: item.quantity,
+      });
+    }
+  }
+  return [...groups.values()];
+}
+
+/**
  * Nome do tamanho escolhido (ex.: "Tradicional (18 cm)"), o mesmo que o
  * cliente vê no carrinho. `null` quando o nome não veio — quem chama não
  * mostra nada no lugar, em vez de um genérico "Variação".

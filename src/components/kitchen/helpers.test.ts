@@ -12,6 +12,7 @@ import {
   getPaymentLabel,
   getPeriodRange,
   getVariationName,
+  groupItemsByProduct,
   hasAddOns,
   hasSizes,
   isSameLocalDay,
@@ -164,6 +165,26 @@ describe("getAddOnName / getNamedAddOns", () => {
     expect(getNamedAddOns(item)).toEqual([
       { id: "a1", name: "Bacon extra", quantity: 1, observations: "crocante" },
     ]);
+  });
+});
+
+describe("groupItemsByProduct", () => {
+  it("soma as linhas do mesmo prato, mesmo com tamanho diferente, na ordem da primeira aparição", () => {
+    const items = [
+      { id: "i1", productId: "caldo", quantity: 3, product: { id: "caldo", name: "Caldo de Cana" }, variations: [{ id: "v1" }] },
+      { id: "i2", productId: "pastel", quantity: 1, product: { id: "pastel", name: "Pastel de Queijo" } },
+      { id: "i3", productId: "caldo", quantity: 3, product: { id: "caldo", name: "Caldo de Cana" }, variations: [{ id: "v1" }] },
+      { id: "i4", productId: "caldo", quantity: 1, product: { id: "caldo", name: "Caldo de Cana" }, variations: [{ id: "v2" }] },
+    ] as KitchenOrderItem[];
+
+    expect(groupItemsByProduct(items)).toEqual([
+      { productId: "caldo", name: "Caldo de Cana", quantity: 7 },
+      { productId: "pastel", name: "Pastel de Queijo", quantity: 1 },
+    ]);
+  });
+
+  it("lista vazia não gera linha", () => {
+    expect(groupItemsByProduct([])).toEqual([]);
   });
 });
 

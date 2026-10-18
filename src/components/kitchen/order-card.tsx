@@ -18,9 +18,9 @@ import {
   getElapsed,
   getFulfillmentLabel,
   getFulfillmentToneClass,
-  getItemName,
   getOrderLabel,
   getPaymentLabel,
+  groupItemsByProduct,
   hasAddOns,
   hasSizes,
 } from "./helpers";
@@ -100,10 +100,10 @@ export function KitchenOrderCard({
         </p>
 
         <ul className="space-y-1.5">
-          {items.map((item) => (
-            <li key={item.id} className="text-lg leading-snug text-foreground">
-              <span className="font-black">{item.quantity}×</span>{" "}
-              <span className="font-semibold">{getItemName(item)}</span>
+          {groupItemsByProduct(items).map((group) => (
+            <li key={group.productId} className="text-lg leading-snug text-foreground">
+              <span className="font-black">{group.quantity}×</span>{" "}
+              <span className="font-semibold">{group.name}</span>
             </li>
           ))}
 
