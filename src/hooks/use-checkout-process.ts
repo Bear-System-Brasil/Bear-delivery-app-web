@@ -43,7 +43,10 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useRestaurant } from "./use-restaurants";
 import { useUserAddresses } from "./use-addresses";
-import { useRestaurantOpeningHours } from "./use-opening-hours";
+import {
+  fetchFreshRestaurantOpeningHours,
+  useRestaurantOpeningHours,
+} from "./use-opening-hours";
 import { resolveRestaurantOpenStatus } from "@/constants/opening-hours";
 import { resolveAcceptedPaymentMethods } from "@/lib/accepted-payment-methods";
 import { getCheckoutFieldErrors } from "@/lib/checkout-validation";
@@ -537,13 +540,6 @@ export const useCheckoutProcess = () => {
       return;
     }
 
-    if (!openStatus.isOpen) {
-      showCheckoutError(
-        openStatus.reason || "Este restaurante está fechado no momento.",
-      );
-      return;
-    }
-
     const hasCpf = Boolean(user?.cpf && onlyNumbers(user.cpf).length === 11);
     if (!hasCpf && !isValidCpf(deliveryInfo.cpf)) {
       showCheckoutError("Informe um CPF válido para finalizar o pedido.");
@@ -552,6 +548,32 @@ export const useCheckoutProcess = () => {
 
     submittingRef.current = true;
     setIsProcessing(true);
+
+    // O status em cache pode ter até 1 minuto (LDMF-374): quem libera ou
+    // bloqueia o pedido é o backend, consultado agora. Se a consulta falhar,
+    // vale o status que a tela já tinha - não inventamos aberto nem fechado.
+    let currentOpenStatus = openStatus;
+    try {
+      const freshOpeningHours = await fetchFreshRestaurantOpeningHours(
+        queryClient,
+        restaurant.id,
+      );
+      currentOpenStatus = resolveRestaurantOpenStatus(
+        freshOpeningHours,
+        restaurantDetails ?? restaurant,
+      );
+    } catch {
+      // mantém o status que já estava na tela
+    }
+
+    if (!currentOpenStatus.isOpen) {
+      showCheckoutError(
+        currentOpenStatus.reason || "Este restaurante está fechado no momento.",
+      );
+      submittingRef.current = false;
+      setIsProcessing(false);
+      return;
+    }
 
     // Preenchido quando o endereço do pedido não é o padrão do cliente. O
     // `finally` devolve o padrão anterior em qualquer saída - inclusive
