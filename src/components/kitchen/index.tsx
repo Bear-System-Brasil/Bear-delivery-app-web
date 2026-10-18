@@ -22,7 +22,7 @@ import { useEffect, useRef, useState } from "react";
 import { CancelKitchenOrderDialog } from "./cancel-kitchen-order-dialog";
 import { KitchenColumn } from "./kitchen-column";
 import { getNamedAddOns, getVariationName } from "./helpers";
-import { withAddOnQuantity } from "@/constants/order-management";
+import { mergeIdenticalItems, withAddOnQuantity } from "@/constants/order-management";
 import {
   KITCHEN_COLUMN_BY_STATUS,
   KITCHEN_PERIOD_LABELS,
@@ -87,7 +87,8 @@ function KitchenCounterTile({
 export function KitchenPrintArea({ order }: { order: KitchenOrder | null }) {
   if (!order) return null;
 
-  const items = order.orderedItems ?? [];
+  // Linhas idênticas viram uma só ("6x"); qualquer diferença mantém separado.
+  const items = mergeIdenticalItems(order.orderedItems ?? []);
   const observations = order.observations?.trim();
   const deliveryObservations = order.delivery?.observations?.trim();
 

@@ -100,4 +100,27 @@ describe("OrderDetailSheet - tamanho e adicional separados", () => {
 
     expect(screen.getByText("1 item do pedido")).toBeInTheDocument();
   });
+
+  it("junta linhas idênticas e mantém separada a de tamanho diferente (pedido #6)", () => {
+    const limao = { productAddOnsId: "limao", productAddOns: { name: "Com limão" }, quantity: 4, priceSnapshot: 0.01 };
+    const v600 = { productVariationId: "v600", productVariation: { name: "600ml" }, priceSnapshot: 0 };
+    const v300 = { productVariationId: "v300", productVariation: { name: "300 ml" }, priceSnapshot: 0 };
+    const caldo = { ...baseItem, productId: "caldo", product: { name: "Caldo de Cana" }, unitPrice: 6 };
+    const order: DetailableOrder = {
+      ...makeOrder(baseItem),
+      orderedItems: [
+        { ...caldo, id: "a", quantity: 3, variations: [v600], addOns: [limao] },
+        { ...caldo, id: "b", quantity: 3, variations: [v600], addOns: [limao] },
+        { ...caldo, id: "c", quantity: 1, variations: [v300], addOns: [limao] },
+      ],
+    };
+    render(<OrderDetailSheet order={order} open onClose={onClose} />);
+
+    expect(screen.getByText("7 itens do pedido")).toBeInTheDocument();
+    expect(screen.getByText("6x Caldo de Cana")).toBeInTheDocument();
+    expect(screen.getByText("1x Caldo de Cana")).toBeInTheDocument();
+    expect(screen.queryByText("3x Caldo de Cana")).not.toBeInTheDocument();
+    // 6 x (6,00 + 4 x 0,01) = 36,24
+    expect(screen.getByText(/36,24/)).toBeInTheDocument();
+  });
 });

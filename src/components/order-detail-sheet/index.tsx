@@ -18,6 +18,7 @@ import {
   getOrderItemTotal,
   getPaymentMethodLabel,
   getVariationLabel,
+  mergeIdenticalItems,
   withAddOnQuantity,
 } from "@/constants/order-management";
 import {
@@ -54,6 +55,7 @@ export interface DetailableOrder {
     /** Observação do prato em si (ex.: "sem cebola, bem passado") — distinta da de cada adicional/variação. */
     observations?: string | null;
     addOns?: Array<{
+      productAddOnsId?: string;
       productAddOn?: { name?: string; description?: string } | null;
       productAddOns?: { name?: string; description?: string } | null;
       addOn?: { name?: string; description?: string } | null;
@@ -67,6 +69,7 @@ export interface DetailableOrder {
       quantity?: number;
     }> | null;
     variations?: Array<{
+      productVariationId?: string;
       variation?: { name?: string; description?: string } | null;
       productVariation?: { name?: string; description?: string } | null;
       name?: string | null;
@@ -183,7 +186,7 @@ export function OrderDetailSheet<TOrder extends DetailableOrder>({
               {unitCount} {unitCount === 1 ? "item" : "itens"} do pedido
             </h3>
             <div className="space-y-3">
-              {items.map((item) => (
+              {mergeIdenticalItems(items).map((item) => (
                 <div key={item.id} className="flex justify-between">
                   <div className="flex-1">
                     <p className="text-sm font-medium">

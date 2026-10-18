@@ -9,6 +9,7 @@ import {
   getOrderStatusLabel,
   getPaymentMethodLabel,
   getVariationLabel,
+  mergeIdenticalItems,
   withAddOnQuantity,
 } from "./order-management";
 
@@ -74,6 +75,73 @@ describe("getAddOnLabel / getVariationLabel", () => {
       getVariationLabel({ productVariation: { name: "Tamanho grande" } }),
     ).toBe("Tamanho grande");
     expect(getVariationLabel({})).toBe("Variação");
+  });
+});
+
+describe("mergeIdenticalItems", () => {
+  // Forma observada no pedido #6 da Pastelaria Maluca (17/10).
+  const caldo600 = {
+    productId: "caldo",
+    quantity: 3,
+    unitPrice: 6,
+    observations: null,
+    variations: [{ productVariationId: "v600", productVariation: { name: "600ml" }, priceSnapshot: 0 }],
+    addOns: [
+      { productAddOnsId: "limao", productAddOns: { name: "Com limão" }, quantity: 4, priceSnapshot: 0.01 },
+      { productAddOnsId: "abacaxi", productAddOns: { name: "Com abacaxi" }, quantity: 4, priceSnapshot: 1.5 },
+    ],
+  };
+
+  it("junta linhas idênticas somando a quantidade e mantém o id da primeira", () => {
+    const merged = mergeIdenticalItems([
+      { ...caldo600, id: "a" },
+      { ...caldo600, id: "b" },
+    ]);
+    expect(merged).toHaveLength(1);
+    expect(merged[0]).toMatchObject({ id: "a", quantity: 6 });
+  });
+
+  it("junta mesmo com os adicionais em outra ordem", () => {
+    const merged = mergeIdenticalItems([
+      { ...caldo600, id: "a" },
+      { ...caldo600, id: "b", addOns: [...caldo600.addOns].reverse() },
+    ]);
+    expect(merged).toHaveLength(1);
+  });
+
+  it("não junta tamanho diferente", () => {
+    const merged = mergeIdenticalItems([
+      { ...caldo600, id: "a" },
+      {
+        ...caldo600,
+        id: "b",
+        quantity: 1,
+        variations: [{ productVariationId: "v300", productVariation: { name: "300 ml" }, priceSnapshot: 0 }],
+      },
+    ]);
+    expect(merged.map((item) => item.quantity)).toEqual([3, 1]);
+  });
+
+  it("não junta quantidade de adicional diferente", () => {
+    const merged = mergeIdenticalItems([
+      { ...caldo600, id: "a" },
+      { ...caldo600, id: "b", addOns: [{ ...caldo600.addOns[0], quantity: 1 }, caldo600.addOns[1]] },
+    ]);
+    expect(merged).toHaveLength(2);
+  });
+
+  it("não junta observação diferente", () => {
+    const merged = mergeIdenticalItems([
+      { ...caldo600, id: "a" },
+      { ...caldo600, id: "b", observations: "sem gelo" },
+    ]);
+    expect(merged).toHaveLength(2);
+  });
+
+  it("mantém a ordem da primeira aparição", () => {
+    const pastel = { productId: "pastel", quantity: 1, id: "p" };
+    const merged = mergeIdenticalItems([{ ...caldo600, id: "a" }, pastel, { ...caldo600, id: "b" }]);
+    expect(merged.map((item) => item.productId)).toEqual(["caldo", "pastel"]);
   });
 });
 

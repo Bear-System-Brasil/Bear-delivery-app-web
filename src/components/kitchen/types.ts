@@ -69,6 +69,7 @@ export const PAYMENT_METHOD_LABELS: Record<string, string> = {
 
 export interface KitchenAddOn {
   id: string;
+  productAddOnsId?: string;
   quantity: number;
   priceSnapshot?: number;
   /** Observação específica deste adicional (ex.: "bem crocante"). */
@@ -82,6 +83,7 @@ export interface KitchenAddOn {
 
 export interface KitchenVariation {
   id: string;
+  productVariationId?: string;
   priceSnapshot?: number;
   /** Observação específica desta variação (ex.: "sem pimenta"). */
   observations?: string | null;

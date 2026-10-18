@@ -308,3 +308,78 @@ export function getOrderStatusLabel(status: string): string {
   }
   return labels[status] || status
 }
+
+interface MergeableItem {
+  productId: string
+  quantity: number
+  unitPrice?: number
+  observations?: string | null
+  variations?: Array<
+    VariationLabelSource & {
+      productVariationId?: string
+      priceSnapshot?: number
+      observations?: string | null
+    }
+  > | null
+  addOns?: Array<
+    AddOnLabelSource & {
+      productAddOnsId?: string
+      quantity?: number
+      priceSnapshot?: number
+      observations?: string | null
+    }
+  > | null
+}
+
+/**
+ * Chave que só bate quando duas linhas são o mesmo pedido de fato: mesmo
+ * produto, preço, observação, tamanho e adicionais (com quantidade, preço e
+ * observação de cada um). Usa os ids que a rota devolve
+ * (`productVariationId`/`productAddOnsId`) e cai no nome se faltarem.
+ */
+function getMergeKey(item: MergeableItem): string {
+  const variations = (item.variations ?? [])
+    .map((v) =>
+      [
+        v.productVariationId ?? getVariationLabel(v),
+        v.priceSnapshot ?? '',
+        v.observations?.trim() ?? '',
+      ].join('|'),
+    )
+    .sort()
+  const addOns = (item.addOns ?? [])
+    .map((a) =>
+      [
+        a.productAddOnsId ?? getAddOnLabel(a),
+        a.quantity ?? 1,
+        a.priceSnapshot ?? '',
+        a.observations?.trim() ?? '',
+      ].join('|'),
+    )
+    .sort()
+  return JSON.stringify([
+    item.productId,
+    item.unitPrice ?? '',
+    item.observations?.trim() ?? '',
+    variations,
+    addOns,
+  ])
+}
+
+/**
+ * Junta linhas idênticas do pedido somando a quantidade (3x + 3x do mesmo
+ * Caldo 600ml com os mesmos adicionais viram 6x). Linhas com qualquer
+ * diferença - outro tamanho, outro adicional, outra observação - continuam
+ * separadas, porque a cozinha precisa delas. Mantém a ordem da primeira
+ * aparição e o `id` da primeira linha do grupo.
+ */
+export function mergeIdenticalItems<T extends MergeableItem>(items: T[]): T[] {
+  const merged = new Map<string, T>()
+  for (const item of items) {
+    const key = getMergeKey(item)
+    const existing = merged.get(key)
+    if (existing) merged.set(key, { ...existing, quantity: existing.quantity + item.quantity })
+    else merged.set(key, item)
+  }
+  return [...merged.values()]
+}

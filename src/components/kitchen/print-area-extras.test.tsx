@@ -141,4 +141,32 @@ describe("KitchenPrintArea - tamanho e adicionais na comanda", () => {
 
     expect(screen.getByText("+ 4x Morango")).toBeInTheDocument();
   });
+
+  it("junta linhas idênticas e mantém separada a de tamanho diferente (pedido #6)", () => {
+    const caldo = {
+      productId: "caldo",
+      product: { id: "caldo", name: "Caldo de Cana" },
+      unitPrice: 6,
+      addOns: [
+        { id: "x", productAddOnsId: "limao", quantity: 4, priceSnapshot: 0.01, productAddOns: { name: "Com limão" } },
+      ],
+    };
+    const v600 = [{ id: "v", productVariationId: "v600", priceSnapshot: 0, productVariation: { name: "600ml" } }];
+    const v300 = [{ id: "w", productVariationId: "v300", priceSnapshot: 0, productVariation: { name: "300 ml" } }];
+    render(
+      <KitchenPrintArea
+        order={makeOrder([
+          { ...caldo, id: "a", quantity: 3, variations: v600 },
+          { ...caldo, id: "b", quantity: 3, variations: v600 },
+          { ...caldo, id: "c", quantity: 1, variations: v300 },
+        ])}
+      />,
+    );
+
+    expect(screen.getByText("6x Caldo de Cana")).toBeInTheDocument();
+    expect(screen.getByText("1x Caldo de Cana")).toBeInTheDocument();
+    expect(screen.queryByText("3x Caldo de Cana")).not.toBeInTheDocument();
+    expect(screen.getByText("Tamanho: 600ml")).toBeInTheDocument();
+    expect(screen.getByText("Tamanho: 300 ml")).toBeInTheDocument();
+  });
 });
