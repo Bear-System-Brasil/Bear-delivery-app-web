@@ -1,6 +1,7 @@
 import { resolveRestaurantOpenStatus } from "@/constants/opening-hours";
 import { useConfirm } from "@/contexts/confirm-provider";
 import { useSound } from "@/hooks/use-sound";
+import { fetchFreshRestaurantOpeningHours } from "@/hooks/use-opening-hours";
 import type { Product, ProductVariation } from "@/services/api";
 import { apiService } from "@/services/api";
 import { getCartItemStock, getCartStockIssues } from "@/lib/cart-stock";
@@ -669,28 +670,21 @@ export const useCartActions = () => {
     try {
       setLoading(true);
 
-      // Validação: verificar se o restaurante está aberto
+      // Validação: verificar se o restaurante está aberto. Usa a mesma
+      // consulta do selo: gravar outro formato nessa chave fazia o selo
+      // mostrar "Fechado" logo depois de adicionar (LDMF-374).
       try {
-        if (apiService.openingHours?.getByCompany) {
-          const openingHoursRes = await queryClient.fetchQuery({
-            queryKey: ["opening-hours", "public", item.restaurantId],
-            queryFn: () =>
-              apiService.openingHours.getByCompany(item.restaurantId),
-            staleTime: 60 * 1000,
-          });
-
-          if (openingHoursRes?.data) {
-            const openStatus = resolveRestaurantOpenStatus(
-              openingHoursRes.data,
-            );
-            if (!openStatus.isOpen) {
-              toast.error(
-                openStatus.reason || "Este restaurante está fechado no momento.",
-              );
-              setLoading(false);
-              return false;
-            }
-          }
+        const openingHours = await fetchFreshRestaurantOpeningHours(
+          queryClient,
+          item.restaurantId,
+        );
+        const openStatus = resolveRestaurantOpenStatus(openingHours);
+        if (!openStatus.isOpen) {
+          toast.error(
+            openStatus.reason || "Este restaurante está fechado no momento.",
+          );
+          setLoading(false);
+          return false;
         }
       } catch {
         // Ignora falha de requisição de horários para não travar indevidamente
