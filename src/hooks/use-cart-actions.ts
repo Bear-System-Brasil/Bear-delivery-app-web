@@ -1304,7 +1304,7 @@ export const useCartActions = () => {
   /**
    * Navega para o checkout
    */
-  const handleGoToCheckout = () => {
+  const handleGoToCheckout = async () => {
     if (items.length === 0) {
       toast.error("Seu carrinho está vazio");
       return;
@@ -1312,20 +1312,22 @@ export const useCartActions = () => {
 
     const targetRestaurantId = restaurant?.id || items[0]?.restaurantId;
     if (targetRestaurantId) {
-      const cachedOpeningHours = queryClient.getQueryData<{
-        data?: Parameters<typeof resolveRestaurantOpenStatus>[0];
-      }>(["opening-hours", "public", targetRestaurantId]);
-
-      if (cachedOpeningHours?.data) {
-        const openStatus = resolveRestaurantOpenStatus(
-          cachedOpeningHours.data,
+      // Status na hora, no formato do selo (LDMF-374). Antes lia `.data` do
+      // cache, formato que o selo não usa - e a checagem nunca rodava.
+      try {
+        const openingHours = await fetchFreshRestaurantOpeningHours(
+          queryClient,
+          targetRestaurantId,
         );
+        const openStatus = resolveRestaurantOpenStatus(openingHours);
         if (!openStatus.isOpen) {
           toast.error(
             openStatus.reason || "Este restaurante está fechado no momento.",
           );
           return;
         }
+      } catch {
+        // Falha na consulta não bloqueia: o checkout confere de novo ao pagar
       }
 
       // Se houver dados de produtos/variações no cache do React Query, valida estoque

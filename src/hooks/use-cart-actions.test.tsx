@@ -1239,16 +1239,16 @@ describe("useCartActions", () => {
   });
 
   describe("navegação", () => {
-    it("handleGoToCheckout bloqueia com carrinho vazio", () => {
+    it("handleGoToCheckout bloqueia com carrinho vazio", async () => {
       const { result } = renderCartActions();
 
-      act(() => result.current.handleGoToCheckout());
+      await act(() => result.current.handleGoToCheckout());
 
       expect(toast.error).toHaveBeenCalledWith("Seu carrinho está vazio");
       expect(pushMock).not.toHaveBeenCalled();
     });
 
-    it("handleGoToCheckout navega para /checkout com itens no carrinho", () => {
+    it("handleGoToCheckout navega para /checkout com itens no carrinho", async () => {
       act(() => {
         useCartStore.getState().setItems([
           { id: "l1", productId: "p1", name: "X", price: 1, quantity: 1, restaurantId: "r1", restaurantName: "R" } as CartItem,
@@ -1256,41 +1256,88 @@ describe("useCartActions", () => {
       });
 
       const { result } = renderCartActions();
-      act(() => result.current.handleGoToCheckout());
+      await act(() => result.current.handleGoToCheckout());
 
       expect(pushMock).toHaveBeenCalledWith("/checkout");
     });
 
-    it("handleGoToCheckout bloqueia navegação quando restaurante em cache está fechado", () => {
-      act(() => {
-        useCartStore.getState().setItems([
-          { id: "l1", productId: "p1", name: "X", price: 1, quantity: 1, restaurantId: "r1", restaurantName: "R" } as CartItem,
-        ]);
+    describe("status da loja ao finalizar pelo carrinho (LDMF-374)", () => {
+      const OPEN_HOURS: OpeningHoursResponse = {
+        isOpen: true,
+        linkedToCashRegister: false,
+        days: [
+          { id: "h1", companyId: "r1", day: 1, openTime: "00:00", closeTime: "23:59" },
+        ],
+      };
+      const CLOSED_HOURS: OpeningHoursResponse = { ...OPEN_HOURS, isOpen: false };
+      const KEY = ["opening-hours", "public", "r1"];
+
+      /** Carrinho com um item e o selo da loja já no cache, no formato do selo. */
+      function renderWithBadge(badge: OpeningHoursResponse) {
+        act(() => {
+          useCartStore.getState().setItems([
+            { id: "l1", productId: "p1", name: "X", price: 1, quantity: 1, restaurantId: "r1", restaurantName: "R" } as CartItem,
+          ]);
+        });
+        const queryClient = new QueryClient({
+          defaultOptions: { queries: { retry: false } },
+        });
+        queryClient.setQueryData(KEY, badge);
+        const customWrapper = ({ children }: { children: ReactNode }) => (
+          <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+        );
+        const view = renderHook(() => useCartActions(), { wrapper: customWrapper });
+        return { ...view, queryClient };
+      }
+
+      it("bloqueia a navegação quando a loja está fechada", async () => {
+        vi.mocked(apiService.openingHours.getByCompany).mockResolvedValue({
+          success: true,
+          data: CLOSED_HOURS,
+        });
+        const { result } = renderWithBadge(CLOSED_HOURS);
+
+        await act(() => result.current.handleGoToCheckout());
+
+        expect(toast.error).toHaveBeenCalledWith(
+          expect.stringContaining("Restaurante fechado"),
+        );
+        expect(pushMock).not.toHaveBeenCalledWith("/checkout");
       });
 
-      const queryClient = new QueryClient();
-      queryClient.setQueryData(["opening-hours", "public", "r1"], {
-        data: {
-          isOpen: false,
-          linkedToCashRegister: false,
-          days: [],
-        },
+      it("bloqueia quando a loja fechou com o selo ainda dizendo aberta", async () => {
+        vi.mocked(apiService.openingHours.getByCompany).mockResolvedValue({
+          success: true,
+          data: CLOSED_HOURS,
+        });
+        const { result, queryClient } = renderWithBadge(OPEN_HOURS);
+
+        await act(() => result.current.handleGoToCheckout());
+
+        expect(apiService.openingHours.getByCompany).toHaveBeenCalledWith("r1");
+        expect(toast.error).toHaveBeenCalledWith(
+          expect.stringContaining("Restaurante fechado"),
+        );
+        expect(pushMock).not.toHaveBeenCalledWith("/checkout");
+        // O selo passa a mostrar o que o backend disse, no mesmo formato.
+        expect(queryClient.getQueryData(KEY)).toEqual(CLOSED_HOURS);
       });
 
-      const customWrapper = ({ children }: { children: ReactNode }) => (
-        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-      );
+      it("se a consulta falhar, não bloqueia e mantém o selo como estava", async () => {
+        vi.mocked(apiService.openingHours.getByCompany).mockResolvedValue({
+          success: false,
+          message: "fora do ar",
+        });
+        const { result, queryClient } = renderWithBadge(OPEN_HOURS);
 
-      const { result } = renderHook(() => useCartActions(), { wrapper: customWrapper });
-      act(() => result.current.handleGoToCheckout());
+        await act(() => result.current.handleGoToCheckout());
 
-      expect(toast.error).toHaveBeenCalledWith(
-        expect.stringContaining("Restaurante fechado"),
-      );
-      expect(pushMock).not.toHaveBeenCalledWith("/checkout");
+        expect(pushMock).toHaveBeenCalledWith("/checkout");
+        expect(queryClient.getQueryData(KEY)).toEqual(OPEN_HOURS);
+      });
     });
 
-    it("handleGoToCheckout bloqueia navegação quando há item esgotado em cache", () => {
+    it("handleGoToCheckout bloqueia navegação quando há item esgotado em cache", async () => {
       act(() => {
         useCartStore.getState().setItems([
           { id: "l1", productId: "p1", name: "X", price: 1, quantity: 1, restaurantId: "r1", restaurantName: "R" } as CartItem,
@@ -1307,7 +1354,7 @@ describe("useCartActions", () => {
       );
 
       const { result } = renderHook(() => useCartActions(), { wrapper: customWrapper });
-      act(() => result.current.handleGoToCheckout());
+      await act(() => result.current.handleGoToCheckout());
 
       expect(toast.error).toHaveBeenCalledWith(
         "Remova ou ajuste os itens esgotados antes de finalizar o pedido.",

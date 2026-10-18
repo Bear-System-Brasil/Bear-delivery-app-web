@@ -114,10 +114,10 @@ export default function CartPage() {
         return;
       }
 
-      handleGoToCheckout();
+      await handleGoToCheckout();
     } catch (error) {
       console.error("Erro ao verificar estoque atualizado:", error);
-      handleGoToCheckout();
+      await handleGoToCheckout();
     } finally {
       setIsCheckingStock(false);
     }
