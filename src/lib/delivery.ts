@@ -1,5 +1,6 @@
 import { getPaymentMethodLabel } from "@/constants/order-management";
 import {
+  PaymentMethod,
   PaymentStatus,
   type Address,
   type Delivery,
@@ -314,6 +315,22 @@ function readAmount(value: unknown): number | null {
 }
 
 /**
+ * O pedaço do pedido que o resumo de pagamento lê. Serve ao `Order` da
+ * entrega e ao pedido da cozinha, que chegam por rotas diferentes.
+ *
+ * `changeFor` aceita texto porque é assim que o backend devolve hoje
+ * (`"changeFor": "151"`), embora o checkout envie número.
+ */
+export type PaymentSummaryOrder = {
+  payments?: Array<{
+    paymentMethod: string;
+    status?: string;
+    amount?: number | string;
+  }> | null;
+  changeFor?: number | string | null;
+};
+
+/**
  * O que o entregador precisa saber sobre dinheiro antes de bater na porta:
  * se recebe alguma coisa e em qual forma.
  *
@@ -324,11 +341,19 @@ function readAmount(value: unknown): number | null {
  * afirmar "pago" sobre um pedido do qual não se sabe nada.
  */
 export function getPaymentSummary(delivery: Delivery): PaymentSummary | null {
-  const payments = delivery.order?.payments;
+  return getOrderPaymentSummary(delivery.order);
+}
+
+/** `getPaymentSummary` a partir do pedido - usado direto pela cozinha. */
+export function getOrderPaymentSummary(
+  order: PaymentSummaryOrder | null | undefined,
+): PaymentSummary | null {
+  const payments = order?.payments;
   if (!Array.isArray(payments) || payments.length === 0) return null;
 
   const live = payments.filter(
-    (payment) => payment && !DEAD_PAYMENT_STATUSES.has(payment.status),
+    (payment) =>
+      payment && !DEAD_PAYMENT_STATUSES.has(payment.status as PaymentStatus),
   );
   if (live.length === 0) return null;
 
@@ -351,7 +376,7 @@ export function getPaymentSummary(delivery: Delivery): PaymentSummary | null {
 
   // `changeFor` é o que o cliente entrega, não o troco, e é campo do PEDIDO
   // (`order.changeFor`) - não do pagamento.
-  const declaredPaysWith = readAmount(delivery.order?.changeFor);
+  const declaredPaysWith = readAmount(order?.changeFor);
   const paysWith =
     declaredPaysWith !== null && declaredPaysWith > 0
       ? roundMoney(declaredPaysWith)
@@ -378,6 +403,29 @@ export function getPaymentSummary(delivery: Delivery): PaymentSummary | null {
     paysWith: changeDue === null ? null : paysWith,
     changeDue,
   };
+}
+
+/**
+ * Troco do pedido em dinheiro, para a cozinha: quanto o cliente entrega
+ * (`paysWith`) e quanto separar de troco (`changeDue`). Null quando não há
+ * troco - sem `changeFor`, já pago, valor exato ou nada a receber em
+ * dinheiro (cartão ou PIX não têm troco).
+ */
+export function getCashChange(
+  order: PaymentSummaryOrder | null | undefined,
+): { paysWith: number; changeDue: number } | null {
+  const summary = getOrderPaymentSummary(order);
+  if (summary?.changeDue == null || summary.paysWith == null) return null;
+
+  const receivesCash = order?.payments?.some(
+    (payment) =>
+      payment?.paymentMethod === PaymentMethod.CASH &&
+      payment.status !== PaymentStatus.COMPLETED &&
+      !DEAD_PAYMENT_STATUSES.has(payment.status as PaymentStatus),
+  );
+  if (!receivesCash) return null;
+
+  return { paysWith: summary.paysWith, changeDue: summary.changeDue };
 }
 
 /**

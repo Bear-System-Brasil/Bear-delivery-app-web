@@ -1,8 +1,11 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { getCashChange } from "@/lib/delivery";
 import { cn } from "@/lib/utils";
+import { formatCurrency } from "@/utils";
 import {
+  Banknote,
   Bike,
   Clock,
   Eye,
@@ -52,6 +55,7 @@ export function KitchenOrderCard({
   const elapsed = getElapsed(order.statusChangedAt);
   const items = order.orderedItems ?? [];
   const payment = getPaymentLabel(order);
+  const change = getCashChange(order);
   const fulfillmentLabel = getFulfillmentLabel(order);
   const observations = order.observations?.trim();
   const hasActions = actionLabel !== null;
@@ -162,6 +166,20 @@ export function KitchenOrderCard({
             {fulfillmentLabel}
           </span>
         </div>
+
+        {change && !isCanceled && (
+          <div className="flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-900 dark:bg-emerald-950/40">
+            <Banknote className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700 dark:text-emerald-400" />
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-emerald-900 dark:text-emerald-200">
+                Cliente paga com {formatCurrency(change.paysWith)}
+              </p>
+              <p className="text-base font-bold text-emerald-900 dark:text-emerald-200">
+                Separar {formatCurrency(change.changeDue)} de troco
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
       {hasActions && (

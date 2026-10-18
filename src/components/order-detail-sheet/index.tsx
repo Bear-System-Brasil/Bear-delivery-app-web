@@ -19,6 +19,7 @@ import {
   getPaymentMethodLabel,
   getVariationLabel,
 } from "@/constants/order-management";
+import { getCashChange } from "@/lib/delivery";
 import {
   Clock,
   CreditCard,
@@ -76,7 +77,13 @@ export interface DetailableOrder {
       priceSnapshot?: number;
     }> | null;
   }> | null;
-  payments?: Array<{ paymentMethod: string }> | null;
+  payments?: Array<{
+    paymentMethod: string;
+    status?: string;
+    amount?: number | string;
+  }> | null;
+  /** Troco para quanto (valor que o cliente entrega em dinheiro); ver `getCashChange`. */
+  changeFor?: number | string | null;
   delivery?: {
     deliveryPerson?: { name: string; phone?: string } | null;
     /** Observação da entrega, preenchida no checkout (ex.: "entregar na portaria"). */
@@ -124,6 +131,7 @@ export function OrderDetailSheet<TOrder extends DetailableOrder>({
   const customerName = order.customer?.name || "Cliente";
   const customerPhone = order.customer?.phone;
   const payment = order.payments?.[0];
+  const change = getCashChange(order);
   const statusInfo = STATUS_LABELS[order.status] || { label: order.status, variant: "outline" as const };
   const isCanceled = order.status === "CANCELED";
   const isCompleted = order.status === "COMPLETED";
@@ -363,6 +371,16 @@ export function OrderDetailSheet<TOrder extends DetailableOrder>({
                 <span>Forma de pagamento</span>
                 <span>{getPaymentMethodLabel(payment?.paymentMethod)}</span>
               </div>
+              {change && !isCanceled && (
+                <div className="mt-2 rounded-lg bg-emerald-50 px-3 py-2 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200">
+                  <p className="text-sm font-semibold">
+                    Cliente paga com {formatCurrency(change.paysWith)}
+                  </p>
+                  <p className="text-sm font-bold">
+                    Separar {formatCurrency(change.changeDue)} de troco
+                  </p>
+                </div>
+              )}
             </div>
           </section>
 
