@@ -26,7 +26,12 @@ vi.mock("@/hooks", () => ({
 
 // Filhos viram marcadores: aqui só importa a orquestração entre as etapas.
 vi.mock("@/components/checkout/delivery-form", () => ({
-  DeliveryForm: () => <div>etapa-entrega</div>,
+  DeliveryForm: ({ fieldErrors }: { fieldErrors?: object }) => (
+    <>
+      <div>etapa-entrega</div>
+      <div data-testid="field-errors">{JSON.stringify(fieldErrors ?? {})}</div>
+    </>
+  ),
 }));
 vi.mock("@/components/checkout/payment-method", () => ({
   PaymentMethod: ({ total }: { total: number }) => (
@@ -63,7 +68,9 @@ function setCheckout(overrides: Record<string, unknown> = {}) {
     restaurant: { id: "r1", name: "Bear Burger" },
     orderType: "delivery",
     total: 42.5,
-    isDeliveryValid: vi.fn(() => true),
+    getDeliveryErrors: vi.fn(() => ({})),
+    addressMode: "new",
+    userAddresses: [],
     isFormValid: vi.fn(() => true),
     handleSubmitOrder: vi.fn(async () => {}),
     isProcessing: false,
@@ -90,33 +97,100 @@ describe("DeliveryWrapper", () => {
 
   it("só passa para o pagamento com a entrega válida", async () => {
     const user = userEvent.setup();
-    const isDeliveryValid = vi.fn(() => false);
-    setCheckout({ isDeliveryValid });
+    const getDeliveryErrors = vi.fn<() => Record<string, string>>(() => ({
+      number: "Informe o número.",
+    }));
+    setCheckout({ getDeliveryErrors });
     render(<DeliveryWrapper />);
 
     await user.click(screen.getByRole("button", { name: "Continuar" }));
 
-    expect(toast.error).toHaveBeenCalledWith(
-      "Preencha nome, telefone e endereço para continuar.",
-    );
+    expect(toast.error).toHaveBeenCalledWith("Informe o número.");
     expect(screen.getByText("etapa-entrega")).toBeInTheDocument();
 
-    isDeliveryValid.mockReturnValue(true);
+    getDeliveryErrors.mockReturnValue({});
     await user.click(screen.getByRole("button", { name: "Continuar" }));
 
     expect(screen.getByText("etapa-pagamento total=42.5")).toBeInTheDocument();
   });
 
-  it("retirada pede só nome e telefone", async () => {
+  it("diz quais campos faltam, destaca no formulário e foca o primeiro", async () => {
     const user = userEvent.setup();
-    setCheckout({ orderType: "pickup", isDeliveryValid: vi.fn(() => false) });
+    const errors = {
+      street: "Informe a rua.",
+      neighborhood: "Informe o bairro.",
+    };
+    setCheckout({ getDeliveryErrors: vi.fn(() => errors) });
+    render(
+      <>
+        <DeliveryWrapper />
+        <input id="street" aria-label="rua" />
+      </>,
+    );
+
+    // Antes da primeira tentativa nada fica destacado.
+    expect(screen.getByTestId("field-errors")).toHaveTextContent("{}");
+
+    await user.click(screen.getByRole("button", { name: "Continuar" }));
+
+    expect(toast.error).toHaveBeenCalledWith("Falta preencher: Rua, Bairro.");
+    expect(screen.getByTestId("field-errors")).toHaveTextContent(
+      JSON.stringify(errors),
+    );
+    expect(screen.getByLabelText("rua")).toHaveFocus();
+    expect(screen.queryByText(/etapa-pagamento/)).not.toBeInTheDocument();
+  });
+
+  it("endereço salvo incompleto diz o que falta e como sair", async () => {
+    const user = userEvent.setup();
+    setCheckout({
+      addressMode: "select",
+      userAddresses: [{ id: "addr-1" }],
+      getDeliveryErrors: vi.fn(() => ({ number: "Informe o número." })),
+    });
     render(<DeliveryWrapper />);
 
     await user.click(screen.getByRole("button", { name: "Continuar" }));
 
     expect(toast.error).toHaveBeenCalledWith(
-      "Preencha nome e telefone para continuar.",
+      "O endereço selecionado está incompleto (falta Número). Escolha outro ou cadastre um novo.",
     );
+  });
+
+  it("CPF faltando diz que é o CPF", async () => {
+    const user = userEvent.setup();
+    setCheckout({
+      getDeliveryErrors: vi.fn(() => ({ cpf: "Informe um CPF válido." })),
+    });
+    render(<DeliveryWrapper />);
+
+    await user.click(screen.getByRole("button", { name: "Continuar" }));
+
+    expect(toast.error).toHaveBeenCalledWith("Informe um CPF válido.");
+  });
+
+  it("retirada válida passa para o pagamento sem endereço", async () => {
+    const user = userEvent.setup();
+    setCheckout({ orderType: "pickup" });
+    render(<DeliveryWrapper />);
+
+    await user.click(screen.getByRole("button", { name: "Continuar" }));
+
+    expect(toast.error).not.toHaveBeenCalled();
+    expect(screen.getByText("etapa-pagamento total=42.5")).toBeInTheDocument();
+  });
+
+  it("retirada sem telefone diz que falta o telefone", async () => {
+    const user = userEvent.setup();
+    setCheckout({
+      orderType: "pickup",
+      getDeliveryErrors: vi.fn(() => ({ phone: "Informe seu telefone." })),
+    });
+    render(<DeliveryWrapper />);
+
+    await user.click(screen.getByRole("button", { name: "Continuar" }));
+
+    expect(toast.error).toHaveBeenCalledWith("Informe seu telefone.");
   });
 
   it("confirmar com pagamento inválido não finaliza", async () => {
