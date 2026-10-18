@@ -80,10 +80,18 @@ Ao reportar warnings, distinga os que vieram da sua mudança dos pré-existentes
 ## Backend
 
 - **Não invente contrato.** Se a doc não cobre, diga que não cobre e pergunte. Não deduza formato de resposta, nome de campo ou comportamento de rota.
-- O backend é repositório separado e não está acessível daqui.
+- O backend é repositório separado. Mesmo que o repositório do back apareça na conta, **nunca o anexe a uma sessão**, nem para leitura, sem pedido explícito.
+- Quando uma regra pedir para conferir DTO ou service do back, pergunte qual é o comportamento. Não suponha. A pessoa confere e responde.
 - Quando a doc do backend divergir do comportamento observado, **relate a divergência** em vez de escolher um dos dois em silêncio.
 - Comportamento errado do back: relate o que foi observado e o impacto. Não proponha como corrigir no back.
 - Envelope paginado: `apiRequest` não desembrulha `{data, meta}`. Use `toPaginated`, que tolera array cru e envelope.
+
+### Campos numéricos e vazios
+
+- **Campo que o usuário apagou é vazio (`null` ou `undefined`), nunca 0.** Em vários campos, 0 é valor válido com significado próprio — raio de entrega 0 = loja sem entrega.
+- Cuidado com conversões que transformam vazio em 0 sem avisar: `Number("")`, `+valor`, `parseFloat(valor) || 0`, `valor ?? 0`. Diferencie "digitou 0" de "apagou o campo".
+- Antes de mandar vazio para o back, saiba o que acontece: se o vazio apaga o valor, volta ao padrão ou é ignorado (mantém o antigo). Se não estiver na doc do back, pergunte.
+- Antes de mandar número quebrado, saiba se o campo aceita decimal ou só inteiro. Se não estiver na doc do back, pergunte.
 
 ## Investigação
 
