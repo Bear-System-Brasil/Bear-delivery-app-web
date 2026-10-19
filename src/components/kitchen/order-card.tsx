@@ -21,10 +21,11 @@ import {
   getElapsed,
   getFulfillmentLabel,
   getFulfillmentToneClass,
-  getItemName,
   getOrderLabel,
   getPaymentLabel,
-  hasAddOnsOrVariations,
+  groupItemsByProduct,
+  hasAddOns,
+  hasSizes,
 } from "./helpers";
 import type { KitchenOrder } from "./types";
 
@@ -60,7 +61,15 @@ export function KitchenOrderCard({
   const observations = order.observations?.trim();
   const hasActions = actionLabel !== null;
   const isCanceled = order.status === "CANCELED";
-  const hasExtras = hasAddOnsOrVariations(order);
+  // Indicador geral do pedido, uma vez só por card: o nome do tamanho e a
+  // lista de adicionais ficam no detalhe e na comanda.
+  const extrasLabel = [
+    hasSizes(order) && "Com tamanho",
+    hasAddOns(order) && "Com adicional",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  const hasExtras = extrasLabel !== "";
 
   return (
     <article
@@ -95,10 +104,10 @@ export function KitchenOrderCard({
         </p>
 
         <ul className="space-y-1.5">
-          {items.map((item) => (
-            <li key={item.id} className="text-lg leading-snug text-foreground">
-              <span className="font-black">{item.quantity}×</span>{" "}
-              <span className="font-semibold">{getItemName(item)}</span>
+          {groupItemsByProduct(items).map((group) => (
+            <li key={group.productId} className="text-lg leading-snug text-foreground">
+              <span className="font-black">{group.quantity}×</span>{" "}
+              <span className="font-semibold">{group.name}</span>
             </li>
           ))}
 
@@ -124,7 +133,7 @@ export function KitchenOrderCard({
             ) : (
               <Package className="h-4 w-4" />
             )}
-            {hasExtras ? "Com adicional" : "Sem adicional"}
+            {hasExtras ? extrasLabel : "Sem adicional"}
           </span>
           <Eye className="h-4 w-4 shrink-0" />
         </button>

@@ -1,10 +1,12 @@
 import {
   DELIVERY_STATUS_LABELS,
   PAYMENT_METHOD_LABELS,
+  type KitchenAddOn,
   type KitchenDeliveryStatus,
   type KitchenOrder,
   type KitchenOrderItem,
   type KitchenPeriod,
+  type KitchenVariation,
 } from "./types";
 
 /**
@@ -57,14 +59,77 @@ export function getItemName(item: KitchenOrderItem): string {
 }
 
 /**
- * Existe adicional ou variação em algum item do pedido? O card não lista
- * cada um (viraria uma parede de "+ Adicional"); só indica presença e manda
- * pro modal, que já mostra o nome de verdade de cada um.
+ * Resumo do card: uma linha por prato, somando as quantidades de todas as
+ * linhas do mesmo produto (3 + 3 + 1 Caldo de Cana viram "7× Caldo de
+ * Cana"), mesmo com tamanho ou adicional diferente. A separação por tamanho
+ * e adicional fica no detalhe e na comanda. Mantém a ordem da primeira
+ * aparição.
  */
-export function hasAddOnsOrVariations(order: KitchenOrder): boolean {
-  return (order.orderedItems ?? []).some(
-    (item) => (item.addOns?.length ?? 0) > 0 || (item.variations?.length ?? 0) > 0,
-  );
+export function groupItemsByProduct(
+  items: KitchenOrderItem[],
+): Array<{ productId: string; name: string; quantity: number }> {
+  const groups = new Map<string, { productId: string; name: string; quantity: number }>();
+  for (const item of items) {
+    const group = groups.get(item.productId);
+    if (group) group.quantity += item.quantity;
+    else {
+      groups.set(item.productId, {
+        productId: item.productId,
+        name: getItemName(item),
+        quantity: item.quantity,
+      });
+    }
+  }
+  return [...groups.values()];
+}
+
+/**
+ * Nome do tamanho escolhido (ex.: "Tradicional (18 cm)"), o mesmo que o
+ * cliente vê no carrinho. `null` quando o nome não veio — quem chama não
+ * mostra nada no lugar, em vez de um genérico "Variação".
+ */
+export function getVariationName(variation: KitchenVariation): string | null {
+  return variation.productVariation?.name?.trim() || null;
+}
+
+/**
+ * Nome real do adicional (ex.: "Bacon extra"). `null` quando o nome não
+ * veio — quem chama não mostra nada no lugar, em vez de um genérico
+ * "Adicional".
+ */
+export function getAddOnName(addOn: KitchenAddOn): string | null {
+  return addOn.productAddOns?.name?.trim() || null;
+}
+
+/** Adicionais do item que têm nome, prontos para listar. */
+export function getNamedAddOns(
+  item: KitchenOrderItem,
+): Array<{ id: string; name: string; quantity: number; observations?: string | null }> {
+  return (item.addOns ?? []).flatMap((addOn) => {
+    const name = getAddOnName(addOn);
+    return name
+      ? [{ id: addOn.id, name, quantity: addOn.quantity, observations: addOn.observations }]
+      : [];
+  });
+}
+
+/**
+ * Algum item do pedido tem tamanho? O card só indica presença ("Com
+ * tamanho"), uma vez por pedido; o nome do tamanho fica no detalhe e na
+ * comanda.
+ */
+export function hasSizes(order: KitchenOrder): boolean {
+  return (order.orderedItems ?? []).some((item) => (item.variations?.length ?? 0) > 0);
+}
+
+/**
+ * Existe adicional em algum item do pedido? Tamanho não conta: tamanho e
+ * adicional são coisas diferentes (ver `hasSizes`). O card não lista cada
+ * adicional (viraria uma parede de nomes); só indica presença e manda pro
+ * modal.
+ */
+export function hasAddOns(order: KitchenOrder): boolean {
+  return (order.orderedItems ?? []).some((item) => (item.addOns?.length ?? 0) > 0);
 }
 
 export function getOrderLabel(order: KitchenOrder): string {

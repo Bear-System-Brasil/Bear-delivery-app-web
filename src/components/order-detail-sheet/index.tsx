@@ -11,13 +11,16 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import {
+  formatAddOnLine,
   formatCurrency,
   getAddOnLabel,
+  getAddOnsHeading,
   getElapsedTime,
   getOrderItemDisplayName,
   getOrderItemTotal,
   getPaymentMethodLabel,
   getVariationLabel,
+  mergeIdenticalItems,
 } from "@/constants/order-management";
 import { getCashChange } from "@/lib/delivery";
 import {
@@ -54,6 +57,7 @@ export interface DetailableOrder {
     /** Observação do prato em si (ex.: "sem cebola, bem passado") — distinta da de cada adicional/variação. */
     observations?: string | null;
     addOns?: Array<{
+      productAddOnsId?: string;
       productAddOn?: { name?: string; description?: string } | null;
       productAddOns?: { name?: string; description?: string } | null;
       addOn?: { name?: string; description?: string } | null;
@@ -67,6 +71,7 @@ export interface DetailableOrder {
       quantity?: number;
     }> | null;
     variations?: Array<{
+      productVariationId?: string;
       variation?: { name?: string; description?: string } | null;
       productVariation?: { name?: string; description?: string } | null;
       name?: string | null;
@@ -127,6 +132,9 @@ export function OrderDetailSheet<TOrder extends DetailableOrder>({
   if (!order) return null;
 
   const items = order.orderedItems || [];
+  // Unidades, não linhas: 3 + 3 + 1 Caldo de Cana são 7 itens, como no
+  // histórico de pedidos do cliente.
+  const unitCount = items.reduce((sum, item) => sum + item.quantity, 0);
   const orderNumber = order.orderNumber || order.id.slice(0, 6);
   const customerName = order.customer?.name || "Cliente";
   const customerPhone = order.customer?.phone;
@@ -184,10 +192,10 @@ export function OrderDetailSheet<TOrder extends DetailableOrder>({
           <section>
             <h3 className="text-sm font-semibold mb-2 flex items-center gap-1.5">
               <Package className="h-4 w-4" />
-              Itens do Pedido ({items.length})
+              {unitCount} {unitCount === 1 ? "item" : "itens"} do pedido
             </h3>
             <div className="space-y-3">
-              {items.map((item) => (
+              {mergeIdenticalItems(items).map((item) => (
                 <div key={item.id} className="flex justify-between">
                   <div className="flex-1">
                     <p className="text-sm font-medium">
@@ -198,26 +206,31 @@ export function OrderDetailSheet<TOrder extends DetailableOrder>({
                         {`"${item.observations}"`}
                       </p>
                     )}
-                    {item.addOns?.map((addon, i) => (
-                      <div key={i} className="pl-4">
-                        <p className="text-xs text-muted-foreground">
-                          + {getAddOnLabel(addon)}
-                        </p>
-                        {addon.observations && (
-                          <p className="text-xs italic text-muted-foreground/80 pl-2">
-                            {`"${addon.observations}"`}
-                          </p>
-                        )}
-                      </div>
-                    ))}
                     {item.variations?.map((v, i) => (
                       <div key={i} className="pl-4">
                         <p className="text-xs text-muted-foreground">
-                          {getVariationLabel(v)}
+                          Tamanho: {getVariationLabel(v)}
                         </p>
                         {v.observations && (
                           <p className="text-xs italic text-muted-foreground/80 pl-2">
                             {`"${v.observations}"`}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                    {(item.addOns?.length ?? 0) > 0 && (
+                      <p className="pl-4 text-xs font-medium text-muted-foreground">
+                        {getAddOnsHeading(item.quantity)}
+                      </p>
+                    )}
+                    {item.addOns?.map((addon, i) => (
+                      <div key={i} className="pl-4">
+                        <p className="text-xs text-muted-foreground">
+                          + {formatAddOnLine(getAddOnLabel(addon), addon.quantity, item.quantity)}
+                        </p>
+                        {addon.observations && (
+                          <p className="text-xs italic text-muted-foreground/80 pl-2">
+                            {`"${addon.observations}"`}
                           </p>
                         )}
                       </div>

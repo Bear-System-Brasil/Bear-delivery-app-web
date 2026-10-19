@@ -1,15 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  getAddOnName,
   getCustomerName,
   getDayRange,
   getElapsed,
   getFulfillmentLabel,
   getFulfillmentToneClass,
   getItemName,
+  getNamedAddOns,
   getOrderLabel,
   getPaymentLabel,
   getPeriodRange,
-  hasAddOnsOrVariations,
+  getVariationName,
+  groupItemsByProduct,
+  hasAddOns,
+  hasSizes,
   isSameLocalDay,
   toDateInputValue,
 } from "./helpers";
@@ -121,16 +126,100 @@ describe("getItemName", () => {
   });
 });
 
-describe("hasAddOnsOrVariations", () => {
-  it("é false quando não há itens", () => {
-    expect(hasAddOnsOrVariations(baseOrder())).toBe(false);
+describe("getVariationName", () => {
+  it("devolve o nome do tamanho escolhido", () => {
+    expect(
+      getVariationName({ id: "v1", productVariation: { name: "Tradicional (18 cm)" } }),
+    ).toBe("Tradicional (18 cm)");
   });
 
-  it("é false quando os itens não têm adicionais nem variações", () => {
+  it("devolve null quando o nome não veio, em vez de um genérico", () => {
+    expect(getVariationName({ id: "v1" })).toBeNull();
+    expect(getVariationName({ id: "v1", productVariation: null })).toBeNull();
+    expect(getVariationName({ id: "v1", productVariation: { name: "  " } })).toBeNull();
+  });
+});
+
+describe("getAddOnName / getNamedAddOns", () => {
+  it("devolve o nome real do adicional", () => {
+    expect(getAddOnName({ id: "a1", quantity: 1, productAddOns: { name: "Bacon extra" } })).toBe(
+      "Bacon extra",
+    );
+  });
+
+  it("devolve null quando o nome não veio, em vez de um genérico", () => {
+    expect(getAddOnName({ id: "a1", quantity: 1 })).toBeNull();
+    expect(getAddOnName({ id: "a1", quantity: 1, productAddOns: null })).toBeNull();
+  });
+
+  it("lista só os adicionais com nome", () => {
+    const item = {
+      id: "i1",
+      productId: "p1",
+      quantity: 1,
+      addOns: [
+        { id: "a1", quantity: 1, productAddOns: { name: "Bacon extra" }, observations: "crocante" },
+        { id: "a2", quantity: 1, productAddOns: null },
+      ],
+    } as KitchenOrderItem;
+    expect(getNamedAddOns(item)).toEqual([
+      { id: "a1", name: "Bacon extra", quantity: 1, observations: "crocante" },
+    ]);
+  });
+});
+
+describe("groupItemsByProduct", () => {
+  it("soma as linhas do mesmo prato, mesmo com tamanho diferente, na ordem da primeira aparição", () => {
+    const items = [
+      { id: "i1", productId: "caldo", quantity: 3, product: { id: "caldo", name: "Caldo de Cana" }, variations: [{ id: "v1" }] },
+      { id: "i2", productId: "pastel", quantity: 1, product: { id: "pastel", name: "Pastel de Queijo" } },
+      { id: "i3", productId: "caldo", quantity: 3, product: { id: "caldo", name: "Caldo de Cana" }, variations: [{ id: "v1" }] },
+      { id: "i4", productId: "caldo", quantity: 1, product: { id: "caldo", name: "Caldo de Cana" }, variations: [{ id: "v2" }] },
+    ] as KitchenOrderItem[];
+
+    expect(groupItemsByProduct(items)).toEqual([
+      { productId: "caldo", name: "Caldo de Cana", quantity: 7 },
+      { productId: "pastel", name: "Pastel de Queijo", quantity: 1 },
+    ]);
+  });
+
+  it("lista vazia não gera linha", () => {
+    expect(groupItemsByProduct([])).toEqual([]);
+  });
+});
+
+describe("hasSizes", () => {
+  it("é false quando nenhum item tem tamanho", () => {
+    expect(hasSizes(baseOrder())).toBe(false);
+    const order = baseOrder({
+      orderedItems: [
+        { id: "i1", productId: "p1", quantity: 1, addOns: [{ id: "a1", quantity: 1 }] } as KitchenOrderItem,
+      ],
+    });
+    expect(hasSizes(order)).toBe(false);
+  });
+
+  it("é true quando algum item tem tamanho", () => {
+    const order = baseOrder({
+      orderedItems: [
+        { id: "i1", productId: "p1", quantity: 1 } as KitchenOrderItem,
+        { id: "i2", productId: "p2", quantity: 1, variations: [{ id: "v1" }] } as KitchenOrderItem,
+      ],
+    });
+    expect(hasSizes(order)).toBe(true);
+  });
+});
+
+describe("hasAddOns", () => {
+  it("é false quando não há itens", () => {
+    expect(hasAddOns(baseOrder())).toBe(false);
+  });
+
+  it("é false quando os itens não têm adicionais", () => {
     const order = baseOrder({
       orderedItems: [{ id: "i1", productId: "p1", quantity: 1 } as KitchenOrderItem],
     });
-    expect(hasAddOnsOrVariations(order)).toBe(false);
+    expect(hasAddOns(order)).toBe(false);
   });
 
   it("é true quando algum item tem adicional", () => {
@@ -139,16 +228,16 @@ describe("hasAddOnsOrVariations", () => {
         { id: "i1", productId: "p1", quantity: 1, addOns: [{ id: "a1", quantity: 1 }] } as KitchenOrderItem,
       ],
     });
-    expect(hasAddOnsOrVariations(order)).toBe(true);
+    expect(hasAddOns(order)).toBe(true);
   });
 
-  it("é true quando algum item tem variação", () => {
+  it("é false quando o item só tem tamanho — tamanho não é adicional", () => {
     const order = baseOrder({
       orderedItems: [
         { id: "i1", productId: "p1", quantity: 1, variations: [{ id: "v1" }] } as KitchenOrderItem,
       ],
     });
-    expect(hasAddOnsOrVariations(order)).toBe(true);
+    expect(hasAddOns(order)).toBe(false);
   });
 });
 
