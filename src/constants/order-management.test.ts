@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CompanyOrder } from "./order-management";
 import {
+  formatAddOnLine,
+  getAddOnsHeading,
   getAddOnLabel,
   getColumnForOrder,
   getElapsedTime,
@@ -9,6 +11,8 @@ import {
   getOrderStatusLabel,
   getPaymentMethodLabel,
   getVariationLabel,
+  mergeIdenticalItems,
+  withAddOnQuantity,
 } from "./order-management";
 
 function orderWithStatus(status: string): CompanyOrder {
@@ -73,6 +77,100 @@ describe("getAddOnLabel / getVariationLabel", () => {
       getVariationLabel({ productVariation: { name: "Tamanho grande" } }),
     ).toBe("Tamanho grande");
     expect(getVariationLabel({})).toBe("Variação");
+  });
+});
+
+describe("mergeIdenticalItems", () => {
+  // Forma observada no pedido #6 da Pastelaria Maluca (17/10).
+  const caldo600 = {
+    productId: "caldo",
+    quantity: 3,
+    unitPrice: 6,
+    observations: null,
+    variations: [{ productVariationId: "v600", productVariation: { name: "600ml" }, priceSnapshot: 0 }],
+    addOns: [
+      { productAddOnsId: "limao", productAddOns: { name: "Com limão" }, quantity: 4, priceSnapshot: 0.01 },
+      { productAddOnsId: "abacaxi", productAddOns: { name: "Com abacaxi" }, quantity: 4, priceSnapshot: 1.5 },
+    ],
+  };
+
+  it("junta linhas idênticas somando a quantidade e mantém o id da primeira", () => {
+    const merged = mergeIdenticalItems([
+      { ...caldo600, id: "a" },
+      { ...caldo600, id: "b" },
+    ]);
+    expect(merged).toHaveLength(1);
+    expect(merged[0]).toMatchObject({ id: "a", quantity: 6 });
+  });
+
+  it("junta mesmo com os adicionais em outra ordem", () => {
+    const merged = mergeIdenticalItems([
+      { ...caldo600, id: "a" },
+      { ...caldo600, id: "b", addOns: [...caldo600.addOns].reverse() },
+    ]);
+    expect(merged).toHaveLength(1);
+  });
+
+  it("não junta tamanho diferente", () => {
+    const merged = mergeIdenticalItems([
+      { ...caldo600, id: "a" },
+      {
+        ...caldo600,
+        id: "b",
+        quantity: 1,
+        variations: [{ productVariationId: "v300", productVariation: { name: "300 ml" }, priceSnapshot: 0 }],
+      },
+    ]);
+    expect(merged.map((item) => item.quantity)).toEqual([3, 1]);
+  });
+
+  it("não junta quantidade de adicional diferente", () => {
+    const merged = mergeIdenticalItems([
+      { ...caldo600, id: "a" },
+      { ...caldo600, id: "b", addOns: [{ ...caldo600.addOns[0], quantity: 1 }, caldo600.addOns[1]] },
+    ]);
+    expect(merged).toHaveLength(2);
+  });
+
+  it("não junta observação diferente", () => {
+    const merged = mergeIdenticalItems([
+      { ...caldo600, id: "a" },
+      { ...caldo600, id: "b", observations: "sem gelo" },
+    ]);
+    expect(merged).toHaveLength(2);
+  });
+
+  it("mantém a ordem da primeira aparição", () => {
+    const pastel = { productId: "pastel", quantity: 1, id: "p" };
+    const merged = mergeIdenticalItems([{ ...caldo600, id: "a" }, pastel, { ...caldo600, id: "b" }]);
+    expect(merged.map((item) => item.productId)).toEqual(["caldo", "pastel"]);
+  });
+});
+
+describe("getAddOnsHeading / formatAddOnLine", () => {
+  it("prato com 1 unidade: rótulo e linha como antes", () => {
+    expect(getAddOnsHeading(1)).toBe("Adicionais:");
+    expect(formatAddOnLine("Com limão", 4, 1)).toBe("4x Com limão");
+    expect(formatAddOnLine("Com limão", 1, 1)).toBe("Com limão");
+  });
+
+  it("prato com mais de 1 unidade: \"em cada um\" e o total no fim", () => {
+    expect(getAddOnsHeading(6)).toBe("Adicionais, em cada um:");
+    expect(formatAddOnLine("Com limão", 4, 6)).toBe("4x Com limão (24 no total)");
+    expect(formatAddOnLine("Com limão", 1, 6)).toBe("Com limão (6 no total)");
+    expect(formatAddOnLine("Com limão", undefined, 6)).toBe("Com limão (6 no total)");
+  });
+});
+
+describe("withAddOnQuantity", () => {
+  it("quantidade 1 ou ausente fica só com o nome", () => {
+    expect(withAddOnQuantity("Morango", 1)).toBe("Morango");
+    expect(withAddOnQuantity("Morango")).toBe("Morango");
+    expect(withAddOnQuantity("Morango", null)).toBe("Morango");
+  });
+
+  it("quantidade maior que 1 vira \"4x Morango\"", () => {
+    expect(withAddOnQuantity("Morango", 4)).toBe("4x Morango");
   });
 });
 

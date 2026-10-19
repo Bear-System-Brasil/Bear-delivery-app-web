@@ -13,11 +13,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const finishOrder = vi.fn();
 const openCart = vi.fn();
+const viewOrder = vi.fn();
 const paymentsCreate = vi.fn();
 const deleteUserAddress = vi.fn();
 const createUserAddress = vi.fn();
 const toastError = vi.fn();
 const updateCpf = vi.fn();
+/** Consulta do status feita na hora de finalizar (LDMF-374). */
+const fetchFreshOpeningHours = vi.fn();
 
 /**
  * Estado do "banco" de endereços. O hook lê a lista pelo mock de
@@ -185,6 +188,8 @@ let openingHoursQuery: { data: unknown; isLoading: boolean } = {
 
 vi.mock("./use-opening-hours", () => ({
   useRestaurantOpeningHours: () => openingHoursQuery,
+  fetchFreshRestaurantOpeningHours: (...args: unknown[]) =>
+    fetchFreshOpeningHours(...args),
 }));
 
 // Endereço já salvo e marcado como padrão: o hook auto-seleciona, e o
@@ -202,7 +207,7 @@ vi.mock("@/lib/geocode", () => ({ parseCoords: vi.fn() }));
 
 vi.mock("@/services/api", () => ({
   apiService: {
-    orders: { finishOrder, openCart },
+    orders: { finishOrder, openCart, viewOrder },
     payments: { create: paymentsCreate },
     address: {
       deleteUserAddress,
@@ -265,8 +270,24 @@ async function submitWith(setup: (h: Hook) => void) {
   return result;
 }
 
+// Carrinho do backend todo da loja do checkout - a conferência antes de
+// finalizar (LDMF-317) passa. Os testes da conferência trocam esta resposta.
+const CART_OF_COMP_1 = {
+  success: true,
+  data: {
+    id: "cart:user-1",
+    companyId: "comp-1",
+    orderedItems: [{ productId: "prod-1", product: { companyId: "comp-1" } }],
+  },
+};
+
 beforeEach(() => {
   openingHoursQuery = { data: undefined, isLoading: false };
+  // Sem mudança no backend: a consulta na hora devolve o mesmo que a tela tem.
+  fetchFreshOpeningHours.mockReset();
+  fetchFreshOpeningHours.mockImplementation(async () => openingHoursQuery.data);
+  viewOrder.mockReset();
+  viewOrder.mockResolvedValue(CART_OF_COMP_1);
   AUTH.user = {
     id: "user-1",
     name: "Cliente",
@@ -470,6 +491,46 @@ describe("useCheckoutProcess - CEP do endereço novo", () => {
     expect(result.current.isDeliveryValid()).toBe(false);
 
     act(() => result.current.handleInputChange("zipCode", "01001-000"));
+    expect(result.current.isDeliveryValid()).toBe(true);
+  });
+});
+
+describe("useCheckoutProcess - campo faltando (LDMF-350)", () => {
+  const FILL = {
+    name: "Cliente",
+    phone: "11999999999",
+    zipCode: "29360-000",
+    street: "Rua Jocarly Garcia",
+    number: "",
+    neighborhood: "São Miguel",
+    city: "Castelo",
+    state: "ES",
+  };
+
+  it("endereço novo sem número aponta o número; retirada passa", async () => {
+    const { result } = renderCheckout();
+
+    act(() => {
+      result.current.setOrderType("delivery");
+      result.current.setAddressMode("new");
+      Object.entries(FILL).forEach(([field, value]) =>
+        result.current.handleInputChange(field, value),
+      );
+    });
+
+    expect(result.current.getDeliveryErrors()).toEqual({
+      number: "Informe o número.",
+    });
+    expect(result.current.isDeliveryValid()).toBe(false);
+
+    act(() => result.current.setOrderType("pickup"));
+    expect(result.current.getDeliveryErrors()).toEqual({});
+    expect(result.current.isDeliveryValid()).toBe(true);
+
+    act(() => {
+      result.current.setOrderType("delivery");
+      result.current.handleInputChange("number", "100");
+    });
     expect(result.current.isDeliveryValid()).toBe(true);
   });
 });
@@ -965,6 +1026,7 @@ describe("useCheckoutProcess - restaurante fechado", () => {
     RESTAURANT_QUERY.data = { id: "comp-1", deliveryFee: "0" };
     finishOrder.mockReset();
     openCart.mockReset();
+    toastError.mockReset();
   });
 
   it("invalida o formulário e bloqueia o envio quando o restaurante está fechado", async () => {
@@ -999,6 +1061,70 @@ describe("useCheckoutProcess - restaurante fechado", () => {
     );
     expect(finishOrder).not.toHaveBeenCalled();
     expect(openCart).not.toHaveBeenCalled();
+  });
+
+  // LDMF-374: o cache pode ter até 1 minuto. Quem decide é a consulta na hora.
+  const OPEN_HOURS = {
+    isOpen: true,
+    linkedToCashRegister: false,
+    days: [{ day: "mon", isOpen: true, openTime: "00:00", closeTime: "23:59" }],
+  };
+  const CLOSED_HOURS = { ...OPEN_HOURS, isOpen: false };
+
+  it("consulta o status na hora e bloqueia se a loja fechou depois do cache", async () => {
+    openingHoursQuery = { data: OPEN_HOURS, isLoading: false };
+    fetchFreshOpeningHours.mockResolvedValue(CLOSED_HOURS);
+
+    const { result } = renderCheckout();
+    await waitFor(() => expect(result.current.selectedAddressId).toBe("addr-1"));
+    expect(result.current.isRestaurantOpen).toBe(true);
+
+    await act(async () => {
+      await result.current.handleSubmitOrder();
+    });
+
+    expect(fetchFreshOpeningHours).toHaveBeenCalledWith(queryClient, "comp-1");
+    expect(toastError).toHaveBeenCalledWith(
+      expect.stringContaining("Restaurante fechado"),
+    );
+    expect(finishOrder).not.toHaveBeenCalled();
+    expect(openCart).not.toHaveBeenCalled();
+    // A trava é solta: o cliente pode tentar de novo quando a loja abrir.
+    expect(result.current.isProcessing).toBe(false);
+  });
+
+  it("libera o pedido se a loja abriu depois do cache", async () => {
+    openingHoursQuery = { data: CLOSED_HOURS, isLoading: false };
+    fetchFreshOpeningHours.mockResolvedValue(OPEN_HOURS);
+    finishOrder.mockResolvedValue({ success: true, data: { id: "order-1" } });
+    paymentsCreate.mockReset();
+    paymentsCreate.mockResolvedValue({ success: true, data: {} });
+    resetAddressMocks();
+
+    await submitWith(() => {});
+
+    expect(fetchFreshOpeningHours).toHaveBeenCalledWith(queryClient, "comp-1");
+    expect(toastError).not.toHaveBeenCalledWith(
+      expect.stringContaining("Restaurante fechado"),
+    );
+    expect(finishOrder).toHaveBeenCalled();
+  });
+
+  it("se a consulta na hora falhar, decide pelo status que a tela já tinha", async () => {
+    openingHoursQuery = { data: CLOSED_HOURS, isLoading: false };
+    fetchFreshOpeningHours.mockRejectedValue(new Error("rede"));
+
+    const { result } = renderCheckout();
+    await waitFor(() => expect(result.current.selectedAddressId).toBe("addr-1"));
+
+    await act(async () => {
+      await result.current.handleSubmitOrder();
+    });
+
+    expect(toastError).toHaveBeenCalledWith(
+      expect.stringContaining("Restaurante fechado"),
+    );
+    expect(finishOrder).not.toHaveBeenCalled();
   });
 });
 
@@ -1128,3 +1254,79 @@ describe("useCheckoutProcess - primeiro pedido e CPF (LDMF-301)", () => {
 });
 
 
+
+describe("useCheckoutProcess - loja do carrinho antes de finalizar (LDMF-317)", () => {
+  beforeEach(() => {
+    finishOrder.mockReset();
+    finishOrder.mockResolvedValue({ success: true, data: { id: "order-1" } });
+    openCart.mockReset();
+    paymentsCreate.mockReset();
+    paymentsCreate.mockResolvedValue({ success: true, data: {} });
+    resetAddressMocks();
+    addressesQuery = ADDRESSES_WITH_DEFAULT;
+    seedAddressBook(ADDRESSES_WITH_DEFAULT);
+  });
+
+  const pickup = (h: Hook) => {
+    h.setOrderType("pickup");
+    h.setPaymentMethod("pix_on_delivery");
+  };
+
+  it("carrinho todo da loja do checkout: confere e finaliza", async () => {
+    await submitWith(pickup);
+
+    expect(viewOrder).toHaveBeenCalledWith("user-1", "cart:user-1");
+    expect(finishOrder).toHaveBeenCalledTimes(1);
+  });
+
+  it("carrinho do backend preso a outra loja: bloqueia e avisa", async () => {
+    // O pedido de 15/10: loja do carrinho = A, checkout achando que é a B
+    viewOrder.mockResolvedValue({
+      success: true,
+      data: {
+        id: "cart:user-1",
+        companyId: "comp-outra",
+        orderedItems: [{ productId: "prod-1", product: { companyId: "comp-1" } }],
+      },
+    });
+
+    await submitWith(pickup);
+
+    expect(finishOrder).not.toHaveBeenCalled();
+    expect(toastError).toHaveBeenCalledWith(
+      "Seu carrinho tem itens de outra loja. Revise o carrinho antes de finalizar o pedido.",
+    );
+  });
+
+  it("item de outra loja dentro do carrinho certo: bloqueia e avisa", async () => {
+    viewOrder.mockResolvedValue({
+      success: true,
+      data: {
+        id: "cart:user-1",
+        companyId: "comp-1",
+        orderedItems: [
+          { productId: "prod-1", product: { companyId: "comp-1" } },
+          { productId: "prod-x", product: { companyId: "comp-outra" } },
+        ],
+      },
+    });
+
+    await submitWith(pickup);
+
+    expect(finishOrder).not.toHaveBeenCalled();
+    expect(toastError).toHaveBeenCalledWith(
+      "Seu carrinho tem itens de outra loja. Revise o carrinho antes de finalizar o pedido.",
+    );
+  });
+
+  it("sem carrinho no backend: não finaliza um pedido vazio", async () => {
+    viewOrder.mockResolvedValue({ success: false, status: 404 });
+
+    await submitWith(pickup);
+
+    expect(finishOrder).not.toHaveBeenCalled();
+    expect(toastError).toHaveBeenCalledWith(
+      expect.stringContaining("Não encontramos os itens do seu carrinho"),
+    );
+  });
+});

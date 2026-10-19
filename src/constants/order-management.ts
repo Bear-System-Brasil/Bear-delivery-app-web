@@ -230,6 +230,39 @@ export function getAddOnLabel(addon: AddOnLabelSource): string {
   )
 }
 
+/**
+ * Prefixa a quantidade do adicional quando passa de 1 ("4x Morango").
+ * Quantidade 1 (ou ausente) fica só com o nome. A quantidade é por unidade
+ * do produto (ver order-item.md), igual ao que o cliente escolheu.
+ */
+export function withAddOnQuantity(name: string, quantity?: number | null): string {
+  return quantity && quantity > 1 ? `${quantity}x ${name}` : name
+}
+
+/**
+ * Rótulo da lista de adicionais. Com mais de uma unidade do prato, deixa
+ * claro que a quantidade de cada adicional é por unidade.
+ */
+export function getAddOnsHeading(itemQuantity: number): string {
+  return itemQuantity > 1 ? 'Adicionais, em cada um:' : 'Adicionais:'
+}
+
+/**
+ * Linha do adicional. Prato com 1 unidade: "4x Com limão". Com mais de uma,
+ * soma o total do pedido no fim, para a cozinha separar de uma vez:
+ * "4x Com limão (24 no total)" em 6 caldos; adicional de quantidade 1 fica
+ * "Com limão (6 no total)".
+ */
+export function formatAddOnLine(
+  name: string,
+  addOnQuantity: number | null | undefined,
+  itemQuantity: number,
+): string {
+  const label = withAddOnQuantity(name, addOnQuantity)
+  if (itemQuantity <= 1) return label
+  return `${label} (${(addOnQuantity || 1) * itemQuantity} no total)`
+}
+
 interface VariationLabelSource {
   variation?: { name?: string; description?: string } | null
   productVariation?: { name?: string; description?: string } | null
@@ -298,4 +331,79 @@ export function getOrderStatusLabel(status: string): string {
     ABANDONED: 'Abandonado',
   }
   return labels[status] || status
+}
+
+interface MergeableItem {
+  productId: string
+  quantity: number
+  unitPrice?: number
+  observations?: string | null
+  variations?: Array<
+    VariationLabelSource & {
+      productVariationId?: string
+      priceSnapshot?: number
+      observations?: string | null
+    }
+  > | null
+  addOns?: Array<
+    AddOnLabelSource & {
+      productAddOnsId?: string
+      quantity?: number
+      priceSnapshot?: number
+      observations?: string | null
+    }
+  > | null
+}
+
+/**
+ * Chave que só bate quando duas linhas são o mesmo pedido de fato: mesmo
+ * produto, preço, observação, tamanho e adicionais (com quantidade, preço e
+ * observação de cada um). Usa os ids que a rota devolve
+ * (`productVariationId`/`productAddOnsId`) e cai no nome se faltarem.
+ */
+function getMergeKey(item: MergeableItem): string {
+  const variations = (item.variations ?? [])
+    .map((v) =>
+      [
+        v.productVariationId ?? getVariationLabel(v),
+        v.priceSnapshot ?? '',
+        v.observations?.trim() ?? '',
+      ].join('|'),
+    )
+    .sort()
+  const addOns = (item.addOns ?? [])
+    .map((a) =>
+      [
+        a.productAddOnsId ?? getAddOnLabel(a),
+        a.quantity ?? 1,
+        a.priceSnapshot ?? '',
+        a.observations?.trim() ?? '',
+      ].join('|'),
+    )
+    .sort()
+  return JSON.stringify([
+    item.productId,
+    item.unitPrice ?? '',
+    item.observations?.trim() ?? '',
+    variations,
+    addOns,
+  ])
+}
+
+/**
+ * Junta linhas idênticas do pedido somando a quantidade (3x + 3x do mesmo
+ * Caldo 600ml com os mesmos adicionais viram 6x). Linhas com qualquer
+ * diferença - outro tamanho, outro adicional, outra observação - continuam
+ * separadas, porque a cozinha precisa delas. Mantém a ordem da primeira
+ * aparição e o `id` da primeira linha do grupo.
+ */
+export function mergeIdenticalItems<T extends MergeableItem>(items: T[]): T[] {
+  const merged = new Map<string, T>()
+  for (const item of items) {
+    const key = getMergeKey(item)
+    const existing = merged.get(key)
+    if (existing) merged.set(key, { ...existing, quantity: existing.quantity + item.quantity })
+    else merged.set(key, item)
+  }
+  return [...merged.values()]
 }

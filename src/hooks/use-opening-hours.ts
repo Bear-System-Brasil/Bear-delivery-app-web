@@ -8,18 +8,41 @@ import {
   type DayKey,
 } from "@/constants/opening-hours";
 import { apiService } from "@/services/api";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+} from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
 const OPENING_HOURS_KEY = ["opening-hours"] as const;
 
 /**
- * `isOpen` é cacheado no backend, não recalculado a cada request - então
- * nada de `refetchInterval` aqui. Um staleTime folgado evita bater na rota
- * a cada foco de janela para um dado que não muda em tempo real.
+ * O status Aberto/Fechado precisa acompanhar o backend com a aba aberta: a
+ * configuração global do cache (src/providers) não busca de novo no foco nem
+ * no mount, e a vitrine ficava mostrando "Aberta" depois do fechamento
+ * (LDMF-374). Por isso só esta consulta ganha um ciclo próprio:
+ *
+ * - de 1 em 1 minuto enquanto a aba estiver visível. Com
+ *   `refetchIntervalInBackground: false` o TanStack pula a busca com a aba
+ *   oculta;
+ * - sempre que o cliente volta para a aba ou a internet volta.
  */
-const STATUS_STALE_TIME = 5 * 60 * 1000;
+const STATUS_REFETCH_INTERVAL = 60 * 1000;
+
+/** Chave do status público da loja - a mesma que carrinho e checkout leem. */
+export const restaurantOpeningHoursKey = (companyId?: string | null) =>
+  [...OPENING_HOURS_KEY, "public", companyId] as const;
+
+async function fetchRestaurantOpeningHours(companyId: string) {
+  const response = await apiService.openingHours.getByCompany(companyId);
+  if (!response.success) {
+    throw new Error(response.message || "Erro ao carregar o status");
+  }
+  return response.data;
+}
 
 /**
  * Hook público para obter os horários de funcionamento e status de uma loja.
@@ -27,18 +50,31 @@ const STATUS_STALE_TIME = 5 * 60 * 1000;
  */
 export function useRestaurantOpeningHours(companyId?: string | null) {
   return useQuery({
-    queryKey: [...OPENING_HOURS_KEY, "public", companyId],
-    queryFn: async () => {
-      const response = await apiService.openingHours.getByCompany(
-        companyId as string,
-      );
-      if (!response.success) {
-        throw new Error(response.message || "Erro ao carregar o status");
-      }
-      return response.data;
-    },
+    queryKey: restaurantOpeningHoursKey(companyId),
+    queryFn: () => fetchRestaurantOpeningHours(companyId as string),
     enabled: Boolean(companyId),
-    staleTime: STATUS_STALE_TIME,
+    staleTime: STATUS_REFETCH_INTERVAL,
+    refetchInterval: STATUS_REFETCH_INTERVAL,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: "always",
+    refetchOnReconnect: "always",
+  });
+}
+
+/**
+ * Busca o status na hora, ignorando o cache, e atualiza o cache com o
+ * resultado - para quem precisa decidir com o dado do backend, como o
+ * finalizar do checkout. Em falha, rejeita: quem chama decide o fallback.
+ */
+export function fetchFreshRestaurantOpeningHours(
+  queryClient: QueryClient,
+  companyId: string,
+) {
+  return queryClient.fetchQuery({
+    queryKey: restaurantOpeningHoursKey(companyId),
+    queryFn: () => fetchRestaurantOpeningHours(companyId),
+    staleTime: 0,
+    retry: false,
   });
 }
 

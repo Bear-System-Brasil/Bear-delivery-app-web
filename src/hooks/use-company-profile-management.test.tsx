@@ -665,36 +665,201 @@ describe("useCompanyProfileManagement", () => {
   });
 
   describe("CEP", () => {
-    it("CEP completo busca no ViaCEP e preenche", async () => {
-      const fetchMock = vi.fn().mockResolvedValue({
-        json: async () => ({ logradouro: "Rua XV", bairro: "Centro", localidade: "Curitiba", uf: "PR" }),
+    // Respostas reais da BrasilAPI v2 (medidas em 17/10): cidade de CEP
+    // único volta com rua e bairro null.
+    const brasilApi = (body: Record<string, unknown>, status = 200) =>
+      vi.fn().mockResolvedValue({
+        ok: status >= 200 && status < 300,
+        status,
+        json: async () => body,
+      });
+    const castelo = {
+      cep: "29360000",
+      state: "ES",
+      city: "Castelo",
+      neighborhood: null,
+      street: null,
+      location: { type: "Point", coordinates: { longitude: "-41.18472", latitude: "-20.60361" } },
+    };
+    const alegre = {
+      cep: "29500000",
+      state: "ES",
+      city: "Alegre",
+      neighborhood: null,
+      street: null,
+      location: { type: "Point", coordinates: { longitude: "-41.53306", latitude: "-20.76361" } },
+    };
+
+    async function searchZipCode(result: Hook, zipCode: string) {
+      await act(async () => {
+        await result.current.handleSearchZipCode(zipCode);
+      });
+    }
+
+    it("CEP com rua busca na BrasilAPI e preenche tudo", async () => {
+      const fetchMock = brasilApi({
+        cep: "80020310",
+        state: "PR",
+        city: "Curitiba",
+        neighborhood: "Centro",
+        street: "Rua XV de Novembro",
       });
       vi.stubGlobal("fetch", fetchMock);
       const { result } = await renderCompany();
 
-      await act(async () => {
-        await result.current.handleSearchZipCode("80020-310");
-      });
+      await searchZipCode(result, "80020-310");
 
-      expect(fetchMock).toHaveBeenCalledWith("https://viacep.com.br/ws/80020310/json/");
+      expect(fetchMock).toHaveBeenCalledWith("https://brasilapi.com.br/api/cep/v2/80020310");
       expect(result.current.newAddress).toMatchObject({
         zipCode: "80020310",
-        street: "Rua XV",
+        street: "Rua XV de Novembro",
         neighborhood: "Centro",
         city: "Curitiba",
         state: "PR",
       });
+      expect(result.current.zipCodeHint).toBeNull();
+      expect(toast.success).toHaveBeenCalledWith("CEP encontrado!");
     });
 
-    it("CEP inexistente avisa", async () => {
-      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ json: async () => ({ erro: true }) }));
+    it.each([
+      ["29360000", "Castelo", castelo],
+      ["29500000", "Alegre", alegre],
+    ])(
+      "CEP único %s (%s) depois de digitar rua e bairro não apaga nada",
+      async (zipCode, city, body) => {
+        vi.stubGlobal("fetch", brasilApi(body));
+        const { result } = await renderCompany();
+        fillAddress(result, { street: "Rua Projetada", number: "45", neighborhood: "Centro" });
+
+        fillAddress(result, { zipCode });
+        await searchZipCode(result, zipCode);
+
+        expect(result.current.newAddress).toMatchObject({
+          zipCode,
+          street: "Rua Projetada",
+          number: "45",
+          neighborhood: "Centro",
+          city,
+          state: "ES",
+        });
+        expect(result.current.zipCodeHint).toBe(
+          "Este CEP vale para a cidade inteira. Preencha rua, número e bairro abaixo.",
+        );
+        expect(toast.success).toHaveBeenCalledWith(
+          "CEP da cidade encontrado. Preencha rua, número e bairro.",
+        );
+      },
+    );
+
+    it("CEP único antes de digitar: rua e bairro ficam vazios para preencher e o endereço sai completo", async () => {
+      vi.stubGlobal("fetch", brasilApi(castelo));
+      api.address.createCompanyAddress.mockResolvedValue({
+        success: true,
+        data: storeAddress("novo"),
+      } as never);
       const { result } = await renderCompany();
 
+      fillAddress(result, { zipCode: "29360000" });
+      await searchZipCode(result, "29360000");
+      expect(result.current.newAddress).toMatchObject({ street: "", neighborhood: "", city: "Castelo", state: "ES" });
+
+      fillAddress(result, { street: "Rua Projetada", number: "45", neighborhood: "Centro" });
       await act(async () => {
-        await result.current.handleSearchZipCode("99999999");
+        await result.current.handleSaveAddress();
       });
 
+      expect(api.address.createCompanyAddress).toHaveBeenCalledWith(
+        expect.objectContaining({
+          zipCode: "29360000",
+          street: "Rua Projetada",
+          number: "45",
+          neighborhood: "Centro",
+          city: "Castelo",
+          state: "ES",
+        }),
+      );
+    });
+
+    it("CEP sem bairro mantém o bairro digitado e pede só o bairro", async () => {
+      vi.stubGlobal(
+        "fetch",
+        brasilApi({ cep: "29360001", state: "ES", city: "Castelo", neighborhood: null, street: "Rua Nova" }),
+      );
+      const { result } = await renderCompany();
+      fillAddress(result, { neighborhood: "Aracui" });
+
+      await searchZipCode(result, "29360001");
+
+      expect(result.current.newAddress).toMatchObject({ street: "Rua Nova", neighborhood: "Aracui" });
+      expect(result.current.zipCodeHint).toBe("Este CEP não traz o bairro. Preencha o bairro abaixo.");
+    });
+
+    it("busca falhou: não apaga nada, avisa e o endereço preenchido à mão salva", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
+      api.address.createCompanyAddress.mockResolvedValue({
+        success: true,
+        data: storeAddress("novo"),
+      } as never);
+      const { result } = await renderCompany();
+      fillAddress(result, { street: "Rua Projetada", number: "45", neighborhood: "Centro" });
+
+      fillAddress(result, { zipCode: "29360000" });
+      await searchZipCode(result, "29360000");
+
+      expect(result.current.newAddress).toMatchObject({
+        street: "Rua Projetada",
+        neighborhood: "Centro",
+        city: "",
+        state: "",
+      });
+      expect(result.current.isSearchingZipCode).toBe(false);
+      expect(result.current.zipCodeHint).toBe(
+        "Não conseguimos consultar o CEP agora. Preencha cidade, UF, rua, número e bairro à mão.",
+      );
+      expect(toast.error).toHaveBeenCalledWith("Erro ao buscar CEP. Preencha o endereço à mão.");
+
+      fillAddress(result, { city: "Castelo", state: "ES" });
+      await act(async () => {
+        await result.current.handleSaveAddress();
+      });
+
+      expect(api.address.createCompanyAddress).toHaveBeenCalledWith(
+        expect.objectContaining({ zipCode: "29360000", city: "Castelo", state: "ES", street: "Rua Projetada" }),
+      );
+    });
+
+    it("resposta fora do ar (500) também vira preenchimento manual", async () => {
+      vi.stubGlobal("fetch", brasilApi({}, 500));
+      const { result } = await renderCompany();
+      fillAddress(result, { city: "Castelo", state: "ES" });
+
+      await searchZipCode(result, "29360000");
+
+      expect(result.current.newAddress).toMatchObject({ city: "Castelo", state: "ES" });
+      expect(result.current.zipCodeHint).toMatch(/Preencha cidade, UF/);
+    });
+
+    it("CEP inexistente avisa sem apagar", async () => {
+      vi.stubGlobal("fetch", brasilApi({ message: "CEP não encontrado" }, 404));
+      const { result } = await renderCompany();
+      fillAddress(result, { street: "Rua Projetada" });
+
+      await searchZipCode(result, "99999998");
+
       expect(toast.error).toHaveBeenCalledWith("CEP não encontrado");
+      expect(result.current.newAddress.street).toBe("Rua Projetada");
+      expect(result.current.zipCodeHint).toMatch(/^CEP não encontrado/);
+    });
+
+    it("trocar o CEP limpa o aviso anterior", async () => {
+      vi.stubGlobal("fetch", brasilApi(castelo));
+      const { result } = await renderCompany();
+      await searchZipCode(result, "29360000");
+      expect(result.current.zipCodeHint).not.toBeNull();
+
+      fillAddress(result, { zipCode: "2936" });
+
+      expect(result.current.zipCodeHint).toBeNull();
     });
 
     it("CEP incompleto não busca", async () => {

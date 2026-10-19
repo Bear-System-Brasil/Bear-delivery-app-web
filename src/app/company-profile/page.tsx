@@ -156,6 +156,8 @@ function CompanyProfileContent() {
     handleCancelAddressEdit,
     handleDeleteAddress,
     handleSearchZipCode,
+    isSearchingZipCode,
+    zipCodeHint,
     updateAddressField,
     formatZipCode,
     passwordData,
@@ -890,6 +892,23 @@ function CompanyProfileContent() {
                             placeholder="00000-000"
                             maxLength={9}
                           />
+                          {/* Cidade de CEP único volta sem rua e bairro, e a
+                              busca pode falhar: a tela diz o que preencher. */}
+                          {(isSearchingZipCode || zipCodeHint) && (
+                            <p
+                              role="status"
+                              className={cn(
+                                "mt-1.5 text-xs font-semibold",
+                                zipCodeHint && !isSearchingZipCode
+                                  ? "text-amber-700 dark:text-amber-400"
+                                  : "text-muted-foreground",
+                              )}
+                            >
+                              {isSearchingZipCode
+                                ? "Buscando CEP..."
+                                : zipCodeHint}
+                            </p>
+                          )}
                         </div>
                         <IconInput
                           label="Rua"

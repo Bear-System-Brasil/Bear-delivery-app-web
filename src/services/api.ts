@@ -925,8 +925,9 @@ export interface OpeningHourDay {
  * Resposta de GET /opening-hours/:companyId (pública) e de
  * GET /opening-hours/me.
  *
- * `isOpen` é o status atual da loja e é **cacheado** no backend: não
- * reflete o relógio em tempo real, então nada de polling em cima dele.
+ * `isOpen` é o status atual da loja e é **cacheado** no backend: só muda
+ * quando o horário é salvo, não com o relógio. O front busca de novo a cada
+ * minuto (useRestaurantOpeningHours) para pegar essa mudança sem recarregar.
  * Quando `linkedToCashRegister` é true, quem manda nesse status é o caixa
  * aberto/fechado, não a grade de horários.
  */

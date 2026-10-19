@@ -69,19 +69,29 @@ export const PAYMENT_METHOD_LABELS: Record<string, string> = {
 
 export interface KitchenAddOn {
   id: string;
+  productAddOnsId?: string;
   quantity: number;
   priceSnapshot?: number;
   /** Observação específica deste adicional (ex.: "bem crocante"). */
   observations?: string | null;
-  productAddOns?: { description: string } | null;
+  /**
+   * `/order/company/status/:status` devolve o nome do adicional em `name`
+   * (ex.: "Bacon extra") — não existe `description` aqui.
+   */
+  productAddOns?: { name?: string } | null;
 }
 
 export interface KitchenVariation {
   id: string;
+  productVariationId?: string;
   priceSnapshot?: number;
   /** Observação específica desta variação (ex.: "sem pimenta"). */
   observations?: string | null;
-  productVariation?: { description: string } | null;
+  /**
+   * Tamanho escolhido. `/order/company/status/:status` devolve o nome em
+   * `name` (ex.: "Tradicional (18 cm)") — não existe `description` aqui.
+   */
+  productVariation?: { name?: string } | null;
 }
 
 export interface KitchenOrderItem {
@@ -136,6 +146,12 @@ export interface KitchenOrder {
   customer?: KitchenCustomer | null;
   orderedItems?: KitchenOrderItem[] | null;
   payments?: KitchenPayment[] | null;
+  /**
+   * Troco para quanto: o valor que o cliente entrega em dinheiro, não o
+   * troco. Chega como texto (`"137"`) em `/order/company/status/:status` e
+   * no `orderCreated` do socket. Ausente ou null sem troco.
+   */
+  changeFor?: number | string | null;
   /** Só relevante quando `fulfillmentType === "DELIVERY"`; pode ser `null` antes da entrega ser criada. */
   delivery?: KitchenDelivery | null;
 }

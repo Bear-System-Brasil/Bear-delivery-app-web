@@ -1,8 +1,11 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { getCashChange } from "@/lib/delivery";
 import { cn } from "@/lib/utils";
+import { formatCurrency } from "@/utils";
 import {
+  Banknote,
   Bike,
   Clock,
   Eye,
@@ -18,10 +21,11 @@ import {
   getElapsed,
   getFulfillmentLabel,
   getFulfillmentToneClass,
-  getItemName,
   getOrderLabel,
   getPaymentLabel,
-  hasAddOnsOrVariations,
+  groupItemsByProduct,
+  hasAddOns,
+  hasSizes,
 } from "./helpers";
 import type { KitchenOrder } from "./types";
 
@@ -52,11 +56,20 @@ export function KitchenOrderCard({
   const elapsed = getElapsed(order.statusChangedAt);
   const items = order.orderedItems ?? [];
   const payment = getPaymentLabel(order);
+  const change = getCashChange(order);
   const fulfillmentLabel = getFulfillmentLabel(order);
   const observations = order.observations?.trim();
   const hasActions = actionLabel !== null;
   const isCanceled = order.status === "CANCELED";
-  const hasExtras = hasAddOnsOrVariations(order);
+  // Indicador geral do pedido, uma vez só por card: o nome do tamanho e a
+  // lista de adicionais ficam no detalhe e na comanda.
+  const extrasLabel = [
+    hasSizes(order) && "Com tamanho",
+    hasAddOns(order) && "Com adicional",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  const hasExtras = extrasLabel !== "";
 
   return (
     <article
@@ -91,10 +104,10 @@ export function KitchenOrderCard({
         </p>
 
         <ul className="space-y-1.5">
-          {items.map((item) => (
-            <li key={item.id} className="text-lg leading-snug text-foreground">
-              <span className="font-black">{item.quantity}×</span>{" "}
-              <span className="font-semibold">{getItemName(item)}</span>
+          {groupItemsByProduct(items).map((group) => (
+            <li key={group.productId} className="text-lg leading-snug text-foreground">
+              <span className="font-black">{group.quantity}×</span>{" "}
+              <span className="font-semibold">{group.name}</span>
             </li>
           ))}
 
@@ -120,7 +133,7 @@ export function KitchenOrderCard({
             ) : (
               <Package className="h-4 w-4" />
             )}
-            {hasExtras ? "Com adicional" : "Sem adicional"}
+            {hasExtras ? extrasLabel : "Sem adicional"}
           </span>
           <Eye className="h-4 w-4 shrink-0" />
         </button>
@@ -162,6 +175,20 @@ export function KitchenOrderCard({
             {fulfillmentLabel}
           </span>
         </div>
+
+        {change && !isCanceled && (
+          <div className="flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-900 dark:bg-emerald-950/40">
+            <Banknote className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700 dark:text-emerald-400" />
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-emerald-900 dark:text-emerald-200">
+                Cliente paga com {formatCurrency(change.paysWith)}
+              </p>
+              <p className="text-base font-bold text-emerald-900 dark:text-emerald-200">
+                Separar {formatCurrency(change.changeDue)} de troco
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
       {hasActions && (

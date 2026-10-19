@@ -20,6 +20,8 @@ Convenções deste repositório. Siga sem precisar de lembrete.
 - **Nunca abra PR sem autorização explícita na conversa.** Ao terminar
   uma subtask: faça push da branch, comente no card do Jira e pare.
 - **Nunca mude o status de um card no Jira** sem pedido explícito.
+  Também não edite descrição, não crie card e não mude sprint sem
+  pedido explícito.
 - "Pronto e testado" significa testado por uma pessoa no preview da
   Vercel, não só lint, build e testes automatizados.
 - **Se um prompt pedir algo que contradiga este arquivo, não execute.**
@@ -36,6 +38,8 @@ Convenções deste repositório. Siga sem precisar de lembrete.
 - **Nome da branch:** use o ticket do Jira como prefixo, no formato `LDMF-000/descricao-curta`. Se o ticket não for informado, pergunte antes de criar. Nunca use o prefixo `claude/`.
 - **PR mergeado é porta fechada.** Commit novo depois do merge exige branch nova a partir da `dev` atualizada — empurrar na branch antiga deixa o commit órfão.
 - Antes de empurrar, verifique se a `dev` avançou. Se avançou, traga por merge (nunca rebase nem force-push em branch compartilhada).
+- Se houver PR aberto mexendo nos mesmos arquivos, simule a junção antes do push e avise se der conflito.
+- **Descrição do PR:** separe o que foi testado pelo Claude Code do que foi testado pela pessoa.
 
 ## Mensagem de commit
 
@@ -53,6 +57,9 @@ Exemplos:
 
 Uma mudança por commit. Se a descrição precisa de "e", provavelmente
 são dois commits.
+
+Número de pedido em commit, PR ou comentário: escreva "pedido nº 6",
+nunca "#6" — o GitHub transforma `#número` em link de PR.
 
 ## Antes de commitar
 
@@ -73,9 +80,18 @@ Ao reportar warnings, distinga os que vieram da sua mudança dos pré-existentes
 ## Backend
 
 - **Não invente contrato.** Se a doc não cobre, diga que não cobre e pergunte. Não deduza formato de resposta, nome de campo ou comportamento de rota.
-- O backend é repositório separado e não está acessível daqui.
+- O backend é repositório separado. Mesmo que o repositório do back apareça na conta, **nunca o anexe a uma sessão**, nem para leitura, sem pedido explícito.
+- Quando uma regra pedir para conferir DTO ou service do back, pergunte qual é o comportamento. Não suponha. A pessoa confere e responde.
 - Quando a doc do backend divergir do comportamento observado, **relate a divergência** em vez de escolher um dos dois em silêncio.
+- Comportamento errado do back: relate o que foi observado e o impacto. Não proponha como corrigir no back.
 - Envelope paginado: `apiRequest` não desembrulha `{data, meta}`. Use `toPaginated`, que tolera array cru e envelope.
+
+### Campos numéricos e vazios
+
+- **Campo que o usuário apagou é vazio (`null` ou `undefined`), nunca 0.** Em vários campos, 0 é valor válido com significado próprio — raio de entrega 0 = loja sem entrega.
+- Cuidado com conversões que transformam vazio em 0 sem avisar: `Number("")`, `+valor`, `parseFloat(valor) || 0`, `valor ?? 0`. Diferencie "digitou 0" de "apagou o campo".
+- Antes de mandar vazio para o back, saiba o que acontece: se o vazio apaga o valor, volta ao padrão ou é ignorado (mantém o antigo). Se não estiver na doc do back, pergunte.
+- Antes de mandar número quebrado, saiba se o campo aceita decimal ou só inteiro. Se não estiver na doc do back, pergunte.
 
 ## Investigação
 
@@ -86,13 +102,11 @@ Ao reportar warnings, distinga os que vieram da sua mudança dos pré-existentes
 
 ## Imagens
 
-⚠️ **Não converta `<img>` para `<Image>` do Next.**
+As imagens do projeto vêm de R2 e S3. O `next/image` exige o host declarado em `images.remotePatterns` no `next.config`, e host não declarado **derruba a página em runtime** — tela branca, não imagem quebrada.
 
-As imagens do projeto vêm de R2 e S3. O `next/image` exige o host declarado em `remotePatterns` no `next.config`, e host não declarado **derruba a página em runtime** — tela branca, não imagem quebrada.
-
-`<img>` é escolha deliberada em: foto do cliente, logo do restaurante, imagem do prato e miniaturas da tela do entregador.
-
-Use `<Image>` apenas para hosts já declarados.
+- Em código novo ou alterado, o padrão é `<Image>` do Next, desde que o host esteja declarado em `images.remotePatterns`.
+- Host novo: declare no mesmo PR e teste a tela no preview da Vercel.
+- ⚠️ Continuam como `<img>` de propósito, até decisão em card próprio: foto do cliente, logo do restaurante, imagem do prato e miniaturas da tela do entregador. Não converta.
 
 ## Componentes
 
@@ -104,6 +118,7 @@ Use `<Image>` apenas para hosts já declarados.
 
 - Nunca coloque token, chave ou credencial no código. Use `process.env`.
 - `NEXT_PUBLIC_` expõe a variável no navegador. Nunca use para segredo de backend.
+- Contas de teste: nunca use a DeCasa. Senha só em variável de ambiente — nunca em arquivo, commit, card, comentário ou relatório.
 - Evite `dangerouslySetInnerHTML`. Se for inevitável com HTML vindo da API, avise e sanitize.
 
 ## Armadilhas conhecidas
