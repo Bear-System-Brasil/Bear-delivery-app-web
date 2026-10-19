@@ -5,8 +5,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useAuthStore } from "@/stores/auth-store";
 import { useCartStore, type CartItem } from "@/stores/cart-store";
 import { useCartActions } from "./use-cart-actions";
-import { apiService, type Company, type Order } from "@/services/api";
+import {
+  apiService,
+  type Company,
+  type OpeningHoursResponse,
+  type Order,
+} from "@/services/api";
 import { toast } from "sonner";
+import { resolveRestaurantOpenStatus } from "@/constants/opening-hours";
 import {
   getCartRestaurantProblem,
   type CartRestaurantSnapshot,
@@ -175,6 +181,108 @@ describe("useCartActions", () => {
       );
       expect(useCartStore.getState().items).toHaveLength(0);
       expect(apiService.orders.openCart).not.toHaveBeenCalled();
+    });
+
+    describe("status da loja no cache (LDMF-374)", () => {
+      const OPEN_HOURS: OpeningHoursResponse = {
+        isOpen: true,
+        linkedToCashRegister: false,
+        days: [
+          { id: "h1", companyId: "r1", day: 1, openTime: "00:00", closeTime: "23:59" },
+        ],
+      };
+      const CLOSED_HOURS: OpeningHoursResponse = { ...OPEN_HOURS, isOpen: false };
+      const KEY = ["opening-hours", "public", "r1"];
+
+      function renderWithClient(seed: unknown, updatedAt = Date.now()) {
+        const queryClient = new QueryClient({
+          defaultOptions: { queries: { retry: false } },
+        });
+        queryClient.setQueryData(KEY, seed, { updatedAt });
+        const customWrapper = ({ children }: { children: ReactNode }) => (
+          <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+        );
+        const view = renderHook(() => useCartActions(), { wrapper: customWrapper });
+        return { ...view, queryClient };
+      }
+
+      const addPizza = (result: { current: ReturnType<typeof useCartActions> }) =>
+        act(async () => {
+          await result.current.handleAddToCart({
+            id: "prod-1",
+            name: "Pizza",
+            price: 30,
+            restaurantId: "r1",
+            restaurantName: "Pizzaria",
+          });
+        });
+
+      beforeEach(() => {
+        login();
+        vi.mocked(apiService.orders.openCart).mockResolvedValue({
+          success: true,
+          data: orderStub("order-99"),
+        });
+        vi.mocked(apiService.orderItems.addProductToCart).mockResolvedValue({
+          success: true,
+          data: orderStub("order-99"),
+        });
+      });
+
+      it("adicionar item não troca o formato do dado do selo nem o deixa fechado", async () => {
+        // Dado do selo com mais de 1 minuto: era aí que a validação gravava
+        // a resposta inteira ({success, data}) na chave e o selo virava Fechado.
+        vi.mocked(apiService.openingHours.getByCompany).mockResolvedValue({
+          success: true,
+          data: OPEN_HOURS,
+        });
+        const { result, queryClient } = renderWithClient(
+          OPEN_HOURS,
+          Date.now() - 2 * 60 * 1000,
+        );
+
+        await addPizza(result);
+
+        const cached = queryClient.getQueryData(KEY);
+        expect(cached).toEqual(OPEN_HOURS);
+        expect(cached).not.toHaveProperty("success");
+        expect(
+          resolveRestaurantOpenStatus(cached as OpeningHoursResponse).isOpen,
+        ).toBe(true);
+        expect(apiService.orders.openCart).toHaveBeenCalled();
+      });
+
+      it("bloqueia se a loja fechou, mesmo com o selo ainda dizendo aberta", async () => {
+        // Antes, com o dado do selo fresco a checagem era pulada sem aviso.
+        vi.mocked(apiService.openingHours.getByCompany).mockResolvedValue({
+          success: true,
+          data: CLOSED_HOURS,
+        });
+        const { result, queryClient } = renderWithClient(OPEN_HOURS);
+
+        await addPizza(result);
+
+        expect(toast.error).toHaveBeenCalledWith(
+          expect.stringContaining("Restaurante fechado"),
+        );
+        expect(apiService.orders.openCart).not.toHaveBeenCalled();
+        expect(useCartStore.getState().items).toHaveLength(0);
+        // O selo passa a mostrar o que o backend disse, no mesmo formato.
+        expect(queryClient.getQueryData(KEY)).toEqual(CLOSED_HOURS);
+      });
+
+      it("se a consulta falhar, não bloqueia e mantém o selo como estava", async () => {
+        vi.mocked(apiService.openingHours.getByCompany).mockResolvedValue({
+          success: false,
+          message: "fora do ar",
+        });
+        const { result, queryClient } = renderWithClient(OPEN_HOURS);
+
+        await addPizza(result);
+
+        expect(apiService.orders.openCart).toHaveBeenCalled();
+        expect(queryClient.getQueryData(KEY)).toEqual(OPEN_HOURS);
+      });
     });
 
     it("cria um carrinho novo quando não há orderId, e adiciona o item otimisticamente", async () => {
@@ -1131,16 +1239,16 @@ describe("useCartActions", () => {
   });
 
   describe("navegação", () => {
-    it("handleGoToCheckout bloqueia com carrinho vazio", () => {
+    it("handleGoToCheckout bloqueia com carrinho vazio", async () => {
       const { result } = renderCartActions();
 
-      act(() => result.current.handleGoToCheckout());
+      await act(() => result.current.handleGoToCheckout());
 
       expect(toast.error).toHaveBeenCalledWith("Seu carrinho está vazio");
       expect(pushMock).not.toHaveBeenCalled();
     });
 
-    it("handleGoToCheckout navega para /checkout com itens no carrinho", () => {
+    it("handleGoToCheckout navega para /checkout com itens no carrinho", async () => {
       act(() => {
         useCartStore.getState().setItems([
           { id: "l1", productId: "p1", name: "X", price: 1, quantity: 1, restaurantId: "r1", restaurantName: "R" } as CartItem,
@@ -1148,41 +1256,88 @@ describe("useCartActions", () => {
       });
 
       const { result } = renderCartActions();
-      act(() => result.current.handleGoToCheckout());
+      await act(() => result.current.handleGoToCheckout());
 
       expect(pushMock).toHaveBeenCalledWith("/checkout");
     });
 
-    it("handleGoToCheckout bloqueia navegação quando restaurante em cache está fechado", () => {
-      act(() => {
-        useCartStore.getState().setItems([
-          { id: "l1", productId: "p1", name: "X", price: 1, quantity: 1, restaurantId: "r1", restaurantName: "R" } as CartItem,
-        ]);
+    describe("status da loja ao finalizar pelo carrinho (LDMF-374)", () => {
+      const OPEN_HOURS: OpeningHoursResponse = {
+        isOpen: true,
+        linkedToCashRegister: false,
+        days: [
+          { id: "h1", companyId: "r1", day: 1, openTime: "00:00", closeTime: "23:59" },
+        ],
+      };
+      const CLOSED_HOURS: OpeningHoursResponse = { ...OPEN_HOURS, isOpen: false };
+      const KEY = ["opening-hours", "public", "r1"];
+
+      /** Carrinho com um item e o selo da loja já no cache, no formato do selo. */
+      function renderWithBadge(badge: OpeningHoursResponse) {
+        act(() => {
+          useCartStore.getState().setItems([
+            { id: "l1", productId: "p1", name: "X", price: 1, quantity: 1, restaurantId: "r1", restaurantName: "R" } as CartItem,
+          ]);
+        });
+        const queryClient = new QueryClient({
+          defaultOptions: { queries: { retry: false } },
+        });
+        queryClient.setQueryData(KEY, badge);
+        const customWrapper = ({ children }: { children: ReactNode }) => (
+          <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+        );
+        const view = renderHook(() => useCartActions(), { wrapper: customWrapper });
+        return { ...view, queryClient };
+      }
+
+      it("bloqueia a navegação quando a loja está fechada", async () => {
+        vi.mocked(apiService.openingHours.getByCompany).mockResolvedValue({
+          success: true,
+          data: CLOSED_HOURS,
+        });
+        const { result } = renderWithBadge(CLOSED_HOURS);
+
+        await act(() => result.current.handleGoToCheckout());
+
+        expect(toast.error).toHaveBeenCalledWith(
+          expect.stringContaining("Restaurante fechado"),
+        );
+        expect(pushMock).not.toHaveBeenCalledWith("/checkout");
       });
 
-      const queryClient = new QueryClient();
-      queryClient.setQueryData(["opening-hours", "public", "r1"], {
-        data: {
-          isOpen: false,
-          linkedToCashRegister: false,
-          days: [],
-        },
+      it("bloqueia quando a loja fechou com o selo ainda dizendo aberta", async () => {
+        vi.mocked(apiService.openingHours.getByCompany).mockResolvedValue({
+          success: true,
+          data: CLOSED_HOURS,
+        });
+        const { result, queryClient } = renderWithBadge(OPEN_HOURS);
+
+        await act(() => result.current.handleGoToCheckout());
+
+        expect(apiService.openingHours.getByCompany).toHaveBeenCalledWith("r1");
+        expect(toast.error).toHaveBeenCalledWith(
+          expect.stringContaining("Restaurante fechado"),
+        );
+        expect(pushMock).not.toHaveBeenCalledWith("/checkout");
+        // O selo passa a mostrar o que o backend disse, no mesmo formato.
+        expect(queryClient.getQueryData(KEY)).toEqual(CLOSED_HOURS);
       });
 
-      const customWrapper = ({ children }: { children: ReactNode }) => (
-        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-      );
+      it("se a consulta falhar, não bloqueia e mantém o selo como estava", async () => {
+        vi.mocked(apiService.openingHours.getByCompany).mockResolvedValue({
+          success: false,
+          message: "fora do ar",
+        });
+        const { result, queryClient } = renderWithBadge(OPEN_HOURS);
 
-      const { result } = renderHook(() => useCartActions(), { wrapper: customWrapper });
-      act(() => result.current.handleGoToCheckout());
+        await act(() => result.current.handleGoToCheckout());
 
-      expect(toast.error).toHaveBeenCalledWith(
-        expect.stringContaining("Restaurante fechado"),
-      );
-      expect(pushMock).not.toHaveBeenCalledWith("/checkout");
+        expect(pushMock).toHaveBeenCalledWith("/checkout");
+        expect(queryClient.getQueryData(KEY)).toEqual(OPEN_HOURS);
+      });
     });
 
-    it("handleGoToCheckout bloqueia navegação quando há item esgotado em cache", () => {
+    it("handleGoToCheckout bloqueia navegação quando há item esgotado em cache", async () => {
       act(() => {
         useCartStore.getState().setItems([
           { id: "l1", productId: "p1", name: "X", price: 1, quantity: 1, restaurantId: "r1", restaurantName: "R" } as CartItem,
@@ -1199,7 +1354,7 @@ describe("useCartActions", () => {
       );
 
       const { result } = renderHook(() => useCartActions(), { wrapper: customWrapper });
-      act(() => result.current.handleGoToCheckout());
+      await act(() => result.current.handleGoToCheckout());
 
       expect(toast.error).toHaveBeenCalledWith(
         "Remova ou ajuste os itens esgotados antes de finalizar o pedido.",

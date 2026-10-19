@@ -19,6 +19,8 @@ const deleteUserAddress = vi.fn();
 const createUserAddress = vi.fn();
 const toastError = vi.fn();
 const updateCpf = vi.fn();
+/** Consulta do status feita na hora de finalizar (LDMF-374). */
+const fetchFreshOpeningHours = vi.fn();
 
 /**
  * Estado do "banco" de endereços. O hook lê a lista pelo mock de
@@ -186,6 +188,8 @@ let openingHoursQuery: { data: unknown; isLoading: boolean } = {
 
 vi.mock("./use-opening-hours", () => ({
   useRestaurantOpeningHours: () => openingHoursQuery,
+  fetchFreshRestaurantOpeningHours: (...args: unknown[]) =>
+    fetchFreshOpeningHours(...args),
 }));
 
 // Endereço já salvo e marcado como padrão: o hook auto-seleciona, e o
@@ -279,6 +283,9 @@ const CART_OF_COMP_1 = {
 
 beforeEach(() => {
   openingHoursQuery = { data: undefined, isLoading: false };
+  // Sem mudança no backend: a consulta na hora devolve o mesmo que a tela tem.
+  fetchFreshOpeningHours.mockReset();
+  fetchFreshOpeningHours.mockImplementation(async () => openingHoursQuery.data);
   viewOrder.mockReset();
   viewOrder.mockResolvedValue(CART_OF_COMP_1);
   AUTH.user = {
@@ -1019,6 +1026,7 @@ describe("useCheckoutProcess - restaurante fechado", () => {
     RESTAURANT_QUERY.data = { id: "comp-1", deliveryFee: "0" };
     finishOrder.mockReset();
     openCart.mockReset();
+    toastError.mockReset();
   });
 
   it("invalida o formulário e bloqueia o envio quando o restaurante está fechado", async () => {
@@ -1053,6 +1061,70 @@ describe("useCheckoutProcess - restaurante fechado", () => {
     );
     expect(finishOrder).not.toHaveBeenCalled();
     expect(openCart).not.toHaveBeenCalled();
+  });
+
+  // LDMF-374: o cache pode ter até 1 minuto. Quem decide é a consulta na hora.
+  const OPEN_HOURS = {
+    isOpen: true,
+    linkedToCashRegister: false,
+    days: [{ day: "mon", isOpen: true, openTime: "00:00", closeTime: "23:59" }],
+  };
+  const CLOSED_HOURS = { ...OPEN_HOURS, isOpen: false };
+
+  it("consulta o status na hora e bloqueia se a loja fechou depois do cache", async () => {
+    openingHoursQuery = { data: OPEN_HOURS, isLoading: false };
+    fetchFreshOpeningHours.mockResolvedValue(CLOSED_HOURS);
+
+    const { result } = renderCheckout();
+    await waitFor(() => expect(result.current.selectedAddressId).toBe("addr-1"));
+    expect(result.current.isRestaurantOpen).toBe(true);
+
+    await act(async () => {
+      await result.current.handleSubmitOrder();
+    });
+
+    expect(fetchFreshOpeningHours).toHaveBeenCalledWith(queryClient, "comp-1");
+    expect(toastError).toHaveBeenCalledWith(
+      expect.stringContaining("Restaurante fechado"),
+    );
+    expect(finishOrder).not.toHaveBeenCalled();
+    expect(openCart).not.toHaveBeenCalled();
+    // A trava é solta: o cliente pode tentar de novo quando a loja abrir.
+    expect(result.current.isProcessing).toBe(false);
+  });
+
+  it("libera o pedido se a loja abriu depois do cache", async () => {
+    openingHoursQuery = { data: CLOSED_HOURS, isLoading: false };
+    fetchFreshOpeningHours.mockResolvedValue(OPEN_HOURS);
+    finishOrder.mockResolvedValue({ success: true, data: { id: "order-1" } });
+    paymentsCreate.mockReset();
+    paymentsCreate.mockResolvedValue({ success: true, data: {} });
+    resetAddressMocks();
+
+    await submitWith(() => {});
+
+    expect(fetchFreshOpeningHours).toHaveBeenCalledWith(queryClient, "comp-1");
+    expect(toastError).not.toHaveBeenCalledWith(
+      expect.stringContaining("Restaurante fechado"),
+    );
+    expect(finishOrder).toHaveBeenCalled();
+  });
+
+  it("se a consulta na hora falhar, decide pelo status que a tela já tinha", async () => {
+    openingHoursQuery = { data: CLOSED_HOURS, isLoading: false };
+    fetchFreshOpeningHours.mockRejectedValue(new Error("rede"));
+
+    const { result } = renderCheckout();
+    await waitFor(() => expect(result.current.selectedAddressId).toBe("addr-1"));
+
+    await act(async () => {
+      await result.current.handleSubmitOrder();
+    });
+
+    expect(toastError).toHaveBeenCalledWith(
+      expect.stringContaining("Restaurante fechado"),
+    );
+    expect(finishOrder).not.toHaveBeenCalled();
   });
 });
 
