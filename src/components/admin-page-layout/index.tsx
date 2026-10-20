@@ -1,6 +1,7 @@
 "use client";
 
 import { NotificationBell } from "@/components/notifications/notification-bell";
+import { RoleBadge } from "@/components/role-badge";
 import Sidebar from "@/components/sidebar-menu-management";
 import { cn } from "@/lib/utils";
 import { Menu, type LucideIcon } from "lucide-react";
@@ -54,8 +55,19 @@ export function AdminPageLayout({
               </div>
             </div>
 
-            <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
+            {/* Com ações, o header empilha no mobile e este grupo vira uma
+                linha própria (w-full). Sem ações, ele divide a linha com o
+                título: w-full aqui espremia o título até "Co…". */}
+            <div
+              className={cn(
+                "flex flex-wrap items-center justify-end gap-2",
+                actions ? "w-full sm:w-auto" : "shrink-0",
+              )}
+            >
               {actions}
+              {/* No mobile o papel aparece no menu lateral, pra não disputar
+                  a linha com o título. */}
+              <RoleBadge className="hidden sm:inline-flex" />
               <NotificationBell audience="management" />
             </div>
           </div>
