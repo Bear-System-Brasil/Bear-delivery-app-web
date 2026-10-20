@@ -1,32 +1,27 @@
 "use client";
-
 /**
  * Identidade visual Bear Delivery - Mascote real
- * O arquivo bear_delivery_icon.png vai em /public/brand/
+ * Arquivo: /public/brand/bear_delivery_icon.png (PNG transparente 512x512)
  */
 import Image from "next/image";
-
-const ICON_BG = "bg-[var(--color-brand-500)]";
-
+const ICON_BG = "bg-gradient-to-br from-[#FFC61A] via-[#FF8A00] to-[#FF4D00]";
 export function BearMascot({ className = "w-6 h-6" }: { className?: string }) {
   return (
     <Image
       src="/brand/bear_delivery_icon.png"
       alt="Bear Delivery"
-      width={72}
-      height={72}
+      width={512}
+      height={512}
       className={`${className} object-contain`}
       priority
     />
   );
 }
-
 // Classes estáticas pro Tailwind enxergar
 const HIDE_WORDMARK_BELOW = {
   sm: "max-sm:hidden",
   lg: "max-lg:hidden",
 } as const;
-
 /** Logo horizontal: header, sidebar, footer. */
 export function BearDeliveryLogo({
   small = false,
@@ -45,9 +40,9 @@ export function BearDeliveryLogo({
     >
       <div
         className={`${
-          small ? "h-7 w-7 rounded-[10px]" : "h-10 w-10 rounded-[12px]"
+          small ? "h-7 w-7 rounded-[12px]" : "h-10 w-10 rounded-[14px]"
         } ${
-          iconOnlyBelow ? "max-sm:h-9 max-sm:w-9 max-sm:rounded-[11px]" : ""
+          iconOnlyBelow ? "max-sm:h-9 max-sm:w-9 max-sm:rounded-[13px]" : ""
         } ${ICON_BG} flex shrink-0 items-center justify-center shadow-[0_1px_10px_var(--tw-shadow-color)] shadow-brand-900/20 overflow-hidden`}
       >
         <BearMascot
@@ -56,7 +51,6 @@ export function BearDeliveryLogo({
           }`}
         />
       </div>
-
       <div
         className={`leading-none tracking-tight ${
           iconOnlyBelow ? HIDE_WORDMARK_BELOW[iconOnlyBelow] : ""
@@ -78,7 +72,6 @@ export function BearDeliveryLogo({
     </div>
   );
 }
-
 /** Logo empilhado grande: hero, splash, login */
 export function BearDeliveryLogoStacked({
   dark = false,
@@ -90,7 +83,7 @@ export function BearDeliveryLogoStacked({
   return (
     <div className={`flex flex-col items-center gap-4 ${className}`}>
       <div
-        className={`h-[72px] w-[72px] rounded-[18px] ${ICON_BG} flex items-center justify-center shadow-[0_8px_24px_var(--tw-shadow-color)] shadow-brand-900/25 overflow-hidden`}
+        className={`h-[72px] w-[72px] rounded-[22px] ${ICON_BG} flex items-center justify-center shadow-[0_8px_24px_var(--tw-shadow-color)] shadow-brand-900/25 overflow-hidden`}
       >
         <BearMascot className="h-[52px] w-[52px]" />
       </div>
