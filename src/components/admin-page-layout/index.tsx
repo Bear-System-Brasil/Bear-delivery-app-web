@@ -1,6 +1,7 @@
 "use client";
 
 import { NotificationBell } from "@/components/notifications/notification-bell";
+import { RoleBadge } from "@/components/role-badge";
 import Sidebar from "@/components/sidebar-menu-management";
 import { cn } from "@/lib/utils";
 import { Menu, type LucideIcon } from "lucide-react";
@@ -64,6 +65,9 @@ export function AdminPageLayout({
               )}
             >
               {actions}
+              {/* No mobile o papel aparece no menu lateral, pra não disputar
+                  a linha com o título. */}
+              <RoleBadge className="hidden sm:inline-flex" />
               <NotificationBell audience="management" />
             </div>
           </div>

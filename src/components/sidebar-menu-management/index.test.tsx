@@ -133,3 +133,21 @@ describe("Sidebar da gestao - menu e permissao nao divergem", () => {
     }
   });
 });
+
+describe("Sidebar da gestao - papel no rodape", () => {
+  // No mobile o header cede a linha ao titulo e nao mostra o papel; o
+  // rodape do menu e onde ele fica visivel. Nao pode virar link.
+  it("mostra Dono para o owner, sem virar item de navegacao", () => {
+    render(<Sidebar isOpen onClose={() => {}} />);
+
+    expect(screen.getByText("Dono")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Dono" })).not.toBeInTheDocument();
+  });
+
+  it("usa o rotulo do papel de quem esta logado", () => {
+    role = "cook";
+    render(<Sidebar isOpen onClose={() => {}} />);
+
+    expect(screen.getByText("Cozinheiro")).toBeInTheDocument();
+  });
+});
