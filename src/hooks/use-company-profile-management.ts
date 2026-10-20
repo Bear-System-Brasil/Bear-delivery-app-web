@@ -9,6 +9,10 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
+/** Teto de tipos de restaurante por empresa. O back não garante o limite
+ *  (não documentado); quem segura em 3 é o front (LDMF-395). */
+export const MAX_SPECIALTIES = 3;
+
 /**
  * A busca por proximidade do catalogo descarta qualquer loja sem
  * latitude/longitude cadastrada. Por isso geocodificações o endereço antes de
@@ -206,8 +210,13 @@ export const useCompanyProfileManagement = () => {
           setFormData(companyData);
           setOriginalFormData(companyData);
           setIsOpen(company.isOpen ?? true);
-          // Populate specialty from real company data
-          const specs = company.specialty || [];
+          // Populate specialty from real company data. A doc do back devolve
+          // `speciality`; o resto do front lê `specialty`. Lemos as duas
+          // grafias até o back confirmar qual é a oficial (LDMF-395).
+          const specs =
+            company.specialty ??
+            (company as { speciality?: Specialty[] }).speciality ??
+            [];
           setCompanySpecialties(specs);
           if (specs.length > 0) {
             setSelectedCategory(specs[0].id);
@@ -317,6 +326,95 @@ export const useCompanyProfileManagement = () => {
     } catch (error) {
       console.error("Erro ao salvar especialidade:", error);
       toast.error("Erro ao atualizar tipo de restaurante");
+    } finally {
+      setIsSavingSpecialty(false);
+    }
+  };
+
+  // ── Múltiplas especialidades (até 3) — LDMF-395 ───────────────────────────
+  // handleSaveSpecialty acima é da escolha única (apaga todas e grava uma).
+  // Aqui cada ação mexe numa associação só, e o estado é relido do back
+  // depois de cada gravação, como o fluxo original já fazia.
+  const refreshCompanySpecialties = async () => {
+    if (!user?.id) return;
+    const companyResponse = await apiService.companies.getById(
+      user.companyId || user.id,
+    );
+    if (companyResponse.success && companyResponse.data) {
+      const company = companyResponse.data as {
+        specialty?: Specialty[];
+        speciality?: Specialty[];
+      };
+      setCompanySpecialties(company.specialty ?? company.speciality ?? []);
+    }
+  };
+
+  const addSpecialty = async (specialtyId: string) => {
+    if (!specialtyId || isSavingSpecialty) return;
+    if (companySpecialties.some((s) => s.id === specialtyId)) return;
+    if (companySpecialties.length >= MAX_SPECIALTIES) {
+      toast.error(`Máximo de ${MAX_SPECIALTIES} tipos de restaurante.`);
+      return;
+    }
+    try {
+      setIsSavingSpecialty(true);
+      const response = await apiService.assignSpecialtyToCompany(specialtyId);
+      if (response.success) {
+        await refreshCompanySpecialties();
+        toast.success("Tipo de restaurante adicionado!");
+      } else {
+        toast.error("Erro ao adicionar tipo de restaurante");
+      }
+    } catch (error) {
+      console.error("Erro ao adicionar especialidade:", error);
+      toast.error("Erro ao adicionar tipo de restaurante");
+    } finally {
+      setIsSavingSpecialty(false);
+    }
+  };
+
+  const removeSpecialty = async (specialtyId: string) => {
+    if (!specialtyId || isSavingSpecialty) return;
+    try {
+      setIsSavingSpecialty(true);
+      const response =
+        await apiService.removeSpecialtyFromCompany(specialtyId);
+      if (response.success) {
+        await refreshCompanySpecialties();
+        toast.success("Tipo de restaurante removido!");
+      } else {
+        toast.error("Erro ao remover tipo de restaurante");
+      }
+    } catch (error) {
+      console.error("Erro ao remover especialidade:", error);
+      toast.error("Erro ao remover tipo de restaurante");
+    } finally {
+      setIsSavingSpecialty(false);
+    }
+  };
+
+  // Trocar um campo por outro tipo: tira o antigo e põe o novo. Se o remove
+  // falhar, não grava o novo (senão passaria de 3 ou duplicaria).
+  const replaceSpecialty = async (oldId: string, newId: string) => {
+    if (!newId || oldId === newId || isSavingSpecialty) return;
+    if (companySpecialties.some((s) => s.id === newId)) return;
+    try {
+      setIsSavingSpecialty(true);
+      const removed = await apiService.removeSpecialtyFromCompany(oldId);
+      if (!removed.success) {
+        toast.error("Não foi possível trocar o tipo de restaurante");
+        return;
+      }
+      const added = await apiService.assignSpecialtyToCompany(newId);
+      await refreshCompanySpecialties();
+      toast[added.success ? "success" : "error"](
+        added.success
+          ? "Tipo de restaurante atualizado!"
+          : "Removido o antigo, mas falhou ao gravar o novo tipo",
+      );
+    } catch (error) {
+      console.error("Erro ao trocar especialidade:", error);
+      toast.error("Erro ao trocar o tipo de restaurante");
     } finally {
       setIsSavingSpecialty(false);
     }
@@ -891,6 +989,9 @@ export const useCompanyProfileManagement = () => {
     handleCancelEdit,
     handleSaveProfile,
     handleSaveSpecialty,
+    addSpecialty,
+    removeSpecialty,
+    replaceSpecialty,
     updateFormField,
 
     // Addresses

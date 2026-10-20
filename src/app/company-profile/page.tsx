@@ -19,8 +19,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { RESTAURANT_CATEGORIES } from "@/constants";
 import {
+  MAX_SPECIALTIES,
   useCompanyAcceptedPaymentMethods,
   useCompanyOpeningHours,
   useCompanyProfileManagement,
@@ -49,11 +49,16 @@ import {
   Trash2,
   TriangleAlert,
   User,
+  UtensilsCrossed,
   X,
   type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { type ReactNode } from "react";
+
+// Valor-sentinela do item "remover" no seletor: o Radix Select não aceita
+// item com value vazio, então o "limpar" precisa de um valor próprio.
+const NONE_SPECIALTY = "__none__";
 
 export default function CompanyProfilePage() {
   return (
@@ -177,14 +182,15 @@ function CompanyProfileContent() {
     formData,
     isEditing,
     isSaving,
-    selectedCategory,
+    companySpecialties,
     isSavingSpecialty,
+    addSpecialty,
+    removeSpecialty,
+    replaceSpecialty,
     handleSaveProfile,
-    handleSaveSpecialty,
     handleCancelEdit,
     setIsEditing,
     updateFormField,
-    setSelectedCategory,
     addresses,
     newAddress,
     isAddingAddress,
@@ -238,15 +244,10 @@ function CompanyProfileContent() {
     refetch: refetchPaymentMethods,
   } = useCompanyAcceptedPaymentMethods(user?.companyId || user?.id);
 
+  // Só a lista do servidor é escolhível: salvar um id da lista local (fallback
+  // antigo) falharia no back, que não conhece esses ids (LDMF-395).
   const { data: specialties } = useSpecialties();
-  const specialtyOptions =
-    specialties && specialties.length > 0
-      ? specialties.map((s) => ({ id: s.id, name: s.name }))
-      : RESTAURANT_CATEGORIES.map((c) => ({ id: c.id, name: c.name }));
-
-  const selectedSpecialtyName = specialtyOptions.find(
-    (s) => s.id === selectedCategory,
-  )?.name;
+  const availableSpecialties = specialties ?? [];
 
   if (!isMounted || !user) {
     return null;
@@ -370,11 +371,14 @@ function CompanyProfileContent() {
                         )}
                       </div>
                       <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-muted-foreground">
-                        {selectedSpecialtyName && (
-                          <span className="whitespace-nowrap rounded border border-border bg-muted px-1.5 py-0.5 font-medium text-foreground">
-                            {selectedSpecialtyName}
+                        {companySpecialties.map((spec) => (
+                          <span
+                            key={spec.id}
+                            className="whitespace-nowrap rounded border border-border bg-muted px-1.5 py-0.5 font-medium text-foreground"
+                          >
+                            {spec.name}
                           </span>
-                        )}
+                        ))}
                         <span className="whitespace-nowrap">
                           CNPJ {formatCnpj(formData.cnpj) || "—"}
                         </span>
@@ -508,41 +512,86 @@ function CompanyProfileContent() {
                     placeholder="(00) 00000-0000"
                     maxLength={15}
                   />
-
-                  <div>
-                    <Label className="mb-1.5 block text-xs font-semibold text-foreground">
-                      Tipo de Restaurante
-                    </Label>
-                    <Select
-                      value={selectedCategory}
-                      onValueChange={(value) => {
-                        setSelectedCategory(value);
-                        if (specialties && specialties.length > 0) {
-                          handleSaveSpecialty(value);
-                        }
-                      }}
-                      disabled={!isEditing || isSavingSpecialty}
-                    >
-                      <SelectTrigger className="h-9 rounded-md border-border bg-background text-[13px] font-medium">
-                        <SelectValue placeholder="Selecione o tipo de restaurante" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {specialtyOptions.map((item) => (
-                          <SelectItem key={item.id} value={item.id}>
-                            {item.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {(!specialties || specialties.length === 0) && (
-                      <p className="mt-1.5 flex items-start gap-1 text-[11.5px] text-amber-700 dark:text-amber-400">
-                        <TriangleAlert className="mt-0.5 h-3 w-3 shrink-0" />
-                        Especialidades não encontradas no servidor - usando
-                        lista local
-                      </p>
-                    )}
-                  </div>
                 </div>
+              )}
+            </SectionCard>
+
+            {/* Tipo de restaurante (até 3) — LDMF-395. Saiu das Informações
+                e virou seção própria. Cada campo salva na hora. */}
+            <SectionCard
+              icon={UtensilsCrossed}
+              title="Tipo de restaurante"
+              subtitle={`até ${MAX_SPECIALTIES} — o que o cliente vê no app`}
+              className="mb-4"
+            >
+              {isLoadingProfile ? (
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  {[0, 1, 2].map((i) => (
+                    <Skeleton key={i} className="h-9 w-full rounded-md" />
+                  ))}
+                </div>
+              ) : availableSpecialties.length === 0 ? (
+                <SectionNotice tone="warning">
+                  Nenhum tipo de restaurante cadastrado no sistema ainda.
+                </SectionNotice>
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    {[0, 1, 2].map((slot) => {
+                      const current = companySpecialties[slot];
+                      // Esconde dos outros campos o que já está escolhido,
+                      // pra não repetir a mesma especialidade.
+                      const takenByOthers = companySpecialties
+                        .filter((_, j) => j !== slot)
+                        .map((s) => s.id);
+                      const options = availableSpecialties.filter(
+                        (s) => !takenByOthers.includes(s.id),
+                      );
+                      return (
+                        <div key={slot}>
+                          <Label className="mb-1.5 block text-xs font-semibold text-foreground">
+                            {slot + 1}º tipo
+                          </Label>
+                          <Select
+                            value={current?.id ?? ""}
+                            onValueChange={(value) => {
+                              if (value === NONE_SPECIALTY) {
+                                if (current) removeSpecialty(current.id);
+                              } else if (!current) {
+                                addSpecialty(value);
+                              } else {
+                                replaceSpecialty(current.id, value);
+                              }
+                            }}
+                            disabled={isSavingSpecialty}
+                          >
+                            <SelectTrigger
+                              aria-label={`${slot + 1}º tipo`}
+                              className="h-9 rounded-md border-border bg-background text-[13px] font-medium"
+                            >
+                              <SelectValue placeholder="Opcional" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {current && (
+                                <SelectItem value={NONE_SPECIALTY}>
+                                  — Remover —
+                                </SelectItem>
+                              )}
+                              {options.map((item) => (
+                                <SelectItem key={item.id} value={item.id}>
+                                  {item.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <p className="mt-2.5 text-[11.5px] text-muted-foreground">
+                    Cada escolha é salva na hora. Até {MAX_SPECIALTIES} tipos.
+                  </p>
+                </>
               )}
             </SectionCard>
 
