@@ -12,8 +12,9 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { useFinancialPreferencesStore } from "@/stores";
 import { PaymentMethod } from "@/services/api";
-import { Monitor, RotateCcw, Settings, Wallet } from "lucide-react";
+import { Check, Monitor, RotateCcw, Settings, Wallet } from "lucide-react";
 import type { ReactNode } from "react";
+import { toast } from "sonner";
 
 /**
  * Só os métodos que o backend aceita num movimento de caixa. BANK_TRANSFER
@@ -26,6 +27,15 @@ const DEFAULT_METHOD_OPTIONS: { value: PaymentMethod; label: string }[] = [
   { value: PaymentMethod.DEBIT_CARD, label: "Cartão de Débito" },
   { value: PaymentMethod.CREDIT_CARD, label: "Cartão de Crédito" },
 ];
+
+/**
+ * Cada mudança já vai pro store na hora (não existe "Salvar"), então o
+ * feedback é só confirmar que salvou. O id fixo faz cliques seguidos
+ * substituírem o mesmo toast em vez de empilhar um por clique.
+ */
+function notifySaved(message = "Salvo") {
+  toast.success(message, { id: "financial-preferences-saved", duration: 1500 });
+}
 
 /** Linha "rótulo + controle": empilha no mobile, duas colunas a partir de sm. */
 function PreferenceRow({
@@ -121,6 +131,13 @@ export default function SettingsPage() {
             <span className="min-w-0 truncate text-xs text-muted-foreground">
               · Controle de Caixa e Dashboard
             </span>
+            <span className="ml-auto flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
+              <Check className="h-3.5 w-3.5 text-brand-500" />
+              <span className="hidden sm:inline">
+                As alterações são salvas automaticamente
+              </span>
+              <span className="sm:hidden">Salvo automaticamente</span>
+            </span>
           </div>
 
           <PreferenceRow
@@ -130,7 +147,10 @@ export default function SettingsPage() {
             control={
               <Select
                 value={selectedMethod}
-                onValueChange={(v) => setDefaultPaymentMethod(v as PaymentMethod)}
+                onValueChange={(v) => {
+                  setDefaultPaymentMethod(v as PaymentMethod);
+                  notifySaved();
+                }}
               >
                 <SelectTrigger
                   aria-labelledby="default-payment-method-label"
@@ -158,7 +178,10 @@ export default function SettingsPage() {
             control={
               <Switch
                 checked={confirmBeforeCloseRegister}
-                onCheckedChange={setConfirmBeforeCloseRegister}
+                onCheckedChange={(checked) => {
+                  setConfirmBeforeCloseRegister(checked);
+                  notifySaved();
+                }}
                 aria-labelledby="confirm-before-close-label"
                 aria-describedby="confirm-before-close-description"
               />
@@ -170,7 +193,10 @@ export default function SettingsPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={resetFinancialPreferences}
+            onClick={() => {
+              resetFinancialPreferences();
+              notifySaved("Preferências restauradas");
+            }}
             className="gap-2 rounded-lg"
           >
             <RotateCcw className="h-3.5 w-3.5" />
