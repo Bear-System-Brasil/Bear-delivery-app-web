@@ -4,7 +4,6 @@ import { AdminPageLayout } from "@/components/admin-page-layout";
 import { CompanyCoverUpload } from "@/components/company-cover-upload";
 import { CompanyLogoUpload } from "@/components/company-logo-upload";
 import ProtectedRoute from "@/components/protected-route";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -96,7 +95,7 @@ function SectionCard({
     >
       <div
         className={cn(
-          "flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-3",
+          "flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3",
           children !== undefined && "border-b border-border",
         )}
       >
@@ -107,7 +106,10 @@ function SectionCard({
           </h2>
           <span className="text-xs text-muted-foreground">· {subtitle}</span>
         </div>
-        {actions}
+        {/* ml-auto segura as ações à direita mesmo quando elas quebram pra
+            uma linha só delas no mobile — sem isso "Salvar" caía à esquerda,
+            diferente do desktop. */}
+        {actions && <div className="ml-auto shrink-0">{actions}</div>}
       </div>
       {children !== undefined && <div className="p-4">{children}</div>}
     </section>
@@ -254,23 +256,12 @@ function CompanyProfileContent() {
   }
 
   const companyId = user.companyId || user.id;
-  const userRoleLabel =
-    user.role === "owner"
-      ? "Proprietário"
-      : user.role === "admin"
-        ? "Admin"
-        : "Gerente";
 
   return (
     <AdminPageLayout
       title="Perfil da Empresa"
       icon={Building2}
       mainClassName="p-4 sm:p-6 lg:pl-64 lg:pr-8"
-      actions={
-        <Badge className="border-0 bg-primary/10 text-primary">
-          {userRoleLabel}
-        </Badge>
-      }
     >
       <div className="mx-auto max-w-[920px]">
         {profileError && !isLoadingProfile ? (

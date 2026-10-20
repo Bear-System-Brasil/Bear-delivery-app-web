@@ -23,6 +23,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/auth-provider";
+import { RoleBadge } from "@/components/role-badge";
 import { BearDeliveryLogo } from "../ui/bear-delivery-logo";
 
 
@@ -238,8 +239,11 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
         </button>
       </div>
 
-      <div className="shrink-0 border-t border-border px-[18px] py-3.5 text-center text-[10.5px] font-semibold text-muted-foreground">
-        v1.0.0
+      {/* Abaixo de sm o header cede a linha ao título e não mostra o papel;
+          ele vem pra cá, na linha da versão, sem criar linha nova no menu. */}
+      <div className="flex shrink-0 items-center justify-center gap-2 border-t border-border px-[18px] py-3.5 text-[10.5px] font-semibold text-muted-foreground">
+        <RoleBadge className="py-0 text-[10.5px] sm:hidden" />
+        <span>v1.0.0</span>
       </div>
     </div>
   );
