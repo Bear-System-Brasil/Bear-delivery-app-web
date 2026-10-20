@@ -29,14 +29,15 @@ const h = vi.hoisted(() => {
     },
     isEditing: false,
     isSaving: false,
-    selectedCategory: "s1",
+    companySpecialties: [{ id: "s1", name: "Pizzaria" }],
     isSavingSpecialty: false,
+    addSpecialty: vi.fn(),
+    removeSpecialty: vi.fn(),
+    replaceSpecialty: vi.fn(),
     handleSaveProfile: vi.fn(),
-    handleSaveSpecialty: vi.fn(),
     handleCancelEdit: vi.fn(),
     setIsEditing: vi.fn(),
     updateFormField: vi.fn(),
-    setSelectedCategory: vi.fn(),
     addresses: [
       {
         id: "a1",
@@ -107,11 +108,19 @@ const h = vi.hoisted(() => {
       isError: false,
       refetch: vi.fn(),
     },
-    specialties: { data: [{ id: "s1", name: "Pizzaria" }] },
+    specialties: {
+      data: [
+        { id: "s1", name: "Pizzaria" },
+        { id: "s2", name: "Hamburgueria" },
+        { id: "s3", name: "Japonesa" },
+        { id: "s4", name: "Açaí" },
+      ],
+    },
   };
 });
 
 vi.mock("@/hooks", () => ({
+  MAX_SPECIALTIES: 3,
   useCompanyProfileManagement: () => h.profile,
   useCompanyOpeningHours: () => h.hours,
   useCompanyAcceptedPaymentMethods: () => h.payments,
@@ -138,7 +147,15 @@ beforeEach(() => {
   vi.clearAllMocks();
   h.profile.isEditing = false;
   h.profile.isChangingPassword = false;
+  h.profile.companySpecialties = [{ id: "s1", name: "Pizzaria" }];
 });
+
+/** Abre o select do slot (combobox) para que as opções apareçam. */
+function openSlot(slotLabel: string) {
+  fireEvent.keyDown(screen.getByRole("combobox", { name: slotLabel }), {
+    key: "Enter",
+  });
+}
 
 describe("Perfil da Empresa - layout novo", () => {
   it("mostra as cinco seções com título e subtítulo", () => {
@@ -156,14 +173,86 @@ describe("Perfil da Empresa - layout novo", () => {
     }
   });
 
-  it("mostra o tipo de restaurante escolhido no resumo e no campo", () => {
+  it("tem a seção própria de tipo de restaurante com três campos", () => {
     render(<CompanyProfilePage />);
+    const section = sectionOf("Tipo de restaurante");
 
-    // Resumo do topo + valor do select da seção de informações.
-    expect(screen.getAllByText("Pizzaria")).toHaveLength(2);
+    expect(within(section).getByText("· até 3 — o que o cliente vê no app"));
+    expect(within(section).getAllByRole("combobox")).toHaveLength(3);
+    // O tipo já escolhido aparece no 1º campo e como etiqueta no resumo.
+    expect(within(section).getByRole("combobox", { name: "1º tipo" }))
+      .toHaveTextContent("Pizzaria");
+    expect(screen.getAllByText("Pizzaria").length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("escolher num campo vazio adiciona a especialidade", () => {
+    render(<CompanyProfilePage />);
+    openSlot("2º tipo");
+    fireEvent.click(screen.getByRole("option", { name: "Hamburgueria" }));
+
+    expect(h.profile.addSpecialty).toHaveBeenCalledWith("s2");
+  });
+
+  it("trocar um campo já preenchido substitui a especialidade", () => {
+    render(<CompanyProfilePage />);
+    openSlot("1º tipo");
+    fireEvent.click(screen.getByRole("option", { name: "Japonesa" }));
+
+    expect(h.profile.replaceSpecialty).toHaveBeenCalledWith("s1", "s3");
+  });
+
+  it('"— Remover —" tira a especialidade do campo', () => {
+    render(<CompanyProfilePage />);
+    openSlot("1º tipo");
+    fireEvent.click(screen.getByRole("option", { name: "— Remover —" }));
+
+    expect(h.profile.removeSpecialty).toHaveBeenCalledWith("s1");
+  });
+
+  it("não repete nos outros campos o tipo já escolhido", () => {
+    render(<CompanyProfilePage />);
+    // Pizzaria (s1) já está no 1º campo, então não aparece como opção no 2º.
+    openSlot("2º tipo");
     expect(
-      within(sectionOf("Informações da Empresa")).getByRole("combobox"),
-    ).toHaveTextContent("Pizzaria");
+      screen.queryByRole("option", { name: "Pizzaria" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Hamburgueria" })).toBeInTheDocument();
+  });
+
+  it("o teto de 3 é estrutural: só há 3 campos, e um 4º tipo entra por troca", () => {
+    h.profile.companySpecialties = [
+      { id: "s1", name: "Pizzaria" },
+      { id: "s2", name: "Hamburgueria" },
+      { id: "s3", name: "Japonesa" },
+    ];
+    render(<CompanyProfilePage />);
+    const section = sectionOf("Tipo de restaurante");
+    // Nunca há um 4º campo para passar de três.
+    expect(within(section).getAllByRole("combobox")).toHaveLength(3);
+    // O 4º tipo (Açaí) só entra trocando um existente, nunca somando.
+    openSlot("1º tipo");
+    fireEvent.click(screen.getByRole("option", { name: "Açaí" }));
+    expect(h.profile.replaceSpecialty).toHaveBeenCalledWith("s1", "s4");
+    expect(h.profile.addSpecialty).not.toHaveBeenCalled();
+  });
+
+  it("sem especialidades no servidor, avisa em vez de mostrar campos", () => {
+    h.specialties.data = [];
+    render(<CompanyProfilePage />);
+    const section = sectionOf("Tipo de restaurante");
+
+    expect(
+      within(section).getByText(
+        "Nenhum tipo de restaurante cadastrado no sistema ainda.",
+      ),
+    ).toBeInTheDocument();
+    expect(within(section).queryByRole("combobox")).not.toBeInTheDocument();
+    h.specialties.data = [
+      { id: "s1", name: "Pizzaria" },
+      { id: "s2", name: "Hamburgueria" },
+      { id: "s3", name: "Japonesa" },
+      { id: "s4", name: "Açaí" },
+    ];
   });
 
   it("Editar das informações continua no mesmo handler", () => {
