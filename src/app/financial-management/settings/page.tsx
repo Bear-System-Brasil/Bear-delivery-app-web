@@ -120,18 +120,22 @@ export default function SettingsPage() {
           aria-labelledby="caixa-heading"
           className="overflow-hidden rounded-lg border border-border bg-card"
         >
-          <div className="flex min-w-0 items-center gap-2 border-b border-border px-4 py-3 sm:px-5">
-            <Wallet className="h-4 w-4 shrink-0 text-brand-500" />
-            <h2
-              id="caixa-heading"
-              className="shrink-0 text-[13.5px] font-semibold text-foreground"
-            >
-              Caixa
-            </h2>
-            <span className="min-w-0 truncate text-xs text-muted-foreground">
-              · Controle de Caixa e Dashboard
-            </span>
-            <span className="ml-auto flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
+          {/* Mobile: subtítulo inteiro na 1ª linha e a nota de salvamento na
+              2ª, em vez de truncar o subtítulo. A partir de sm, lado a lado. */}
+          <div className="flex flex-col gap-1 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:gap-2 sm:px-5">
+            <div className="flex min-w-0 items-center gap-2">
+              <Wallet className="h-4 w-4 shrink-0 text-brand-500" />
+              <h2
+                id="caixa-heading"
+                className="shrink-0 text-[13.5px] font-semibold text-foreground"
+              >
+                Caixa
+              </h2>
+              <span className="min-w-0 text-xs text-muted-foreground">
+                · Controle de Caixa e Dashboard
+              </span>
+            </div>
+            <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground sm:ml-auto">
               <Check className="h-3.5 w-3.5 text-brand-500" />
               <span className="hidden sm:inline">
                 As alterações são salvas automaticamente
