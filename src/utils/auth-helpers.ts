@@ -5,7 +5,7 @@
  * Para novos códigos, use diretamente o useAuthStore do Zustand.
  */
 
-import { USER_ROLES, hasRoutePermission } from "./permissions";
+import { ROLE_LABELS, USER_ROLES, hasRoutePermission } from "./permissions";
 import { STORAGE_KEYS, storageManager } from "./storage-manager";
 import type { User } from "@/stores/auth-store";
 
@@ -112,17 +112,7 @@ export function getUserRoleLabel(): string {
   const user = getStoredUser();
   if (!user || !user.role) return "Visitante";
 
-  const roleLabels: { [key: string]: string } = {
-    owner: "Dono",
-    admin: "Administrador",
-    manager: "Gerente",
-    cook: "Cozinheiro",
-    delivery: "Entregador",
-    financial: "Financeiro",
-    client: "Cliente",
-  };
-
-  return roleLabels[user.role] || "Usuário";
+  return ROLE_LABELS[user.role] || "Usuário";
 }
 
 /**
