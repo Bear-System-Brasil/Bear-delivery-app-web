@@ -30,10 +30,12 @@ const h = vi.hoisted(() => {
     isEditing: false,
     isSaving: false,
     companySpecialties: [{ id: "s1", name: "Pizzaria" }],
+    specialtyDraft: ["s1", "", ""],
+    hasSpecialtyChanges: false,
     isSavingSpecialty: false,
-    addSpecialty: vi.fn(),
-    removeSpecialty: vi.fn(),
-    replaceSpecialty: vi.fn(),
+    setSpecialtySlot: vi.fn(),
+    discardSpecialtyChanges: vi.fn(),
+    handleSaveSpecialties: vi.fn(),
     handleSaveProfile: vi.fn(),
     handleCancelEdit: vi.fn(),
     setIsEditing: vi.fn(),
@@ -148,6 +150,8 @@ beforeEach(() => {
   h.profile.isEditing = false;
   h.profile.isChangingPassword = false;
   h.profile.companySpecialties = [{ id: "s1", name: "Pizzaria" }];
+  h.profile.specialtyDraft = ["s1", "", ""];
+  h.profile.hasSpecialtyChanges = false;
 });
 
 /** Abre o select do slot (combobox) para que as opções apareçam. */
@@ -185,33 +189,50 @@ describe("Perfil da Empresa - layout novo", () => {
     expect(screen.getAllByText("Pizzaria").length).toBeGreaterThanOrEqual(2);
   });
 
-  it("escolher num campo vazio adiciona a especialidade", () => {
+  it("escolher num campo altera o rascunho (não salva na hora)", () => {
     render(<CompanyProfilePage />);
     openSlot("2º tipo");
     fireEvent.click(screen.getByRole("option", { name: "Hamburgueria" }));
 
-    expect(h.profile.addSpecialty).toHaveBeenCalledWith("s2");
+    // Mexe só no rascunho do campo; não dispara salvamento.
+    expect(h.profile.setSpecialtySlot).toHaveBeenCalledWith(1, "s2");
+    expect(h.profile.handleSaveSpecialties).not.toHaveBeenCalled();
   });
 
-  it("trocar um campo já preenchido substitui a especialidade", () => {
-    render(<CompanyProfilePage />);
-    openSlot("1º tipo");
-    fireEvent.click(screen.getByRole("option", { name: "Japonesa" }));
-
-    expect(h.profile.replaceSpecialty).toHaveBeenCalledWith("s1", "s3");
-  });
-
-  it('"— Remover —" tira a especialidade do campo', () => {
+  it('"— Remover —" esvazia o campo no rascunho', () => {
     render(<CompanyProfilePage />);
     openSlot("1º tipo");
     fireEvent.click(screen.getByRole("option", { name: "— Remover —" }));
 
-    expect(h.profile.removeSpecialty).toHaveBeenCalledWith("s1");
+    expect(h.profile.setSpecialtySlot).toHaveBeenCalledWith(0, "");
   });
 
-  it("não repete nos outros campos o tipo já escolhido", () => {
+  it("só salva quando clica em Salvar; Descartar some sem mudanças", () => {
     render(<CompanyProfilePage />);
-    // Pizzaria (s1) já está no 1º campo, então não aparece como opção no 2º.
+    const section = sectionOf("Tipo de restaurante");
+
+    // Sem mudanças: Salvar desabilitado e sem Descartar.
+    expect(within(section).getByRole("button", { name: "Salvar" })).toBeDisabled();
+    expect(
+      within(section).queryByRole("button", { name: "Descartar" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("com mudanças, Salvar grava e Descartar desfaz", () => {
+    h.profile.hasSpecialtyChanges = true;
+    render(<CompanyProfilePage />);
+    const section = sectionOf("Tipo de restaurante");
+
+    fireEvent.click(within(section).getByRole("button", { name: "Salvar" }));
+    expect(h.profile.handleSaveSpecialties).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(within(section).getByRole("button", { name: "Descartar" }));
+    expect(h.profile.discardSpecialtyChanges).toHaveBeenCalledTimes(1);
+  });
+
+  it("não repete nos outros campos o tipo já escolhido no rascunho", () => {
+    render(<CompanyProfilePage />);
+    // Pizzaria (s1) está no 1º campo do rascunho, então some como opção no 2º.
     openSlot("2º tipo");
     expect(
       screen.queryByRole("option", { name: "Pizzaria" }),
@@ -220,23 +241,18 @@ describe("Perfil da Empresa - layout novo", () => {
   });
 
   it("o teto de 3 é estrutural: só há 3 campos, e um 4º tipo entra por troca", () => {
-    h.profile.companySpecialties = [
-      { id: "s1", name: "Pizzaria" },
-      { id: "s2", name: "Hamburgueria" },
-      { id: "s3", name: "Japonesa" },
-    ];
+    h.profile.specialtyDraft = ["s1", "s2", "s3"];
     render(<CompanyProfilePage />);
     const section = sectionOf("Tipo de restaurante");
     // Nunca há um 4º campo para passar de três.
     expect(within(section).getAllByRole("combobox")).toHaveLength(3);
-    // O 4º tipo (Açaí) só entra trocando um existente, nunca somando.
+    // O 4º tipo (Açaí) entra trocando um existente no mesmo campo.
     openSlot("1º tipo");
     fireEvent.click(screen.getByRole("option", { name: "Açaí" }));
-    expect(h.profile.replaceSpecialty).toHaveBeenCalledWith("s1", "s4");
-    expect(h.profile.addSpecialty).not.toHaveBeenCalled();
+    expect(h.profile.setSpecialtySlot).toHaveBeenCalledWith(0, "s4");
   });
 
-  it("sem especialidades no servidor, avisa em vez de mostrar campos", () => {
+  it("sem especialidades no servidor, avisa e não mostra campos nem Salvar", () => {
     h.specialties.data = [];
     render(<CompanyProfilePage />);
     const section = sectionOf("Tipo de restaurante");
@@ -247,6 +263,9 @@ describe("Perfil da Empresa - layout novo", () => {
       ),
     ).toBeInTheDocument();
     expect(within(section).queryByRole("combobox")).not.toBeInTheDocument();
+    expect(
+      within(section).queryByRole("button", { name: "Salvar" }),
+    ).not.toBeInTheDocument();
     h.specialties.data = [
       { id: "s1", name: "Pizzaria" },
       { id: "s2", name: "Hamburgueria" },
