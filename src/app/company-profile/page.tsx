@@ -918,6 +918,7 @@ function CompanyProfileContent() {
                           variant="ghost"
                           size="icon"
                           className="h-7 w-7 shrink-0 rounded-md"
+                          aria-label="Editar endereço"
                           onClick={() => handleEditAddress(address)}
                         >
                           <Pencil className="h-[13px] w-[13px]" />
@@ -926,6 +927,7 @@ function CompanyProfileContent() {
                           variant="ghost"
                           size="icon"
                           className="h-7 w-7 shrink-0 rounded-md text-destructive hover:bg-destructive/10 hover:text-destructive"
+                          aria-label="Excluir endereço"
                           onClick={() => handleDeleteAddress(address.id)}
                         >
                           <Trash2 className="h-[13px] w-[13px]" />
