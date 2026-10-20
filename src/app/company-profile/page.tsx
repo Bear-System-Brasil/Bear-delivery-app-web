@@ -4,7 +4,6 @@ import { AdminPageLayout } from "@/components/admin-page-layout";
 import { CompanyCoverUpload } from "@/components/company-cover-upload";
 import { CompanyLogoUpload } from "@/components/company-logo-upload";
 import ProtectedRoute from "@/components/protected-route";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -256,23 +255,12 @@ function CompanyProfileContent() {
   }
 
   const companyId = user.companyId || user.id;
-  const userRoleLabel =
-    user.role === "owner"
-      ? "Proprietário"
-      : user.role === "admin"
-        ? "Admin"
-        : "Gerente";
 
   return (
     <AdminPageLayout
       title="Perfil da Empresa"
       icon={Building2}
       mainClassName="p-4 sm:p-6 lg:pl-64 lg:pr-8"
-      actions={
-        <Badge className="border-0 bg-primary/10 text-primary">
-          {userRoleLabel}
-        </Badge>
-      }
     >
       <div className="mx-auto max-w-[920px]">
         {profileError && !isLoadingProfile ? (
