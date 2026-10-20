@@ -185,10 +185,12 @@ function CompanyProfileContent() {
     isEditing,
     isSaving,
     companySpecialties,
+    specialtyDraft,
+    hasSpecialtyChanges,
     isSavingSpecialty,
-    addSpecialty,
-    removeSpecialty,
-    replaceSpecialty,
+    setSpecialtySlot,
+    discardSpecialtyChanges,
+    handleSaveSpecialties,
     handleSaveProfile,
     handleCancelEdit,
     setIsEditing,
@@ -508,12 +510,41 @@ function CompanyProfileContent() {
             </SectionCard>
 
             {/* Tipo de restaurante (até 3) — LDMF-395. Saiu das Informações
-                e virou seção própria. Cada campo salva na hora. */}
+                e virou seção própria. Salva no botão, como as outras. */}
             <SectionCard
               icon={UtensilsCrossed}
               title="Tipo de restaurante"
               subtitle={`até ${MAX_SPECIALTIES} — o que o cliente vê no app`}
               className="mb-4"
+              actions={
+                availableSpecialties.length === 0 ? undefined : (
+                  <div className="flex gap-2">
+                    {hasSpecialtyChanges && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={discardSpecialtyChanges}
+                        disabled={isSavingSpecialty}
+                        className="h-8 rounded-md px-3 text-xs font-semibold"
+                      >
+                        Descartar
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={handleSaveSpecialties}
+                      disabled={isSavingSpecialty || !hasSpecialtyChanges}
+                      className="h-8 rounded-md px-3.5 text-xs font-semibold"
+                    >
+                      <div className="flex gap-2">
+                        <Save className="h-3.5 w-3.5" />
+                        {isSavingSpecialty ? "Salvando..." : "Salvar"}
+                      </div>
+                    </Button>
+                  </div>
+                )
+              }
             >
               {isLoadingProfile ? (
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -529,12 +560,12 @@ function CompanyProfileContent() {
                 <>
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                     {[0, 1, 2].map((slot) => {
-                      const current = companySpecialties[slot];
-                      // Esconde dos outros campos o que já está escolhido,
-                      // pra não repetir a mesma especialidade.
-                      const takenByOthers = companySpecialties
-                        .filter((_, j) => j !== slot)
-                        .map((s) => s.id);
+                      const currentId = specialtyDraft[slot] ?? "";
+                      // Esconde dos outros campos o que já está escolhido no
+                      // rascunho, pra não repetir a mesma especialidade.
+                      const takenByOthers = specialtyDraft.filter(
+                        (id, j) => j !== slot && id,
+                      );
                       const options = availableSpecialties.filter(
                         (s) => !takenByOthers.includes(s.id),
                       );
@@ -544,16 +575,13 @@ function CompanyProfileContent() {
                             {slot + 1}º tipo
                           </Label>
                           <Select
-                            value={current?.id ?? ""}
-                            onValueChange={(value) => {
-                              if (value === NONE_SPECIALTY) {
-                                if (current) removeSpecialty(current.id);
-                              } else if (!current) {
-                                addSpecialty(value);
-                              } else {
-                                replaceSpecialty(current.id, value);
-                              }
-                            }}
+                            value={currentId}
+                            onValueChange={(value) =>
+                              setSpecialtySlot(
+                                slot,
+                                value === NONE_SPECIALTY ? "" : value,
+                              )
+                            }
                             disabled={isSavingSpecialty}
                           >
                             <SelectTrigger
@@ -563,7 +591,7 @@ function CompanyProfileContent() {
                               <SelectValue placeholder="Opcional" />
                             </SelectTrigger>
                             <SelectContent>
-                              {current && (
+                              {currentId && (
                                 <SelectItem value={NONE_SPECIALTY}>
                                   — Remover —
                                 </SelectItem>
@@ -580,7 +608,8 @@ function CompanyProfileContent() {
                     })}
                   </div>
                   <p className="mt-2.5 text-[11.5px] text-muted-foreground">
-                    Cada escolha é salva na hora. Até {MAX_SPECIALTIES} tipos.
+                    Escolha os tipos e clique em Salvar. Até {MAX_SPECIALTIES}{" "}
+                    tipos.
                   </p>
                 </>
               )}

@@ -101,6 +101,9 @@ export const useCompanyProfileManagement = () => {
   const [companySpecialties, setCompanySpecialties] = useState<Specialty[]>(
     [],
   );
+  // Rascunho dos 3 campos de tipo de restaurante. "" = campo vazio. Só vira
+  // chamada ao back no "Salvar", como as outras seções do Perfil (LDMF-395).
+  const [specialtyDraft, setSpecialtyDraft] = useState<string[]>(["", "", ""]);
   const [isSavingSpecialty, setIsSavingSpecialty] = useState(false);
 
   const [formData, setFormData] = useState<CompanyFormData>({
@@ -218,6 +221,7 @@ export const useCompanyProfileManagement = () => {
             (company as { speciality?: Specialty[] }).speciality ??
             [];
           setCompanySpecialties(specs);
+          setSpecialtyDraft([0, 1, 2].map((i) => specs[i]?.id ?? ""));
           if (specs.length > 0) {
             setSelectedCategory(specs[0].id);
           }
@@ -332,9 +336,28 @@ export const useCompanyProfileManagement = () => {
   };
 
   // ── Múltiplas especialidades (até 3) — LDMF-395 ───────────────────────────
-  // handleSaveSpecialty acima é da escolha única (apaga todas e grava uma).
-  // Aqui cada ação mexe numa associação só, e o estado é relido do back
-  // depois de cada gravação, como o fluxo original já fazia.
+  // handleSaveSpecialty acima é da escolha única antiga. Aqui o usuário monta
+  // os 3 campos num rascunho e grava tudo no "Salvar" (botão da seção, como as
+  // outras do Perfil). O diff vira os DELETE/POST na hora de salvar.
+  const persistedSpecialtyIds = companySpecialties.map((s) => s.id);
+  const draftSpecialtyIds = specialtyDraft.filter(Boolean);
+  const hasSpecialtyChanges =
+    draftSpecialtyIds.length !== persistedSpecialtyIds.length ||
+    draftSpecialtyIds.some((id) => !persistedSpecialtyIds.includes(id));
+
+  const setSpecialtySlot = (index: number, value: string) => {
+    // Não deixa o mesmo tipo em dois campos.
+    if (value && specialtyDraft.some((id, j) => j !== index && id === value)) {
+      return;
+    }
+    setSpecialtyDraft((prev) =>
+      prev.map((id, j) => (j === index ? value : id)),
+    );
+  };
+
+  const discardSpecialtyChanges = () =>
+    setSpecialtyDraft([0, 1, 2].map((i) => companySpecialties[i]?.id ?? ""));
+
   const refreshCompanySpecialties = async () => {
     if (!user?.id) return;
     const companyResponse = await apiService.companies.getById(
@@ -345,76 +368,46 @@ export const useCompanyProfileManagement = () => {
         specialty?: Specialty[];
         speciality?: Specialty[];
       };
-      setCompanySpecialties(company.specialty ?? company.speciality ?? []);
+      const specs = company.specialty ?? company.speciality ?? [];
+      setCompanySpecialties(specs);
+      setSpecialtyDraft([0, 1, 2].map((i) => specs[i]?.id ?? ""));
     }
   };
 
-  const addSpecialty = async (specialtyId: string) => {
-    if (!specialtyId || isSavingSpecialty) return;
-    if (companySpecialties.some((s) => s.id === specialtyId)) return;
-    if (companySpecialties.length >= MAX_SPECIALTIES) {
-      toast.error(`Máximo de ${MAX_SPECIALTIES} tipos de restaurante.`);
-      return;
-    }
+  const handleSaveSpecialties = async () => {
+    if (isSavingSpecialty || !hasSpecialtyChanges) return;
+    const toRemove = persistedSpecialtyIds.filter(
+      (id) => !draftSpecialtyIds.includes(id),
+    );
+    const toAdd = draftSpecialtyIds.filter(
+      (id) => !persistedSpecialtyIds.includes(id),
+    );
     try {
       setIsSavingSpecialty(true);
-      const response = await apiService.assignSpecialtyToCompany(specialtyId);
-      if (response.success) {
-        await refreshCompanySpecialties();
-        toast.success("Tipo de restaurante adicionado!");
-      } else {
-        toast.error("Erro ao adicionar tipo de restaurante");
+      let failed = false;
+      // Remove antes de adicionar: abre espaço caso o back imponha um
+      // limite próprio.
+      for (const id of toRemove) {
+        const r = await apiService.removeSpecialtyFromCompany(id);
+        if (!r.success) failed = true;
       }
-    } catch (error) {
-      console.error("Erro ao adicionar especialidade:", error);
-      toast.error("Erro ao adicionar tipo de restaurante");
-    } finally {
-      setIsSavingSpecialty(false);
-    }
-  };
-
-  const removeSpecialty = async (specialtyId: string) => {
-    if (!specialtyId || isSavingSpecialty) return;
-    try {
-      setIsSavingSpecialty(true);
-      const response =
-        await apiService.removeSpecialtyFromCompany(specialtyId);
-      if (response.success) {
-        await refreshCompanySpecialties();
-        toast.success("Tipo de restaurante removido!");
-      } else {
-        toast.error("Erro ao remover tipo de restaurante");
+      for (const id of toAdd) {
+        const r = await apiService.assignSpecialtyToCompany(id);
+        if (!r.success) failed = true;
       }
-    } catch (error) {
-      console.error("Erro ao remover especialidade:", error);
-      toast.error("Erro ao remover tipo de restaurante");
-    } finally {
-      setIsSavingSpecialty(false);
-    }
-  };
-
-  // Trocar um campo por outro tipo: tira o antigo e põe o novo. Se o remove
-  // falhar, não grava o novo (senão passaria de 3 ou duplicaria).
-  const replaceSpecialty = async (oldId: string, newId: string) => {
-    if (!newId || oldId === newId || isSavingSpecialty) return;
-    if (companySpecialties.some((s) => s.id === newId)) return;
-    try {
-      setIsSavingSpecialty(true);
-      const removed = await apiService.removeSpecialtyFromCompany(oldId);
-      if (!removed.success) {
-        toast.error("Não foi possível trocar o tipo de restaurante");
-        return;
-      }
-      const added = await apiService.assignSpecialtyToCompany(newId);
+      // Relê do back e ressincroniza o rascunho com o que de fato gravou.
       await refreshCompanySpecialties();
-      toast[added.success ? "success" : "error"](
-        added.success
-          ? "Tipo de restaurante atualizado!"
-          : "Removido o antigo, mas falhou ao gravar o novo tipo",
-      );
+      if (failed) {
+        toast.warning(
+          "Alguns tipos de restaurante não foram salvos. Confira a lista.",
+        );
+      } else {
+        toast.success("Tipos de restaurante salvos!");
+      }
     } catch (error) {
-      console.error("Erro ao trocar especialidade:", error);
-      toast.error("Erro ao trocar o tipo de restaurante");
+      console.error("Erro ao salvar especialidades:", error);
+      toast.error("Erro ao salvar os tipos de restaurante");
+      await refreshCompanySpecialties();
     } finally {
       setIsSavingSpecialty(false);
     }
@@ -983,15 +976,17 @@ export const useCompanyProfileManagement = () => {
     isOpen,
     selectedCategory,
     companySpecialties,
+    specialtyDraft,
+    hasSpecialtyChanges,
     isSavingSpecialty,
     setIsEditing,
     setSelectedCategory,
     handleCancelEdit,
     handleSaveProfile,
     handleSaveSpecialty,
-    addSpecialty,
-    removeSpecialty,
-    replaceSpecialty,
+    setSpecialtySlot,
+    discardSpecialtyChanges,
+    handleSaveSpecialties,
     updateFormField,
 
     // Addresses
