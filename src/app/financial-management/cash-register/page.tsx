@@ -25,7 +25,21 @@ import {
 } from "@/services/api";
 import { useAuthStore, useFinancialPreferencesStore } from "@/stores";
 import { formatCurrency } from "@/utils";
-import { Banknote, RefreshCw } from "lucide-react";
+import {
+  ArrowLeftRight,
+  Banknote,
+  CreditCard,
+  Info,
+  List,
+  Lock,
+  LockOpen,
+  type LucideIcon,
+  Minus,
+  Plus,
+  RefreshCw,
+  Scale,
+  Wallet,
+} from "lucide-react";
 import { toast } from "sonner";
 import { type ReactNode, useState } from "react";
 
@@ -124,10 +138,10 @@ const MOVEMENT_METHOD_FILTERS: { value: PaymentMethod | "ALL"; label: string }[]
     })),
   ];
 
-const MOVEMENTS_GRID = "76px 104px 1fr 116px 104px 116px";
+const MOVEMENTS_GRID = "76px 96px minmax(0,1fr) 116px 84px 112px";
 
 const movementHeaderClass =
-  "text-[10px] font-extrabold tracking-[0.05em] text-muted-foreground";
+  "text-[11px] font-semibold tracking-[0.05em] text-muted-foreground";
 
 function movementDate(movement: CashMovement) {
   return movement.createdAt ?? movement.created_at;
@@ -172,7 +186,8 @@ function formatSigned(value: number) {
   return `${sign} ${formatCurrency(Math.abs(value))}`;
 }
 
-function StatCard({
+/** Uma célula da faixa de indicadores do turno (cartão único, divisórias). */
+function KpiCell({
   label,
   value,
   sub,
@@ -184,21 +199,87 @@ function StatCard({
   valueClassName?: string;
 }) {
   return (
-    <div className="rounded-[12px] border border-border bg-card px-[14px] py-[13px]">
-      <div className="whitespace-nowrap text-[11.5px] font-semibold text-muted-foreground">
-        {label}
-      </div>
+    <div className="min-w-0 px-4 py-3.5">
+      <div className="text-xs font-medium text-muted-foreground">{label}</div>
       <div
         className={cn(
-          "mt-1.5 whitespace-nowrap text-[19px] font-extrabold text-foreground",
+          "mt-1 whitespace-nowrap text-lg font-bold tabular-nums text-foreground",
           valueClassName,
         )}
       >
         {value}
       </div>
-      <div className="mt-0.5 whitespace-nowrap text-[11px] font-semibold text-muted-foreground">
-        {sub}
+      <div className="mt-0.5 text-[11.5px] text-muted-foreground">{sub}</div>
+    </div>
+  );
+}
+
+/** Cartão de seção do design novo: cabeçalho com ícone + título + subtítulo. */
+function SectionCard({
+  icon: Icon,
+  title,
+  subtitle,
+  aside,
+  className,
+  children,
+}: {
+  icon: LucideIcon;
+  title: string;
+  subtitle?: string;
+  aside?: ReactNode;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <section
+      className={cn(
+        "min-w-0 overflow-hidden rounded-lg border border-border bg-card",
+        className,
+      )}
+    >
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-border px-4 py-3">
+        <Icon className="h-4 w-4 shrink-0 text-brand-500" />
+        <h2 className="text-[13.5px] font-semibold text-foreground">{title}</h2>
+        {subtitle && (
+          <span className="text-xs text-muted-foreground">· {subtitle}</span>
+        )}
+        {aside && <div className="ml-auto flex items-center gap-2">{aside}</div>}
       </div>
+      {children}
+    </section>
+  );
+}
+
+/** Par rótulo/valor das linhas de conferência. */
+function SummaryRow({
+  label,
+  hint,
+  value,
+  valueClassName,
+}: {
+  label: string;
+  hint?: string;
+  value: ReactNode;
+  valueClassName?: string;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-3 text-[12.5px]">
+      <span className="text-muted-foreground">
+        {label}
+        {hint && (
+          <span className="mt-px block text-[11px] text-muted-foreground/80">
+            {hint}
+          </span>
+        )}
+      </span>
+      <span
+        className={cn(
+          "shrink-0 font-semibold tabular-nums text-foreground",
+          valueClassName,
+        )}
+      >
+        {value}
+      </span>
     </div>
   );
 }
@@ -501,111 +582,96 @@ export default function CashRegisterPage() {
         </p>
 
         {registerLoading ? (
-          <Skeleton className="h-24 w-full rounded-[13px]" />
+          <Skeleton className="h-24 w-full rounded-lg" />
         ) : isRegisterOpen && register ? (
-          <>
-            {/* Banner de caixa aberto */}
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-[13px] bg-zinc-900 px-[18px] py-[14px]">
-              <div className="flex min-w-0 items-center gap-3.5">
-                <span className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[11px] bg-card/10 text-white">
-                  <Banknote className="h-[19px] w-[19px]" />
+          <div className="flex flex-col gap-4">
+            {/* Faixa de caixa aberto */}
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-3 rounded-lg border border-border bg-card px-4 py-3">
+              <div className="flex items-center gap-2">
+                <span className="h-2 w-2 shrink-0 rounded-full bg-success ring-[3px] ring-success/20" />
+                <span className="whitespace-nowrap text-[13.5px] font-bold text-foreground">
+                  Caixa aberto
                 </span>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[15px] font-extrabold tracking-tight text-white">
-                      Caixa aberto
-                    </span>
-                    <span className="shrink-0 rounded-md bg-[#1F7A4D] px-2 py-0.5 text-[10px] font-extrabold text-white">
-                      ABERTO
-                    </span>
-                  </div>
-                  <div className="mt-[3px] flex flex-wrap gap-x-3 gap-y-1 text-[11.5px] font-semibold text-muted-foreground">
-                    <span className="whitespace-nowrap">
-                      Operador: {user?.name || "—"}
-                    </span>
-                    <span className="whitespace-nowrap">
-                      Aberto às {formatTime(register.openedAt)}
-                    </span>
-                    <span className="whitespace-nowrap">
-                      Fundo de troco {formatCurrency(register.openingBalance)}
-                    </span>
-                  </div>
-                </div>
               </div>
-              <div className="flex shrink-0 gap-[7px]">
+              <div className="flex flex-wrap gap-x-5 gap-y-1 text-[12.5px]">
+                <span className="whitespace-nowrap">
+                  <span className="text-muted-foreground">Operador </span>
+                  <span className="font-semibold text-foreground">
+                    {user?.name || "—"}
+                  </span>
+                </span>
+                <span className="whitespace-nowrap">
+                  <span className="text-muted-foreground">Aberto às </span>
+                  <span className="font-semibold text-foreground">
+                    {formatTime(register.openedAt)}
+                  </span>
+                </span>
+                <span className="whitespace-nowrap">
+                  <span className="text-muted-foreground">Fundo de troco </span>
+                  <span className="font-semibold tabular-nums text-foreground">
+                    {formatCurrency(register.openingBalance)}
+                  </span>
+                </span>
+              </div>
+              <div className="flex gap-2 sm:ml-auto">
                 <Button
                   onClick={() => openMovementDialog("deposit")}
-                  className="h-[34px] rounded-[9px] bg-card/[.12] px-3.5 text-xs font-bold text-white hover:bg-card/20"
+                  className="h-[34px] gap-1.5 rounded-md border border-border bg-card px-3 text-[13px] font-semibold text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/40"
                 >
-                  + Entrada
+                  <Plus className="h-3.5 w-3.5" />
+                  Entrada
                 </Button>
                 <Button
                   onClick={() => openMovementDialog("withdrawal")}
-                  className="h-[34px] rounded-[9px] bg-card/[.12] px-3.5 text-xs font-bold text-white hover:bg-card/20"
+                  className="h-[34px] gap-1.5 rounded-md border border-border bg-card px-3 text-[13px] font-semibold text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
                 >
-                  − Saída
+                  <Minus className="h-3.5 w-3.5" />
+                  Saída
                 </Button>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 items-start gap-3 lg:[grid-template-columns:repeat(auto-fit,minmax(440px,1fr))]">
+            <div className="grid grid-cols-1 items-start gap-4 lg:[grid-template-columns:repeat(auto-fit,minmax(440px,1fr))]">
               {/* Coluna principal */}
-              <div className="flex min-w-0 flex-col gap-3">
-                <div className="grid grid-cols-1 gap-2.5 sm:[grid-template-columns:repeat(auto-fit,minmax(150px,1fr))]">
-                  {summaryLoading ? (
-                    <>
-                      <Skeleton className="h-[74px] rounded-[12px]" />
-                      <Skeleton className="h-[74px] rounded-[12px]" />
-                      <Skeleton className="h-[74px] rounded-[12px]" />
-                    </>
-                  ) : (
-                    <>
-                      <StatCard
-                        label="Vendas do turno"
-                        value={formatCurrency(summary?.totalSales ?? 0)}
-                        sub="Bruto, todos os métodos"
-                      />
-                      <StatCard
-                        label="Entradas"
-                        value={formatCurrency(summary?.totalDeposits ?? 0)}
-                        sub="Suprimentos em dinheiro"
-                        valueClassName="text-emerald-700 dark:text-emerald-400"
-                      />
-                      <StatCard
-                        label="Saídas"
-                        value={formatCurrency(summary?.totalWithdrawals ?? 0)}
-                        sub="Sangrias em dinheiro"
-                        valueClassName="text-red-600 dark:text-red-400"
-                      />
-                    </>
-                  )}
-                </div>
+              <div className="flex min-w-0 flex-col gap-4">
+                {summaryLoading ? (
+                  <Skeleton className="h-[86px] w-full rounded-lg" />
+                ) : (
+                  <div className="grid grid-cols-1 divide-y divide-border overflow-hidden rounded-lg border border-border bg-card sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+                    <KpiCell
+                      label="Vendas do turno"
+                      value={formatCurrency(summary?.totalSales ?? 0)}
+                      sub="Bruto, todos os métodos"
+                    />
+                    <KpiCell
+                      label="Entradas"
+                      value={formatCurrency(summary?.totalDeposits ?? 0)}
+                      sub="Suprimentos em dinheiro"
+                      valueClassName="text-emerald-700 dark:text-emerald-400"
+                    />
+                    <KpiCell
+                      label="Saídas"
+                      value={formatCurrency(summary?.totalWithdrawals ?? 0)}
+                      sub="Sangrias em dinheiro"
+                      valueClassName="text-red-600 dark:text-red-400"
+                    />
+                  </div>
+                )}
 
                 {/* Formas de pagamento */}
-                <div className="rounded-[13px] border border-border bg-card px-4 py-3.5">
-                  <div className="mb-1 flex flex-wrap items-baseline justify-between gap-3">
-                    <span className="text-[13px] font-extrabold text-foreground">
-                      Formas de pagamento
-                    </span>
-                    <span className="whitespace-nowrap text-[11px] font-semibold text-muted-foreground">
-                      Só dinheiro entra na gaveta
-                    </span>
-                  </div>
-                  <p className="mb-3 text-[11px] font-semibold text-muted-foreground">
-                    Valores líquidos: vendas + suprimentos − sangrias −
-                    reembolsos.
-                  </p>
+                <SectionCard
+                  icon={CreditCard}
+                  title="Por forma de pagamento"
+                  subtitle="valores líquidos"
+                >
                   {summaryLoading ? (
-                    <div className="space-y-2.5">
+                    <div className="space-y-2 p-4">
                       {[1, 2, 3, 4, 5].map((i) => (
-                        <Skeleton
-                          key={i}
-                          className="h-[30px] w-full rounded-[8px]"
-                        />
+                        <Skeleton key={i} className="h-7 w-full rounded-md" />
                       ))}
                     </div>
                   ) : (
-                    <div className="flex flex-col gap-[11px]">
+                    <div className="divide-y divide-border">
                       {paymentBreakdown.map((m) => {
                         const isNegative = m.value < 0;
                         const share =
@@ -616,112 +682,99 @@ export default function CashRegisterPage() {
                               )
                             : 0;
                         return (
-                          <div key={m.label}>
-                            <div className="flex items-center gap-2">
-                              <span className="min-w-[80px] flex-1 truncate text-[12.5px] font-bold text-foreground">
-                                {m.label}
-                              </span>
+                          <div
+                            key={m.label}
+                            className="flex min-h-10 items-center gap-3 px-4 py-2 text-[13px]"
+                          >
+                            <span className="flex min-w-0 flex-1 items-center gap-2 font-medium text-foreground">
+                              <span className="truncate">{m.label}</span>
                               {m.gaveta && (
-                                <span className="shrink-0 rounded-[5px] bg-brand-50 dark:bg-brand-950/40 px-[7px] py-px text-[9.5px] font-extrabold text-brand-600">
+                                <span className="shrink-0 rounded bg-brand-50 px-1.5 py-0.5 text-[10px] font-semibold text-brand-600 dark:bg-brand-950/40 dark:text-brand-400">
                                   GAVETA
                                 </span>
                               )}
-                              <span
-                                className={cn(
-                                  "w-[86px] shrink-0 text-right text-[12.5px] font-extrabold",
-                                  isNegative
-                                    ? "text-red-600 dark:text-red-400"
-                                    : "text-foreground",
-                                )}
-                              >
-                                {formatSigned(m.value)}
-                              </span>
-                              <span
-                                className="w-[34px] shrink-0 text-right text-[11px] font-bold text-muted-foreground"
-                                title={
-                                  isNegative
-                                    ? "Método fechou negativo no turno - sem participação nas entradas"
-                                    : undefined
-                                }
-                              >
-                                {isNegative ? "—" : `${Math.round(share)}%`}
-                              </span>
-                            </div>
-                            <div className="mt-[5px] h-[5px] overflow-hidden rounded-full bg-muted">
-                              <div
-                                className="h-full rounded-full bg-brand-500"
-                                style={{ width: `${share}%` }}
-                              />
-                            </div>
+                            </span>
+                            <span
+                              className={cn(
+                                "shrink-0 text-right font-semibold tabular-nums",
+                                isNegative
+                                  ? "text-red-600 dark:text-red-400"
+                                  : "text-foreground",
+                              )}
+                            >
+                              {formatSigned(m.value)}
+                            </span>
+                            <span
+                              className="w-10 shrink-0 text-right text-xs text-muted-foreground"
+                              title={
+                                isNegative
+                                  ? "Método fechou negativo no turno - sem participação nas entradas"
+                                  : undefined
+                              }
+                            >
+                              {isNegative ? "—" : `${Math.round(share)}%`}
+                            </span>
                           </div>
                         );
                       })}
                     </div>
                   )}
-                </div>
+                  <div className="flex items-start gap-1.5 border-t border-border px-4 py-2.5 text-[11.5px] text-muted-foreground">
+                    <Info className="mt-0.5 h-3 w-3 shrink-0" />
+                    <span>
+                      Só dinheiro entra na gaveta. Líquido = vendas +
+                      suprimentos − sangrias − reembolsos.
+                    </span>
+                  </div>
+                </SectionCard>
 
                 {/* Ações rápidas */}
-                <div className="overflow-hidden rounded-[13px] border border-border bg-card">
-                  <div className="border-b border-border px-4 py-3 text-[13px] font-extrabold text-foreground">
-                    Registrar movimento
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 p-3.5 sm:grid-cols-4">
+                <SectionCard icon={ArrowLeftRight} title="Registrar movimento">
+                  <div className="grid grid-cols-2 gap-2 p-4 sm:grid-cols-4">
                     {MOVEMENT_OPTIONS.map((opt) => (
                       <Button
                         key={opt.value}
                         onClick={() => openMovementDialog(opt.value)}
-                        className="rounded-[10px] border border-border bg-card px-2 py-2.5 text-center text-[12px] font-bold text-foreground transition-colors hover:bg-muted"
+                        className="h-9 rounded-md border border-border bg-card px-2 text-[13px] font-semibold text-foreground transition-colors hover:bg-muted"
                       >
                         {opt.label}
                       </Button>
                     ))}
                   </div>
-                </div>
+                </SectionCard>
               </div>
 
               {/* Conferência de fechamento */}
-              <div className="min-w-0 rounded-[13px] border border-border bg-card p-[14px] lg:sticky lg:top-[26px]">
-                <div className="text-[13px] font-extrabold text-foreground">
-                  Conferência de fechamento
-                </div>
-                <p className="mt-[3px] text-[11px] font-semibold text-muted-foreground">
-                  Confira o dinheiro físico da gaveta
-                </p>
-
-                <div className="mt-3 flex flex-col gap-2">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-semibold text-muted-foreground">
-                      Fundo de troco
-                    </span>
-                    <span className="font-bold">
-                      {formatCurrency(registerOpeningBalance)}
-                    </span>
-                  </div>
-                  <div className="flex items-start justify-between gap-3 text-xs">
-                    <span className="font-semibold text-muted-foreground">
-                      Movimento em dinheiro
-                      <span className="mt-px block text-[10.5px] font-semibold text-muted-foreground">
-                        Líquido do turno
-                      </span>
-                    </span>
-                    <span
-                      className={cn(
-                        "shrink-0 font-bold",
-                        netCash < 0 ? "text-red-600 dark:text-red-400" : "text-emerald-700 dark:text-emerald-400",
-                      )}
-                    >
-                      {formatSigned(netCash)}
-                    </span>
-                  </div>
+              <SectionCard
+                icon={Scale}
+                title="Conferência de fechamento"
+                className="lg:sticky lg:top-[26px]"
+              >
+                <div className="flex flex-col gap-2 px-4 pt-3">
+                  <p className="text-[11.5px] text-muted-foreground">
+                    Confira o dinheiro físico da gaveta
+                  </p>
+                  <SummaryRow
+                    label="Fundo de troco"
+                    value={formatCurrency(registerOpeningBalance)}
+                  />
+                  <SummaryRow
+                    label="Movimento em dinheiro"
+                    hint="Líquido do turno"
+                    value={formatSigned(netCash)}
+                    valueClassName={
+                      netCash < 0
+                        ? "text-red-600 dark:text-red-400"
+                        : "text-emerald-700 dark:text-emerald-400"
+                    }
+                  />
                 </div>
 
-                <div className="my-3 h-px bg-muted" />
-
-                <div className="flex items-baseline justify-between">
-                  <span className="text-xs font-extrabold">
+                <div className="mx-4 mt-3 flex items-baseline justify-between gap-3 border-t border-border pt-3">
+                  <span className="text-[13px] font-semibold text-foreground">
                     Esperado na gaveta
                   </span>
-                  <span className="text-[18px] font-extrabold tracking-tight">
+                  <span className="whitespace-nowrap text-lg font-bold tabular-nums text-foreground">
                     {formatCurrency(expectedInDrawer)}
                   </span>
                 </div>
@@ -730,144 +783,134 @@ export default function CashRegisterPage() {
                     operador enxergar o que compôs o turno. Não entram na
                     conta acima - somá-los de novo contaria a sangria duas
                     vezes, que era exatamente o bug da conferência. */}
-                <div className="mt-3 rounded-[9px] bg-muted px-[11px] py-[9px]">
-                  <div className="text-[10.5px] font-extrabold uppercase tracking-[0.04em] text-muted-foreground">
+                <div className="mx-4 mt-3 rounded-md bg-muted px-3 py-2.5">
+                  <div className="text-[10.5px] font-semibold uppercase tracking-[0.05em] text-muted-foreground">
                     Detalhamento do turno
                   </div>
-                  <div className="mt-px text-[10.5px] font-semibold text-muted-foreground">
+                  <div className="mt-px text-[11px] text-muted-foreground">
                     Brutos por tipo, já refletidos nos totais acima — não somar
                     de novo.
                   </div>
-                  <div className="mt-1.5 flex flex-col gap-1">
-                    <div className="flex items-center justify-between text-[11.5px]">
-                      <span className="font-semibold text-muted-foreground">
-                        Vendas (todos os métodos)
-                      </span>
-                      <span className="font-bold text-muted-foreground">
-                        {formatCurrency(summary?.totalSales ?? 0)}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between text-[11.5px]">
-                      <span className="font-semibold text-muted-foreground">
-                        Suprimentos
-                      </span>
-                      <span className="font-bold text-muted-foreground">
-                        {formatCurrency(summary?.totalDeposits ?? 0)}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between text-[11.5px]">
-                      <span className="font-semibold text-muted-foreground">
-                        Sangrias
-                      </span>
-                      <span className="font-bold text-muted-foreground">
-                        {formatCurrency(summary?.totalWithdrawals ?? 0)}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between text-[11.5px]">
-                      <span className="font-semibold text-muted-foreground">
-                        Reembolsos
-                      </span>
-                      <span className="font-bold text-muted-foreground">
-                        {formatCurrency(summary?.totalRefunds ?? 0)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mb-[6px] mt-3 text-[11px] font-bold text-foreground">
-                  Valor contado
-                </div>
-                <div className="relative">
-                  <span className="pointer-events-none absolute left-[11px] top-1/2 -translate-y-1/2 text-[11.5px] font-bold text-muted-foreground">
-                    R$
-                  </span>
-                  <input
-                    placeholder="0,00"
-                    value={countedTotal}
-                    onChange={(e) => setCountedTotal(e.target.value)}
-                    className="h-[38px] w-full rounded-[9px] border border-border bg-card pl-[34px] pr-3 text-[13px] font-bold text-foreground outline-none"
-                  />
-                </div>
-
-                {!hasContado && (
-                  <div className="mt-[9px] rounded-[9px] bg-muted px-[11px] py-[9px] text-[11.5px] font-semibold text-muted-foreground">
-                    Informe o valor contado para calcular a diferença.
-                  </div>
-                )}
-                {difOk && (
-                  <div className="mt-[9px] rounded-[9px] bg-emerald-50 dark:bg-emerald-950/40 px-[11px] py-[9px] text-xs font-extrabold text-emerald-700 dark:text-emerald-400">
-                    ✓ Caixa conferido, sem diferença
-                  </div>
-                )}
-                {difSobra && (
-                  <div className="mt-[9px] rounded-[9px] bg-violet-50 dark:bg-violet-950/40 px-[11px] py-[9px] text-xs font-extrabold text-violet-700 dark:text-violet-400">
-                    Sobra de {formatCurrency(Math.abs(difVal))}
-                  </div>
-                )}
-                {difFalta && (
-                  <div className="mt-[9px] rounded-[9px] bg-red-50 dark:bg-red-950/40 px-[11px] py-[9px] text-xs font-extrabold text-red-600 dark:text-red-400">
-                    Falta de {formatCurrency(Math.abs(difVal))}
-                  </div>
-                )}
-
-                <input
-                  placeholder="Observações (opcional)"
-                  value={closeObs}
-                  onChange={(e) => setCloseObs(e.target.value)}
-                  className={cn(fieldClass, "mt-2.5 bg-card")}
-                />
-
-                {confirmBeforeCloseRegister && (
-                  <label className="mt-2.5 flex cursor-pointer items-start gap-2">
-                    <Checkbox
-                      checked={closeConfirmed}
-                      onCheckedChange={(checked) =>
-                        setCloseConfirmed(checked === true)
-                      }
-                      className="mt-0.5 h-4 w-4"
+                  <div className="mt-2 flex flex-col gap-1">
+                    <SummaryRow
+                      label="Vendas (todos os métodos)"
+                      value={formatCurrency(summary?.totalSales ?? 0)}
+                      valueClassName="text-muted-foreground"
                     />
-                    <span className="text-[11.5px] font-semibold text-foreground">
-                      Confirmo que conferi o dinheiro físico da gaveta
+                    <SummaryRow
+                      label="Suprimentos"
+                      value={formatCurrency(summary?.totalDeposits ?? 0)}
+                      valueClassName="text-muted-foreground"
+                    />
+                    <SummaryRow
+                      label="Sangrias"
+                      value={formatCurrency(summary?.totalWithdrawals ?? 0)}
+                      valueClassName="text-muted-foreground"
+                    />
+                    <SummaryRow
+                      label="Reembolsos"
+                      value={formatCurrency(summary?.totalRefunds ?? 0)}
+                      valueClassName="text-muted-foreground"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-2.5 border-t border-border p-4 mt-4">
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-xs font-semibold text-foreground">
+                      Valor contado
+                    </span>
+                    <span className="relative">
+                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                        R$
+                      </span>
+                      <input
+                        placeholder="0,00"
+                        value={countedTotal}
+                        onChange={(e) => setCountedTotal(e.target.value)}
+                        className="h-9 w-full rounded-md border border-border bg-card pl-9 pr-3 text-[13px] font-semibold tabular-nums text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      />
                     </span>
                   </label>
-                )}
 
-                <Button
-                  onClick={handleCloseRegister}
-                  disabled={
-                    closeMutation.isPending ||
-                    (confirmBeforeCloseRegister && !closeConfirmed)
-                  }
-                  className="mt-3 h-10 w-full rounded-[10px] bg-zinc-900 text-[13px] font-extrabold text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {closeMutation.isPending ? "Fechando..." : "Fechar caixa"}
-                </Button>
-              </div>
+                  {!hasContado && (
+                    <div className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
+                      Informe o valor contado para calcular a diferença.
+                    </div>
+                  )}
+                  {difOk && (
+                    <div className="rounded-md bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
+                      ✓ Caixa conferido, sem diferença
+                    </div>
+                  )}
+                  {difSobra && (
+                    <div className="rounded-md bg-violet-50 px-3 py-2 text-xs font-semibold text-violet-700 dark:bg-violet-950/40 dark:text-violet-400">
+                      Sobra de {formatCurrency(Math.abs(difVal))}
+                    </div>
+                  )}
+                  {difFalta && (
+                    <div className="rounded-md bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 dark:bg-red-950/40 dark:text-red-400">
+                      Falta de {formatCurrency(Math.abs(difVal))}
+                    </div>
+                  )}
+
+                  <input
+                    placeholder="Observações (opcional)"
+                    value={closeObs}
+                    onChange={(e) => setCloseObs(e.target.value)}
+                    className={cn(fieldClass, "rounded-md bg-card font-medium")}
+                  />
+
+                  {confirmBeforeCloseRegister && (
+                    <label className="flex cursor-pointer items-start gap-2">
+                      <Checkbox
+                        checked={closeConfirmed}
+                        onCheckedChange={(checked) =>
+                          setCloseConfirmed(checked === true)
+                        }
+                        className="mt-0.5 h-4 w-4"
+                      />
+                      <span className="text-xs text-foreground">
+                        Confirmo que conferi o dinheiro físico da gaveta
+                      </span>
+                    </label>
+                  )}
+
+                  <Button
+                    onClick={handleCloseRegister}
+                    disabled={
+                      closeMutation.isPending ||
+                      (confirmBeforeCloseRegister && !closeConfirmed)
+                    }
+                    className="h-9 w-full gap-1.5 rounded-md bg-selected text-[13px] font-semibold text-selected-foreground transition-colors hover:bg-selected-hover disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Lock className="h-3.5 w-3.5" />
+                    {closeMutation.isPending ? "Fechando..." : "Fechar caixa"}
+                  </Button>
+                  <p className="text-[11px] text-muted-foreground">
+                    O fechamento não pode ser desfeito.
+                  </p>
+                </div>
+              </SectionCard>
             </div>
 
             {/* Extrato de movimentos: os totais do resumo são líquidos e não
                 dizem QUAL lançamento gerou a diferença - aqui o operador
                 confere linha a linha. */}
-            <div className="mt-3 overflow-hidden rounded-[13px] border border-border bg-card">
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
-                <div>
-                  <div className="text-[13px] font-extrabold text-foreground">
-                    Extrato de movimentos
-                  </div>
-                  <div className="mt-px text-[11px] font-semibold text-muted-foreground">
-                    Lançamentos deste caixa, para conferir uma diferença linha
-                    a linha
-                  </div>
-                </div>
-                <span className="shrink-0 rounded-[8px] border border-border bg-muted px-2.5 py-1 text-[11px] font-bold text-foreground">
+            <SectionCard
+              icon={List}
+              title="Extrato de movimentos"
+              subtitle="lançamentos deste caixa"
+              aside={
+                <span className="rounded bg-muted px-2 py-0.5 text-[11.5px] font-semibold tabular-nums text-muted-foreground">
                   {movementsMeta?.total ?? 0} movimento
                   {(movementsMeta?.total ?? 0) !== 1 ? "s" : ""}
                 </span>
-              </div>
-
-              <div className="flex flex-wrap items-end gap-2 border-b border-border bg-muted px-4 py-3">
+              }
+            >
+              <div className="flex flex-wrap items-end gap-2 border-b border-border px-4 py-3">
                 <label className="min-w-[150px] flex-1 sm:max-w-[210px]">
-                  <span className="mb-[6px] block text-[11px] font-bold text-foreground">
+                  <span className="mb-1.5 block text-xs font-semibold text-foreground">
                     Tipo
                   </span>
                   <select
@@ -877,7 +920,7 @@ export default function CashRegisterPage() {
                         e.target.value as CashMovementType | "ALL",
                       )
                     }
-                    className={cn(fieldClass, "bg-card")}
+                    className={cn(fieldClass, "rounded-md bg-card font-medium")}
                   >
                     {MOVEMENT_TYPE_FILTERS.map((opt) => (
                       <option key={opt.value} value={opt.value}>
@@ -888,7 +931,7 @@ export default function CashRegisterPage() {
                 </label>
 
                 <label className="min-w-[150px] flex-1 sm:max-w-[210px]">
-                  <span className="mb-[6px] block text-[11px] font-bold text-foreground">
+                  <span className="mb-1.5 block text-xs font-semibold text-foreground">
                     Método
                   </span>
                   <select
@@ -898,7 +941,7 @@ export default function CashRegisterPage() {
                         e.target.value as PaymentMethod | "ALL",
                       )
                     }
-                    className={cn(fieldClass, "bg-card")}
+                    className={cn(fieldClass, "rounded-md bg-card font-medium")}
                   >
                     {MOVEMENT_METHOD_FILTERS.map((opt) => (
                       <option key={opt.value} value={opt.value}>
@@ -911,7 +954,7 @@ export default function CashRegisterPage() {
                 {hasMovementFilters && (
                   <CompactButton
                     onClick={clearMovementFilters}
-                    className="bg-card"
+                    className="rounded-md border border-border bg-card"
                   >
                     Limpar filtros
                   </CompactButton>
@@ -921,25 +964,24 @@ export default function CashRegisterPage() {
               {movementsLoading ? (
                 <div className="space-y-2 p-4">
                   {[1, 2, 3, 4].map((i) => (
-                    <Skeleton key={i} className="h-11 w-full rounded-[9px]" />
+                    <Skeleton key={i} className="h-10 w-full rounded-md" />
                   ))}
                 </div>
               ) : movementsError ? (
-                <div className="py-9 text-center">
-                  <div className="text-[13px] font-bold text-foreground">
+                <div className="px-4 py-8 text-center">
+                  <div className="text-[13px] font-semibold text-foreground">
                     Não foi possível carregar os movimentos
                   </div>
-                  <div className="mt-0.5 text-[11.5px] text-muted-foreground">
+                  <div className="mt-0.5 text-xs text-muted-foreground">
                     Use Atualizar para tentar de novo
                   </div>
                 </div>
               ) : movements.length === 0 ? (
-                <div className="py-9 text-center">
-                  <div className="text-2xl">🧾</div>
-                  <div className="mt-1.5 text-[13px] font-bold text-foreground">
+                <div className="px-4 py-8 text-center">
+                  <div className="text-[13px] font-semibold text-foreground">
                     Nenhum movimento encontrado
                   </div>
-                  <div className="mt-0.5 text-[11.5px] text-muted-foreground">
+                  <div className="mt-0.5 text-xs text-muted-foreground">
                     {hasMovementFilters
                       ? "Tente ajustar os filtros"
                       : "Os lançamentos do turno aparecem aqui"}
@@ -957,11 +999,11 @@ export default function CashRegisterPage() {
                     {movements.map((movement) => {
                       const signed = movementSignedAmount(movement);
                       return (
-                        <div key={movement.id} className="p-3.5">
+                        <div key={movement.id} className="px-4 py-3">
                           <div className="flex items-start justify-between gap-2">
                             <span
                               className={cn(
-                                "shrink-0 rounded-md px-2 py-0.5 text-[10.5px] font-extrabold",
+                                "shrink-0 rounded px-2 py-0.5 text-[11px] font-semibold",
                                 MOVEMENT_TYPE_BADGE[movement.type] ??
                                   "bg-muted text-muted-foreground",
                               )}
@@ -971,7 +1013,7 @@ export default function CashRegisterPage() {
                             </span>
                             <span
                               className={cn(
-                                "shrink-0 text-[13px] font-extrabold",
+                                "shrink-0 text-[13px] font-semibold tabular-nums",
                                 signed < 0
                                   ? "text-red-600 dark:text-red-400"
                                   : "text-emerald-700 dark:text-emerald-400",
@@ -980,10 +1022,10 @@ export default function CashRegisterPage() {
                               {formatSigned(signed)}
                             </span>
                           </div>
-                          <div className="mt-2 text-[12px] font-semibold text-foreground">
+                          <div className="mt-1.5 break-words text-[13px] text-foreground">
                             {movement.description || "—"}
                           </div>
-                          <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2 text-[11px] font-semibold text-muted-foreground">
+                          <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-[11.5px] text-muted-foreground">
                             <span>
                               {movement.paymentMethod
                                 ? PAYMENT_METHOD_LABELS[movement.paymentMethod]
@@ -1003,9 +1045,9 @@ export default function CashRegisterPage() {
 
                   {/* Desktop/tablet: tabela */}
                   <div className="hidden overflow-x-auto md:block">
-                    <div className="min-w-[760px]">
+                    <div className="min-w-[640px]">
                       <div
-                        className="grid items-center gap-2.5 border-b border-border bg-muted px-4 py-2.5"
+                        className="grid items-center gap-2.5 border-b border-border px-4 py-2"
                         style={{ gridTemplateColumns: MOVEMENTS_GRID }}
                       >
                         <span className={movementHeaderClass}>HORA</span>
@@ -1026,15 +1068,15 @@ export default function CashRegisterPage() {
                           return (
                             <div
                               key={movement.id}
-                              className="grid items-center gap-2.5 border-b border-border px-4 py-2.5 last:border-b-0 hover:bg-muted"
+                              className="grid min-h-10 items-center gap-2.5 border-b border-border px-4 py-2 last:border-b-0 hover:bg-muted/60"
                               style={{ gridTemplateColumns: MOVEMENTS_GRID }}
                             >
-                              <span className="text-[11.5px] font-semibold text-muted-foreground">
+                              <span className="text-xs tabular-nums text-muted-foreground">
                                 {formatDateTimeShort(movementDate(movement))}
                               </span>
                               <span
                                 className={cn(
-                                  "w-fit rounded-md px-2 py-0.5 text-[10.5px] font-extrabold",
+                                  "w-fit rounded px-2 py-0.5 text-[11px] font-semibold",
                                   MOVEMENT_TYPE_BADGE[movement.type] ??
                                     "bg-muted text-muted-foreground",
                                 )}
@@ -1043,26 +1085,26 @@ export default function CashRegisterPage() {
                                   movement.type}
                               </span>
                               <span
-                                className="truncate text-[12px] font-semibold text-foreground"
+                                className="truncate text-[13px] text-foreground"
                                 title={movement.description || undefined}
                               >
                                 {movement.description || "—"}
                               </span>
-                              <span className="truncate text-[11.5px] font-semibold text-muted-foreground">
+                              <span className="truncate text-xs text-muted-foreground">
                                 {movement.paymentMethod
                                   ? PAYMENT_METHOD_LABELS[
                                       movement.paymentMethod
                                     ]
                                   : "—"}
                               </span>
-                              <span className="text-[11.5px] font-semibold text-muted-foreground">
+                              <span className="truncate text-xs text-muted-foreground">
                                 {movement.source
                                   ? MOVEMENT_SOURCE_LABELS[movement.source]
                                   : "—"}
                               </span>
                               <span
                                 className={cn(
-                                  "text-right text-[12.5px] font-extrabold",
+                                  "text-right text-[13px] font-semibold tabular-nums",
                                   signed < 0
                                     ? "text-red-600 dark:text-red-400"
                                     : "text-emerald-700 dark:text-emerald-400",
@@ -1081,7 +1123,7 @@ export default function CashRegisterPage() {
 
               {movementsTotalPages > 1 && (
                 <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-3">
-                  <span className="text-[11.5px] font-semibold text-muted-foreground">
+                  <span className="text-xs text-muted-foreground">
                     Página {movementsMeta?.page ?? movementsPage} de{" "}
                     {movementsTotalPages} ({movementsMeta?.total ?? 0}{" "}
                     movimentos)
@@ -1111,35 +1153,43 @@ export default function CashRegisterPage() {
                   </div>
                 </div>
               )}
-            </div>
-          </>
+            </SectionCard>
+          </div>
         ) : (
-          <>
-            {/* Banner de caixa fechado */}
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-[12px] bg-muted px-4 py-3">
-              <div className="flex items-center gap-2.5">
-                <span className="text-[15px]">🔒</span>
-                <span className="text-[13.5px] font-extrabold text-foreground">
-                  Caixa Fechado
+          // Coluna única de seções: uma seção de caixas anteriores, se vier,
+          // entra abaixo do aviso sem reorganizar o resto.
+          <div className="flex flex-col gap-4">
+            {/* Faixa de caixa fechado */}
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-3 rounded-lg border border-border bg-card px-4 py-3">
+              <div className="flex items-center gap-2">
+                <span className="h-2 w-2 shrink-0 rounded-full bg-muted-foreground/60 ring-[3px] ring-muted" />
+                <span className="whitespace-nowrap text-[13.5px] font-bold text-foreground">
+                  Caixa fechado
                 </span>
               </div>
+              <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+                <Info className="h-3 w-3 shrink-0" />
+                Vendas e movimentos ficam bloqueados até abrir o caixa.
+              </span>
               <Button
                 onClick={() => setDialog("open-register")}
-                className="h-[34px] rounded-[9px] bg-brand-500 px-4 text-[12.5px] font-extrabold text-white shadow-[0_4px_12px_var(--tw-shadow-color)] shadow-brand-500/25 hover:bg-brand-600"
+                className="h-[34px] gap-1.5 rounded-md bg-brand-500 px-3.5 text-[13px] font-semibold text-white hover:bg-brand-600 sm:ml-auto"
               >
-                🔓 Abrir Caixa
+                <LockOpen className="h-3.5 w-3.5" />
+                Abrir caixa
               </Button>
             </div>
-            <div className="rounded-[13px] border border-dashed border-border bg-card px-5 py-10 text-center">
-              <div className="text-[26px]">💵</div>
-              <div className="mt-2 text-[13.5px] font-bold text-foreground">
+
+            <div className="rounded-lg border border-dashed border-border bg-card px-5 py-10 text-center">
+              <Wallet className="mx-auto h-6 w-6 text-muted-foreground" />
+              <div className="mt-2 text-[13.5px] font-semibold text-foreground">
                 Nenhum caixa aberto
               </div>
-              <div className="mt-0.5 text-[11.5px] text-muted-foreground">
+              <div className="mt-0.5 text-xs text-muted-foreground">
                 Abra o caixa para registrar movimentos
               </div>
             </div>
-          </>
+          </div>
         )}
       </div>
 
