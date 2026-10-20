@@ -31,6 +31,19 @@ function openMethodSelect() {
 }
 
 describe("Configurações do financeiro", () => {
+  it("oferece só os 4 métodos que o caixa aceita, sem Transferência", () => {
+    render(<SettingsPage />);
+    openMethodSelect();
+
+    const options = screen.getAllByRole("option").map((o) => o.textContent);
+    expect(options).toEqual([
+      "Dinheiro",
+      "PIX",
+      "Cartão de Débito",
+      "Cartão de Crédito",
+    ]);
+  });
+
   it("escolher um método salva na hora", () => {
     render(<SettingsPage />);
     openMethodSelect();
@@ -38,6 +51,20 @@ describe("Configurações do financeiro", () => {
 
     expect(useFinancialPreferencesStore.getState().defaultPaymentMethod).toBe(
       PaymentMethod.PIX,
+    );
+  });
+
+  it("Transferência salva antes desta tela aparece como sem seleção, sem reescrever o store", () => {
+    useFinancialPreferencesStore.setState({
+      defaultPaymentMethod: PaymentMethod.BANK_TRANSFER,
+    });
+    render(<SettingsPage />);
+
+    expect(
+      screen.getByRole("combobox", { name: "Método de pagamento padrão" }),
+    ).toHaveTextContent("Selecione um método");
+    expect(useFinancialPreferencesStore.getState().defaultPaymentMethod).toBe(
+      PaymentMethod.BANK_TRANSFER,
     );
   });
 

@@ -15,12 +15,16 @@ import { PaymentMethod } from "@/services/api";
 import { Monitor, RotateCcw, Settings, Wallet } from "lucide-react";
 import type { ReactNode } from "react";
 
+/**
+ * Só os métodos que o backend aceita num movimento de caixa. BANK_TRANSFER
+ * continua no enum (aparece em pagamento de pedido), mas o caixa rejeita -
+ * deixar como padrão aqui só pré-selecionava um valor que falha ao salvar.
+ */
 const DEFAULT_METHOD_OPTIONS: { value: PaymentMethod; label: string }[] = [
   { value: PaymentMethod.CASH, label: "Dinheiro" },
   { value: PaymentMethod.PIX, label: "PIX" },
   { value: PaymentMethod.DEBIT_CARD, label: "Cartão de Débito" },
   { value: PaymentMethod.CREDIT_CARD, label: "Cartão de Crédito" },
-  { value: PaymentMethod.BANK_TRANSFER, label: "Transferência Bancária" },
 ];
 
 /** Linha "rótulo + controle": empilha no mobile, duas colunas a partir de sm. */
@@ -71,6 +75,14 @@ export default function SettingsPage() {
     resetFinancialPreferences,
   } = useFinancialPreferencesStore();
 
+  // Valor salvo fora da lista (ex.: BANK_TRANSFER de antes desta tela, ainda
+  // no localStorage) aparece como "sem seleção" em vez de um select em branco
+  // que parece quebrado. O store não é reescrito sozinho: a pessoa escolhe.
+  const selectedMethod = DEFAULT_METHOD_OPTIONS.some(
+    (option) => option.value === defaultPaymentMethod,
+  )
+    ? defaultPaymentMethod
+    : "";
 
   return (
     <AdminPageLayout
@@ -117,7 +129,7 @@ export default function SettingsPage() {
             description="Pré-selecionado em suprimento, venda manual e reembolso. A sangria sempre abre sem método."
             control={
               <Select
-                value={defaultPaymentMethod}
+                value={selectedMethod}
                 onValueChange={(v) => setDefaultPaymentMethod(v as PaymentMethod)}
               >
                 <SelectTrigger
