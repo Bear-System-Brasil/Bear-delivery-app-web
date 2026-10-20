@@ -91,7 +91,7 @@ function SectionCard({
     >
       <div
         className={cn(
-          "flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-3",
+          "flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3",
           children !== undefined && "border-b border-border",
         )}
       >
@@ -102,7 +102,10 @@ function SectionCard({
           </h2>
           <span className="text-xs text-muted-foreground">· {subtitle}</span>
         </div>
-        {actions}
+        {/* ml-auto segura as ações à direita mesmo quando elas quebram pra
+            uma linha só delas no mobile — sem isso "Salvar" caía à esquerda,
+            diferente do desktop. */}
+        {actions && <div className="ml-auto shrink-0">{actions}</div>}
       </div>
       {children !== undefined && <div className="p-4">{children}</div>}
     </section>
