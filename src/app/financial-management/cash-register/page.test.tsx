@@ -73,9 +73,11 @@ const SUMMARY = {
   totalCash: 60,
   totalPix: 0,
   totalCredit: 0,
-  totalDebit: 0,
+  totalDebit: 80,
   totalTransfer: 0,
-  availableBalance: 160,
+  // Inclui métodos que não são dinheiro (ex.: os R$ 80 do débito), então é
+  // diferente de fundo + dinheiro. A gaveta não pode usar este valor.
+  availableBalance: 240,
 };
 
 const initialPreferences = useFinancialPreferencesStore.getState();
@@ -127,6 +129,17 @@ describe("Controle de Caixa - caixa aberto", () => {
     expect(
       screen.getByText("Vendas (todos os métodos)"),
     ).toBeInTheDocument();
+  });
+
+  it("esperado na gaveta é fundo + dinheiro, sem somar cartão/pix", () => {
+    render(<CashRegisterPage />);
+    const conf = screen
+      .getByRole("heading", { name: "Conferência de fechamento" })
+      .closest("section") as HTMLElement;
+    // fundo 100 + dinheiro 60 = 160. Não usa o availableBalance (240), que
+    // inclui o cartão.
+    expect(within(conf).getByText(/R\$\s*160,00/)).toBeInTheDocument();
+    expect(within(conf).queryByText(/R\$\s*240,00/)).toBeNull();
   });
 
   it("Entrada abre em Venda e Saída em Reembolso, cada um só com seu grupo", () => {

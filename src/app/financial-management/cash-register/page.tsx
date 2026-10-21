@@ -529,13 +529,16 @@ export default function CashRegisterPage() {
     saleMutation.isPending ||
     refundMutation.isPending;
 
-  // Fundo de troco + líquido em dinheiro. `totalCash` já vem do backend como
-  // SALE + DEPOSIT − WITHDRAWAL − REFUND, então sangria e reembolso NÃO se
-  // subtraem de novo aqui - era isso que fazia a sangria contar duas vezes.
+  // Gaveta é dinheiro físico: fundo de troco + líquido EM DINHEIRO do turno.
+  // `totalCash` já vem do backend como SALE + DEPOSIT − WITHDRAWAL − REFUND só
+  // do método dinheiro, então sangria e reembolso NÃO se subtraem de novo aqui
+  // - era isso que fazia a sangria contar duas vezes.
+  //
+  // Não usar `availableBalance`: ele soma todos os métodos (cartão e pix
+  // entram nele), então inflava a gaveta com dinheiro que não está nela.
   const registerOpeningBalance = register?.openingBalance ?? 0;
   const netCash = summary?.totalCash ?? 0;
-  const expectedInDrawer =
-    summary?.availableBalance ?? registerOpeningBalance + netCash;
+  const expectedInDrawer = registerOpeningBalance + netCash;
 
   const hasContado = countedTotal.trim() !== "";
   const contadoVal = parseFloat(countedTotal.replace(",", "."));
