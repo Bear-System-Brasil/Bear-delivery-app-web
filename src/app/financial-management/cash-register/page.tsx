@@ -26,7 +26,6 @@ import {
 import { useAuthStore, useFinancialPreferencesStore } from "@/stores";
 import { formatCurrency } from "@/utils";
 import {
-  ArrowLeftRight,
   Banknote,
   CreditCard,
   Info,
@@ -71,13 +70,6 @@ function initialPaymentMethod(
 ): PaymentMethod | "" {
   return type === "withdrawal" ? "" : toPaymentMethod(preferred);
 }
-
-const MOVEMENT_OPTIONS: { value: MovementType; label: string }[] = [
-  { value: "withdrawal", label: "Sangria" },
-  { value: "deposit", label: "Suprimento" },
-  { value: "sale", label: "Venda" },
-  { value: "refund", label: "Reembolso" },
-];
 
 const MOVEMENT_LABELS: Record<MovementType, string> = {
   withdrawal: "Sangria",
@@ -753,21 +745,6 @@ export default function CashRegisterPage() {
                     </span>
                   </div>
                 </SectionCard>
-
-                {/* Ações rápidas */}
-                <SectionCard icon={ArrowLeftRight} title="Registrar movimento">
-                  <div className="grid grid-cols-2 gap-2 p-4 sm:grid-cols-4">
-                    {MOVEMENT_OPTIONS.map((opt) => (
-                      <Button
-                        key={opt.value}
-                        onClick={() => openMovementDialog(opt.value)}
-                        className="h-9 rounded-md border border-border bg-card px-2 text-[13px] font-semibold text-foreground transition-colors hover:bg-muted"
-                      >
-                        {opt.label}
-                      </Button>
-                    ))}
-                  </div>
-                </SectionCard>
               </div>
 
               {/* Conferência de fechamento */}
@@ -783,16 +760,6 @@ export default function CashRegisterPage() {
                   <SummaryRow
                     label="Fundo de troco"
                     value={formatCurrency(registerOpeningBalance)}
-                  />
-                  <SummaryRow
-                    label="Movimento em dinheiro"
-                    hint="Líquido do turno"
-                    value={formatSigned(netCash)}
-                    valueClassName={
-                      netCash < 0
-                        ? "text-red-600 dark:text-red-400"
-                        : "text-emerald-700 dark:text-emerald-400"
-                    }
                   />
                 </div>
 
@@ -863,25 +830,20 @@ export default function CashRegisterPage() {
               title="Extrato de movimentos"
               subtitle="lançamentos deste caixa"
               aside={
-                <span className="rounded bg-muted px-2 py-0.5 text-[11.5px] font-semibold tabular-nums text-muted-foreground">
-                  {movementsMeta?.total ?? 0} movimento
-                  {(movementsMeta?.total ?? 0) !== 1 ? "s" : ""}
-                </span>
-              }
-            >
-              <div className="flex flex-wrap items-end gap-2 border-b border-border px-4 py-3">
-                <label className="min-w-[150px] flex-1 sm:max-w-[210px]">
-                  <span className="mb-1.5 block text-xs font-semibold text-foreground">
-                    Tipo
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  <span className="rounded bg-muted px-2 py-0.5 text-[11.5px] font-semibold tabular-nums text-muted-foreground">
+                    {movementsMeta?.total ?? 0} movimento
+                    {(movementsMeta?.total ?? 0) !== 1 ? "s" : ""}
                   </span>
                   <select
+                    aria-label="Filtrar por tipo"
                     value={movementTypeFilter}
                     onChange={(e) =>
                       changeMovementType(
                         e.target.value as CashMovementType | "ALL",
                       )
                     }
-                    className={cn(fieldClass, "rounded-md bg-card font-medium")}
+                    className="h-8 rounded-md border border-border bg-card px-2 text-xs font-medium text-foreground outline-none"
                   >
                     {MOVEMENT_TYPE_FILTERS.map((opt) => (
                       <option key={opt.value} value={opt.value}>
@@ -889,20 +851,15 @@ export default function CashRegisterPage() {
                       </option>
                     ))}
                   </select>
-                </label>
-
-                <label className="min-w-[150px] flex-1 sm:max-w-[210px]">
-                  <span className="mb-1.5 block text-xs font-semibold text-foreground">
-                    Método
-                  </span>
                   <select
+                    aria-label="Filtrar por método"
                     value={movementMethodFilter}
                     onChange={(e) =>
                       changeMovementMethod(
                         e.target.value as PaymentMethod | "ALL",
                       )
                     }
-                    className={cn(fieldClass, "rounded-md bg-card font-medium")}
+                    className="h-8 rounded-md border border-border bg-card px-2 text-xs font-medium text-foreground outline-none"
                   >
                     {MOVEMENT_METHOD_FILTERS.map((opt) => (
                       <option key={opt.value} value={opt.value}>
@@ -910,18 +867,18 @@ export default function CashRegisterPage() {
                       </option>
                     ))}
                   </select>
-                </label>
-
-                {hasMovementFilters && (
-                  <CompactButton
-                    onClick={clearMovementFilters}
-                    className="rounded-md border border-border bg-card"
-                  >
-                    Limpar filtros
-                  </CompactButton>
-                )}
-              </div>
-
+                  {hasMovementFilters && (
+                    <button
+                      type="button"
+                      onClick={clearMovementFilters}
+                      className="h-8 rounded-md border border-border bg-card px-2.5 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted"
+                    >
+                      Limpar
+                    </button>
+                  )}
+                </div>
+              }
+            >
               {movementsLoading ? (
                 <div className="space-y-2 p-4">
                   {[1, 2, 3, 4].map((i) => (

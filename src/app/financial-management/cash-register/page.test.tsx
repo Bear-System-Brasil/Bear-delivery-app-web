@@ -118,7 +118,6 @@ describe("Controle de Caixa - caixa aberto", () => {
     expect(screen.getByText("Caixa aberto")).toBeInTheDocument();
     for (const title of [
       "Por forma de pagamento",
-      "Registrar movimento",
       "Conferência de fechamento",
       "Extrato de movimentos",
     ]) {
@@ -128,29 +127,6 @@ describe("Controle de Caixa - caixa aberto", () => {
     expect(
       screen.getByText("Vendas (todos os métodos)"),
     ).toBeInTheDocument();
-  });
-
-  it("os quatro tipos de movimento abrem o diálogo do grupo no tipo certo", () => {
-    render(<CashRegisterPage />);
-    const section = screen
-      .getByRole("heading", { name: "Registrar movimento" })
-      .closest("section") as HTMLElement;
-
-    const casos = [
-      { label: "Sangria", dialog: "Registrar saída" },
-      { label: "Suprimento", dialog: "Registrar entrada" },
-      { label: "Venda", dialog: "Registrar entrada" },
-      { label: "Reembolso", dialog: "Registrar saída" },
-    ];
-    for (const { label, dialog: dialogName } of casos) {
-      fireEvent.click(within(section).getByRole("button", { name: label }));
-      const dialog = screen.getByRole("dialog", { name: dialogName });
-      // O tipo escolhido fica marcado dentro do diálogo.
-      expect(within(dialog).getByRole("button", { name: label })).toHaveClass(
-        "bg-selected",
-      );
-      fireEvent.click(within(dialog).getByRole("button", { name: "Cancelar" }));
-    }
   });
 
   it("Entrada abre em Venda e Saída em Reembolso, cada um só com seu grupo", () => {
