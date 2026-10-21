@@ -88,16 +88,21 @@ beforeEach(() => {
 });
 
 describe("Controle de Caixa - caixa fechado", () => {
-  it("mostra o aviso de fechado e abre o mesmo diálogo de abertura", () => {
+  it("mostra o aviso de fechado e o card inline de abertura", () => {
     render(<CashRegisterPage />);
 
     expect(screen.getByText("Caixa fechado")).toBeInTheDocument();
-    expect(screen.getByText("Nenhum caixa aberto")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Abrir caixa" }));
+    // Abrir caixa agora é inline (sem modal): card com título e botão. O botão
+    // só libera depois do fundo de troco.
     expect(
-      screen.getByRole("dialog", { name: "Abrir caixa" }),
+      screen.getByRole("heading", { name: "Abrir caixa" }),
     ).toBeInTheDocument();
+    const abrir = screen.getByRole("button", { name: "Abrir caixa" });
+    expect(abrir).toBeDisabled();
+    fireEvent.change(screen.getByPlaceholderText("0,00"), {
+      target: { value: "100" },
+    });
+    expect(abrir).toBeEnabled();
   });
 });
 
@@ -119,7 +124,10 @@ describe("Controle de Caixa - caixa aberto", () => {
     ]) {
       expect(screen.getByRole("heading", { name: title })).toBeInTheDocument();
     }
-    expect(screen.getByText("Detalhamento do turno")).toBeInTheDocument();
+    // O detalhamento perdeu o título destacado, mas as linhas brutas seguem.
+    expect(
+      screen.getByText("Vendas (todos os métodos)"),
+    ).toBeInTheDocument();
   });
 
   it("os quatro tipos de movimento abrem o diálogo do grupo no tipo certo", () => {
@@ -173,28 +181,45 @@ describe("Controle de Caixa - caixa aberto", () => {
     ).toBeInTheDocument();
   });
 
-  it("fechar caixa segue bloqueado até marcar a confirmação extra", () => {
+  it("confirmar fechamento fica bloqueado até valor contado e confirmação", () => {
     render(<CashRegisterPage />);
-    const fechar = screen.getByRole("button", { name: "Fechar caixa" });
 
-    expect(fechar).toBeDisabled();
+    // "Fechar caixa" agora só abre o modal; a trava é no "Confirmar fechamento".
+    fireEvent.click(screen.getByRole("button", { name: "Fechar caixa" }));
+    const dialog = screen.getByRole("dialog", { name: "Fechar caixa" });
+    const confirmar = within(dialog).getByRole("button", {
+      name: "Confirmar fechamento",
+    });
+
+    expect(confirmar).toBeDisabled();
+    fireEvent.change(within(dialog).getByPlaceholderText("0,00"), {
+      target: { value: "160" },
+    });
+    // Falta ainda a confirmação extra.
+    expect(confirmar).toBeDisabled();
     fireEvent.click(
-      screen.getByRole("checkbox", {
+      within(dialog).getByRole("checkbox", {
         name: "Confirmo que conferi o dinheiro físico da gaveta",
       }),
     );
-    expect(fechar).toBeEnabled();
+    expect(confirmar).toBeEnabled();
   });
 
   it("sem a confirmação extra nas preferências, o botão não depende do checkbox", () => {
     useFinancialPreferencesStore.setState({ confirmBeforeCloseRegister: false });
     render(<CashRegisterPage />);
 
-    expect(
-      screen.queryByRole("checkbox", {
-        name: "Confirmo que conferi o dinheiro físico da gaveta",
-      }),
-    ).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Fechar caixa" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Fechar caixa" }));
+    const dialog = screen.getByRole("dialog", { name: "Fechar caixa" });
+    expect(within(dialog).queryByRole("checkbox")).not.toBeInTheDocument();
+
+    const confirmar = within(dialog).getByRole("button", {
+      name: "Confirmar fechamento",
+    });
+    expect(confirmar).toBeDisabled();
+    fireEvent.change(within(dialog).getByPlaceholderText("0,00"), {
+      target: { value: "160" },
+    });
+    expect(confirmar).toBeEnabled();
   });
 });

@@ -38,13 +38,12 @@ import {
   Plus,
   RefreshCw,
   Scale,
-  Wallet,
 } from "lucide-react";
 import { toast } from "sonner";
 import { type ReactNode, useState } from "react";
 
 type MovementType = "withdrawal" | "deposit" | "sale" | "refund";
-type DialogKind = "open-register" | "movement" | null;
+type DialogKind = "movement" | "close-register" | null;
 
 /** O método preferido vem do localStorage; um valor obsoleto ali não pode
  *  virar corpo de requisição, então cai pra "sem seleção". */
@@ -378,7 +377,6 @@ export default function CashRegisterPage() {
   );
 
   const [openingBalance, setOpeningBalance] = useState("");
-  const [openObs, setOpenObs] = useState("");
   const [countedTotal, setCountedTotal] = useState("");
   const [closeObs, setCloseObs] = useState("");
   const [amount, setAmount] = useState("");
@@ -451,7 +449,9 @@ export default function CashRegisterPage() {
   const closeDialog = () => {
     setDialog(null);
     setOpeningBalance("");
-    setOpenObs("");
+    setCountedTotal("");
+    setCloseObs("");
+    setCloseConfirmed(false);
     resetMovementForm(movementType);
   };
 
@@ -464,11 +464,8 @@ export default function CashRegisterPage() {
   const handleOpenRegister = async () => {
     const balance = parseFloat(openingBalance.replace(",", "."));
     if (isNaN(balance) || balance < 0) return;
-    await openMutation.mutateAsync({
-      openingBalance: balance,
-      observations: openObs || undefined,
-    });
-    closeDialog();
+    await openMutation.mutateAsync({ openingBalance: balance });
+    setOpeningBalance("");
   };
 
   const handleCloseRegister = async () => {
@@ -482,6 +479,7 @@ export default function CashRegisterPage() {
     setCountedTotal("");
     setCloseObs("");
     setCloseConfirmed(false);
+    setDialog(null);
   };
 
   const openMovementDialog = (type: MovementType) => {
@@ -810,112 +808,47 @@ export default function CashRegisterPage() {
                 {/* Detalhamento: brutos por tipo de movimento, só pra o
                     operador enxergar o que compôs o turno. Não entram na
                     conta acima - somá-los de novo contaria a sangria duas
-                    vezes, que era exatamente o bug da conferência. */}
-                <div className="mx-4 mt-3 rounded-md bg-muted px-3 py-2.5">
-                  <div className="text-[10.5px] font-semibold uppercase tracking-[0.05em] text-muted-foreground">
-                    Detalhamento do turno
-                  </div>
-                  <div className="mt-px text-[11px] text-muted-foreground">
-                    Brutos por tipo, já refletidos nos totais acima — não somar
-                    de novo.
-                  </div>
-                  <div className="mt-2 flex flex-col gap-1">
-                    <SummaryRow
-                      label="Vendas (todos os métodos)"
-                      value={formatCurrency(summary?.totalSales ?? 0)}
-                      valueClassName="text-muted-foreground"
-                    />
-                    <SummaryRow
-                      label="Suprimentos"
-                      value={formatCurrency(summary?.totalDeposits ?? 0)}
-                      valueClassName="text-muted-foreground"
-                    />
-                    <SummaryRow
-                      label="Sangrias"
-                      value={formatCurrency(summary?.totalWithdrawals ?? 0)}
-                      valueClassName="text-muted-foreground"
-                    />
-                    <SummaryRow
-                      label="Reembolsos"
-                      value={formatCurrency(summary?.totalRefunds ?? 0)}
-                      valueClassName="text-muted-foreground"
-                    />
-                  </div>
+                    vezes, que era exatamente o bug da conferência. Agora sem
+                    a caixa cinza nem o título destacado, só uma nota. */}
+                <div className="mx-4 mt-3 flex flex-col gap-1 border-t border-border pt-3">
+                  <p className="text-[11px] text-muted-foreground">
+                    Brutos por tipo do turno — já refletidos acima, não somar de
+                    novo.
+                  </p>
+                  <SummaryRow
+                    label="Vendas (todos os métodos)"
+                    value={formatCurrency(summary?.totalSales ?? 0)}
+                    valueClassName="text-muted-foreground"
+                  />
+                  <SummaryRow
+                    label="Suprimentos"
+                    value={formatCurrency(summary?.totalDeposits ?? 0)}
+                    valueClassName="text-muted-foreground"
+                  />
+                  <SummaryRow
+                    label="Sangrias"
+                    value={formatCurrency(summary?.totalWithdrawals ?? 0)}
+                    valueClassName="text-muted-foreground"
+                  />
+                  <SummaryRow
+                    label="Reembolsos"
+                    value={formatCurrency(summary?.totalRefunds ?? 0)}
+                    valueClassName="text-muted-foreground"
+                  />
                 </div>
 
-                <div className="flex flex-col gap-2.5 border-t border-border p-4 mt-4">
-                  <label className="flex flex-col gap-1.5">
-                    <span className="text-xs font-semibold text-foreground">
-                      Valor contado
-                    </span>
-                    <span className="relative">
-                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-                        R$
-                      </span>
-                      <input
-                        placeholder="0,00"
-                        value={countedTotal}
-                        onChange={(e) => setCountedTotal(e.target.value)}
-                        className="h-9 w-full rounded-md border border-border bg-card pl-9 pr-3 text-[13px] font-semibold tabular-nums text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      />
-                    </span>
-                  </label>
-
-                  {!hasContado && (
-                    <div className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
-                      Informe o valor contado para calcular a diferença.
-                    </div>
-                  )}
-                  {difOk && (
-                    <div className="rounded-md bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
-                      ✓ Caixa conferido, sem diferença
-                    </div>
-                  )}
-                  {difSobra && (
-                    <div className="rounded-md bg-violet-50 px-3 py-2 text-xs font-semibold text-violet-700 dark:bg-violet-950/40 dark:text-violet-400">
-                      Sobra de {formatCurrency(Math.abs(difVal))}
-                    </div>
-                  )}
-                  {difFalta && (
-                    <div className="rounded-md bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 dark:bg-red-950/40 dark:text-red-400">
-                      Falta de {formatCurrency(Math.abs(difVal))}
-                    </div>
-                  )}
-
-                  <input
-                    placeholder="Observações (opcional)"
-                    value={closeObs}
-                    onChange={(e) => setCloseObs(e.target.value)}
-                    className={cn(fieldClass, "rounded-md bg-card font-medium")}
-                  />
-
-                  {confirmBeforeCloseRegister && (
-                    <label className="flex cursor-pointer items-start gap-2">
-                      <Checkbox
-                        checked={closeConfirmed}
-                        onCheckedChange={(checked) =>
-                          setCloseConfirmed(checked === true)
-                        }
-                        className="mt-0.5 h-4 w-4"
-                      />
-                      <span className="text-xs text-foreground">
-                        Confirmo que conferi o dinheiro físico da gaveta
-                      </span>
-                    </label>
-                  )}
-
+                {/* O fechamento abre num modal, deixando a conferência da tela
+                    só com o resumo - mais limpo. */}
+                <div className="mt-3 border-t border-border p-4">
                   <Button
-                    onClick={handleCloseRegister}
-                    disabled={
-                      closeMutation.isPending ||
-                      (confirmBeforeCloseRegister && !closeConfirmed)
-                    }
+                    onClick={() => setDialog("close-register")}
+                    disabled={closeMutation.isPending}
                     className="h-9 w-full gap-1.5 rounded-md bg-selected text-[13px] font-semibold text-selected-foreground transition-colors hover:bg-selected-hover disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <Lock className="h-3.5 w-3.5" />
-                    {closeMutation.isPending ? "Fechando..." : "Fechar caixa"}
+                    Fechar caixa
                   </Button>
-                  <p className="text-[11px] text-muted-foreground">
+                  <p className="mt-2 text-[11px] text-muted-foreground">
                     O fechamento não pode ser desfeito.
                   </p>
                 </div>
@@ -1199,72 +1132,143 @@ export default function CashRegisterPage() {
                 <Info className="h-3 w-3 shrink-0" />
                 Vendas e movimentos ficam bloqueados até abrir o caixa.
               </span>
-              <Button
-                onClick={() => setDialog("open-register")}
-                className="h-[34px] gap-1.5 rounded-md bg-brand-500 px-3.5 text-[13px] font-semibold text-white hover:bg-brand-600 sm:ml-auto"
-              >
-                <LockOpen className="h-3.5 w-3.5" />
-                Abrir caixa
-              </Button>
             </div>
 
-            <div className="rounded-lg border border-dashed border-border bg-card px-5 py-10 text-center">
-              <Wallet className="mx-auto h-6 w-6 text-muted-foreground" />
-              <div className="mt-2 text-[13.5px] font-semibold text-foreground">
-                Nenhum caixa aberto
+            {/* Abrir caixa inline: só o fundo de troco, sem modal e sem
+                observações - abertura raramente precisa de nota. */}
+            <SectionCard
+              icon={LockOpen}
+              title="Abrir caixa"
+              className="w-full max-w-md"
+            >
+              <div className="flex flex-col gap-3 p-4">
+                <div>
+                  <FieldLabel>Fundo de troco</FieldLabel>
+                  <div className="relative">
+                    <span className="pointer-events-none absolute left-[11px] top-1/2 -translate-y-1/2 text-[11.5px] font-bold text-muted-foreground">
+                      R$
+                    </span>
+                    <input
+                      placeholder="0,00"
+                      value={openingBalance}
+                      onChange={(e) => setOpeningBalance(e.target.value)}
+                      className="h-[38px] w-full rounded-[9px] border border-border bg-muted pl-[34px] pr-3 text-[13px] text-foreground outline-none"
+                    />
+                  </div>
+                  <p className="mt-1.5 text-[11px] text-muted-foreground">
+                    Dinheiro deixado na gaveta para troco no início do turno.
+                  </p>
+                </div>
+                <Button
+                  onClick={handleOpenRegister}
+                  disabled={openMutation.isPending || !openingBalance}
+                  className="h-9 w-full gap-1.5 rounded-md bg-brand-500 text-[13px] font-semibold text-white transition-colors hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <LockOpen className="h-3.5 w-3.5" />
+                  {openMutation.isPending ? "Abrindo..." : "Abrir caixa"}
+                </Button>
               </div>
-              <div className="mt-0.5 text-xs text-muted-foreground">
-                Abra o caixa para registrar movimentos
-              </div>
-            </div>
+            </SectionCard>
           </div>
         )}
       </div>
 
-      {/* Modal: Abrir caixa */}
+      {/* Modal: Fechar caixa */}
       <Dialog
-        open={dialog === "open-register"}
+        open={dialog === "close-register"}
         onOpenChange={(open) => !open && closeDialog()}
       >
         <DialogContent
           hideClose
-          className="max-w-[340px] gap-0 rounded-[15px] border-none p-[18px] shadow-2xl"
+          className="max-w-[360px] gap-0 rounded-[15px] border-none p-[18px] shadow-2xl"
         >
-          <ModalTitle onClose={closeDialog}>Abrir caixa</ModalTitle>
+          <ModalTitle onClose={closeDialog}>Fechar caixa</ModalTitle>
 
-          <FieldLabel>Fundo de troco inicial</FieldLabel>
-          <div className="relative mb-3">
+          <div className="mb-3 flex items-baseline justify-between gap-3">
+            <span className="text-[13px] font-semibold text-foreground">
+              Esperado na gaveta
+            </span>
+            <span className="whitespace-nowrap text-[15px] font-bold tabular-nums text-foreground">
+              {formatCurrency(expectedInDrawer)}
+            </span>
+          </div>
+
+          <FieldLabel>Valor contado</FieldLabel>
+          <div className="relative mb-2">
             <span className="pointer-events-none absolute left-[11px] top-1/2 -translate-y-1/2 text-[11.5px] font-bold text-muted-foreground">
               R$
             </span>
             <input
               placeholder="0,00"
-              value={openingBalance}
-              onChange={(e) => setOpeningBalance(e.target.value)}
-              className="h-[38px] w-full rounded-[9px] border border-border bg-muted pl-[34px] pr-3 text-[13px] text-foreground outline-none"
+              value={countedTotal}
+              onChange={(e) => setCountedTotal(e.target.value)}
+              className="h-[38px] w-full rounded-[9px] border border-border bg-muted pl-[34px] pr-3 text-[13px] font-semibold tabular-nums text-foreground outline-none"
             />
           </div>
 
-          <FieldLabel>Observações (opcional)</FieldLabel>
+          {!hasContado && (
+            <div className="mb-2 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
+              Informe o valor contado para calcular a diferença.
+            </div>
+          )}
+          {difOk && (
+            <div className="mb-2 rounded-md bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
+              ✓ Caixa conferido, sem diferença
+            </div>
+          )}
+          {difSobra && (
+            <div className="mb-2 rounded-md bg-violet-50 px-3 py-2 text-xs font-semibold text-violet-700 dark:bg-violet-950/40 dark:text-violet-400">
+              Sobra de {formatCurrency(Math.abs(difVal))}
+            </div>
+          )}
+          {difFalta && (
+            <div className="mb-2 rounded-md bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 dark:bg-red-950/40 dark:text-red-400">
+              Falta de {formatCurrency(Math.abs(difVal))}
+            </div>
+          )}
+
           <input
-            placeholder="Ex: Abertura turno manhã"
-            value={openObs}
-            onChange={(e) => setOpenObs(e.target.value)}
-            className={cn(fieldClass, "mb-4 h-[38px]")}
+            placeholder="Observações (opcional)"
+            value={closeObs}
+            onChange={(e) => setCloseObs(e.target.value)}
+            className={cn(fieldClass, "mb-3 h-[38px] bg-muted font-medium")}
           />
+
+          {confirmBeforeCloseRegister && (
+            <label className="mb-3 flex cursor-pointer items-start gap-2">
+              <Checkbox
+                checked={closeConfirmed}
+                onCheckedChange={(checked) =>
+                  setCloseConfirmed(checked === true)
+                }
+                className="mt-0.5 h-4 w-4"
+              />
+              <span className="text-xs text-foreground">
+                Confirmo que conferi o dinheiro físico da gaveta
+              </span>
+            </label>
+          )}
 
           <div className="flex gap-2">
             <CompactButton onClick={closeDialog} className="flex-1">
               Cancelar
             </CompactButton>
             <Button
-              onClick={handleOpenRegister}
-              disabled={openMutation.isPending || !openingBalance}
-              className="h-9 flex-1 rounded-[9px] bg-brand-500 text-xs font-extrabold text-white transition-colors hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={handleCloseRegister}
+              disabled={
+                closeMutation.isPending ||
+                !hasContado ||
+                (confirmBeforeCloseRegister && !closeConfirmed)
+              }
+              className="h-9 flex-1 gap-1.5 rounded-[9px] bg-selected text-xs font-extrabold text-selected-foreground transition-colors hover:bg-selected-hover disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {openMutation.isPending ? "Abrindo..." : "Abrir"}
+              <Lock className="h-3.5 w-3.5" />
+              {closeMutation.isPending ? "Fechando..." : "Confirmar fechamento"}
             </Button>
           </div>
+          <p className="mt-2 text-[11px] text-muted-foreground">
+            Não pode ser desfeito.
+          </p>
         </DialogContent>
       </Dialog>
 
