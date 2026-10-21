@@ -23,17 +23,9 @@ const banners: Banner[] = [
     id: 1,
     variant: "image",
     title: "Inauguração Bear",
-    image: "/banners/bear-inauguracao.png",
+    image: "/banners/bear-inauguracao.jpg",
     badge: "INAUGURAÇÃO",
     hideOverlay: true,
-  },
-  {
-    id: 2,
-    variant: "promo",
-    title: "Frete grátis hoje",
-    subtitle: "Em pedidos acima de R$ 30 — entrega em até 35 min",
-    badge: "50% OFF NA 1ª COMPRA",
-    buttonLabel: "Pedir agora",
   },
 ];
 export function BannerCarousel() {
