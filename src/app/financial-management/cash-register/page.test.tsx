@@ -85,6 +85,10 @@ const initialPreferences = useFinancialPreferencesStore.getState();
 beforeEach(() => {
   h.register.data = null;
   h.summary.data = null;
+  h.movements.data = {
+    items: [],
+    meta: { total: 0, page: 1, totalPages: 1 },
+  };
   localStorage.clear();
   useFinancialPreferencesStore.setState(initialPreferences, true);
 });
@@ -129,6 +133,52 @@ describe("Controle de Caixa - caixa aberto", () => {
     expect(
       screen.getByText("Vendas (todos os métodos)"),
     ).toBeInTheDocument();
+  });
+
+  it("filtra o extrato por tipo na própria tela", () => {
+    h.movements.data = {
+      items: [
+        {
+          id: "1",
+          type: "SALE",
+          amount: 100,
+          description: "Venda A",
+          paymentMethod: "CASH",
+          source: "MANUAL",
+          createdAt: "2026-10-20T10:00:00.000Z",
+        },
+        {
+          id: "2",
+          type: "WITHDRAWAL",
+          amount: 50,
+          description: "Sangria B",
+          paymentMethod: "CASH",
+          source: "MANUAL",
+          createdAt: "2026-10-20T11:00:00.000Z",
+        },
+      ],
+      meta: { total: 2, page: 1, totalPages: 1 },
+    };
+    render(<CashRegisterPage />);
+    const extrato = screen
+      .getByRole("heading", { name: "Extrato de movimentos" })
+      .closest("section") as HTMLElement;
+
+    // Sem filtro, os dois movimentos aparecem (lista mobile + tabela desktop
+    // renderizam juntas no jsdom, por isso queryAllByText).
+    expect(within(extrato).queryAllByText("Venda A").length).toBeGreaterThan(0);
+    expect(within(extrato).queryAllByText("Sangria B").length).toBeGreaterThan(
+      0,
+    );
+
+    fireEvent.change(within(extrato).getByLabelText("Filtrar por tipo"), {
+      target: { value: "WITHDRAWAL" },
+    });
+
+    expect(within(extrato).queryAllByText("Venda A").length).toBe(0);
+    expect(within(extrato).queryAllByText("Sangria B").length).toBeGreaterThan(
+      0,
+    );
   });
 
   it("esperado na gaveta é fundo + dinheiro, sem somar cartão/pix", () => {

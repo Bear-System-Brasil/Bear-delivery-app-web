@@ -397,13 +397,15 @@ export default function CashRegisterPage() {
     isError: movementsError,
     refetch: refetchMovements,
   } = useCashMovements(
+    // Os filtros de tipo/método NÃO vão pro backend: a rota aceita os params
+    // no Swagger mas não os aplica (LDMF-408), então a filtragem é feita aqui
+    // na tela, sobre a lista completa do caixa. O backend devolve o turno
+    // inteiro numa página só (não pagina de verdade), então filtrar aqui é
+    // completo, não só a página atual.
     {
       page: movementsPage,
       limit: MOVEMENTS_PAGE_SIZE,
       cashRegisterId: register?.id,
-      type: movementTypeFilter === "ALL" ? undefined : movementTypeFilter,
-      paymentMethod:
-        movementMethodFilter === "ALL" ? undefined : movementMethodFilter,
     },
     { enabled: !!register?.id },
   );
@@ -412,7 +414,23 @@ export default function CashRegisterPage() {
   const movementsMeta = movementsData?.meta;
   const movementsTotalPages = movementsMeta?.totalPages ?? 1;
 
-  // Filtro novo sempre volta pra página 1 (ver pagination.md).
+  // Filtragem na tela (ver comentário acima).
+  const filteredMovements = movements.filter((movement) => {
+    if (
+      movementTypeFilter !== "ALL" &&
+      movement.type !== movementTypeFilter
+    ) {
+      return false;
+    }
+    if (
+      movementMethodFilter !== "ALL" &&
+      movement.paymentMethod !== movementMethodFilter
+    ) {
+      return false;
+    }
+    return true;
+  });
+
   const changeMovementType = (value: CashMovementType | "ALL") => {
     setMovementTypeFilter(value);
     setMovementsPage(1);
@@ -821,8 +839,8 @@ export default function CashRegisterPage() {
               aside={
                 <div className="flex flex-wrap items-center justify-end gap-2">
                   <span className="rounded bg-muted px-2 py-0.5 text-[11.5px] font-semibold tabular-nums text-muted-foreground">
-                    {movementsMeta?.total ?? 0} movimento
-                    {(movementsMeta?.total ?? 0) !== 1 ? "s" : ""}
+                    {filteredMovements.length} movimento
+                    {filteredMovements.length !== 1 ? "s" : ""}
                   </span>
                   <select
                     aria-label="Filtrar por tipo"
@@ -883,7 +901,7 @@ export default function CashRegisterPage() {
                     Use Atualizar para tentar de novo
                   </div>
                 </div>
-              ) : movements.length === 0 ? (
+              ) : filteredMovements.length === 0 ? (
                 <div className="px-4 py-8 text-center">
                   <div className="text-[13px] font-semibold text-foreground">
                     Nenhum movimento encontrado
@@ -903,7 +921,7 @@ export default function CashRegisterPage() {
                       movementsFetching && "opacity-60",
                     )}
                   >
-                    {movements.map((movement) => {
+                    {filteredMovements.map((movement) => {
                       const signed = movementSignedAmount(movement);
                       return (
                         <div key={movement.id} className="px-4 py-3">
@@ -970,7 +988,7 @@ export default function CashRegisterPage() {
                       </div>
 
                       <div className={cn(movementsFetching && "opacity-60")}>
-                        {movements.map((movement) => {
+                        {filteredMovements.map((movement) => {
                           const signed = movementSignedAmount(movement);
                           return (
                             <div
