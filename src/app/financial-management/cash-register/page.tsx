@@ -650,12 +650,7 @@ export default function CashRegisterPage() {
                 {summaryLoading ? (
                   <Skeleton className="h-[86px] w-full rounded-lg" />
                 ) : (
-                  <div className="grid grid-cols-1 divide-y divide-border overflow-hidden rounded-lg border border-border bg-card sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-                    <KpiCell
-                      label="Vendas do turno"
-                      value={formatCurrency(summary?.totalSales ?? 0)}
-                      sub="Bruto, todos os métodos"
-                    />
+                  <div className="grid grid-cols-1 divide-y divide-border overflow-hidden rounded-lg border border-border bg-card sm:grid-cols-2 sm:divide-x sm:divide-y-0">
                     <KpiCell
                       label="Entradas"
                       value={formatCurrency(
