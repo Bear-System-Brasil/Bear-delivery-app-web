@@ -122,15 +122,21 @@ describe("Controle de Caixa - caixa aberto", () => {
     expect(screen.getByText("Detalhamento do turno")).toBeInTheDocument();
   });
 
-  it("os quatro tipos de movimento continuam abrindo o diálogo no tipo certo", () => {
+  it("os quatro tipos de movimento abrem o diálogo do grupo no tipo certo", () => {
     render(<CashRegisterPage />);
     const section = screen
       .getByRole("heading", { name: "Registrar movimento" })
       .closest("section") as HTMLElement;
 
-    for (const label of ["Sangria", "Suprimento", "Venda", "Reembolso"]) {
+    const casos = [
+      { label: "Sangria", dialog: "Registrar saída" },
+      { label: "Suprimento", dialog: "Registrar entrada" },
+      { label: "Venda", dialog: "Registrar entrada" },
+      { label: "Reembolso", dialog: "Registrar saída" },
+    ];
+    for (const { label, dialog: dialogName } of casos) {
       fireEvent.click(within(section).getByRole("button", { name: label }));
-      const dialog = screen.getByRole("dialog", { name: "Registrar movimento" });
+      const dialog = screen.getByRole("dialog", { name: dialogName });
       // O tipo escolhido fica marcado dentro do diálogo.
       expect(within(dialog).getByRole("button", { name: label })).toHaveClass(
         "bg-selected",
@@ -139,21 +145,32 @@ describe("Controle de Caixa - caixa aberto", () => {
     }
   });
 
-  it("Entrada e Saída da faixa abrem suprimento e sangria", () => {
+  it("Entrada abre em Venda e Saída em Reembolso, cada um só com seu grupo", () => {
     render(<CashRegisterPage />);
 
     fireEvent.click(screen.getByRole("button", { name: "Entrada" }));
-    let dialog = screen.getByRole("dialog", { name: "Registrar movimento" });
-    expect(within(dialog).getByRole("button", { name: "Suprimento" })).toHaveClass(
+    let dialog = screen.getByRole("dialog", { name: "Registrar entrada" });
+    expect(within(dialog).getByRole("button", { name: "Venda" })).toHaveClass(
       "bg-selected",
     );
+    // Só os tipos de entrada aparecem; os de saída não.
+    expect(
+      within(dialog).queryByRole("button", { name: "Sangria" }),
+    ).toBeNull();
+    expect(
+      within(dialog).getByRole("button", { name: "Suprimento" }),
+    ).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole("button", { name: "Cancelar" }));
 
     fireEvent.click(screen.getByRole("button", { name: "Saída" }));
-    dialog = screen.getByRole("dialog", { name: "Registrar movimento" });
-    expect(within(dialog).getByRole("button", { name: "Sangria" })).toHaveClass(
+    dialog = screen.getByRole("dialog", { name: "Registrar saída" });
+    expect(within(dialog).getByRole("button", { name: "Reembolso" })).toHaveClass(
       "bg-selected",
     );
+    expect(within(dialog).queryByRole("button", { name: "Venda" })).toBeNull();
+    expect(
+      within(dialog).getByRole("button", { name: "Sangria" }),
+    ).toBeInTheDocument();
   });
 
   it("fechar caixa segue bloqueado até marcar a confirmação extra", () => {

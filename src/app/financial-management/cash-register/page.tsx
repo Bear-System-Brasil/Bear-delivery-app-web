@@ -80,6 +80,23 @@ const MOVEMENT_OPTIONS: { value: MovementType; label: string }[] = [
   { value: "refund", label: "Reembolso" },
 ];
 
+const MOVEMENT_LABELS: Record<MovementType, string> = {
+  withdrawal: "Sangria",
+  deposit: "Suprimento",
+  sale: "Venda",
+  refund: "Reembolso",
+};
+
+// Entrada poe dinheiro no caixa (venda, suprimento); saida tira (sangria,
+// reembolso). Cada botao abre o dialogo so com os tipos do seu grupo, pre-
+// selecionando o mais comum: venda na entrada, reembolso na saida. Antes os
+// dois abriam o dialogo com os quatro tipos, deixando trocar de grupo por
+// engano no fechamento.
+const ENTRADA_TYPES: MovementType[] = ["sale", "deposit"];
+const SAIDA_TYPES: MovementType[] = ["withdrawal", "refund"];
+const movementGroupFor = (type: MovementType): MovementType[] =>
+  type === "sale" || type === "deposit" ? ENTRADA_TYPES : SAIDA_TYPES;
+
 const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   [PaymentMethod.CASH]: "Dinheiro",
   [PaymentMethod.CREDIT_CARD]: "Cartão de Crédito",
@@ -354,6 +371,11 @@ export default function CashRegisterPage() {
   const [dialog, setDialog] = useState<DialogKind>(null);
   const [movementType, setMovementType] =
     useState<MovementType>(INITIAL_MOVEMENT_TYPE);
+  // Tipos que o dialogo de movimento mostra - so os do grupo (entrada/saida)
+  // do botao que o abriu.
+  const [movementTypes, setMovementTypes] = useState<MovementType[]>(
+    movementGroupFor(INITIAL_MOVEMENT_TYPE),
+  );
 
   const [openingBalance, setOpeningBalance] = useState("");
   const [openObs, setOpenObs] = useState("");
@@ -463,6 +485,7 @@ export default function CashRegisterPage() {
   };
 
   const openMovementDialog = (type: MovementType) => {
+    setMovementTypes(movementGroupFor(type));
     setMovementType(type);
     resetMovementForm(type);
     setDialog("movement");
@@ -477,6 +500,11 @@ export default function CashRegisterPage() {
   };
 
   const missingPaymentMethod = !paymentMethod;
+
+  // Grupo do dialogo aberto, para titulo e rotulo dos tipos.
+  const isEntradaDialog = movementTypes.every(
+    (t) => t === "sale" || t === "deposit",
+  );
 
   const handleConfirmMovement = async () => {
     const value = parseFloat(amount.replace(",", "."));
@@ -615,14 +643,14 @@ export default function CashRegisterPage() {
               </div>
               <div className="flex gap-2 sm:ml-auto">
                 <Button
-                  onClick={() => openMovementDialog("deposit")}
+                  onClick={() => openMovementDialog("sale")}
                   className="h-[34px] gap-1.5 rounded-md border border-border bg-card px-3 text-[13px] font-semibold text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/40"
                 >
                   <Plus className="h-3.5 w-3.5" />
                   Entrada
                 </Button>
                 <Button
-                  onClick={() => openMovementDialog("withdrawal")}
+                  onClick={() => openMovementDialog("refund")}
                   className="h-[34px] gap-1.5 rounded-md border border-border bg-card px-3 text-[13px] font-semibold text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
                 >
                   <Minus className="h-3.5 w-3.5" />
@@ -1249,22 +1277,24 @@ export default function CashRegisterPage() {
           hideClose
           className="max-w-[380px] gap-0 rounded-[15px] border-none p-[18px] shadow-2xl"
         >
-          <ModalTitle onClose={closeDialog}>Registrar movimento</ModalTitle>
+          <ModalTitle onClose={closeDialog}>
+            {isEntradaDialog ? "Registrar entrada" : "Registrar saída"}
+          </ModalTitle>
 
           <FieldLabel>Tipo</FieldLabel>
-          <div className="mb-3 grid grid-cols-2 gap-1.5 sm:grid-cols-4">
-            {MOVEMENT_OPTIONS.map((opt) => (
+          <div className="mb-3 grid grid-cols-2 gap-1.5">
+            {movementTypes.map((type) => (
               <Button
-                key={opt.value}
-                onClick={() => switchMovementType(opt.value)}
+                key={type}
+                onClick={() => switchMovementType(type)}
                 className={cn(
                   "h-[30px] rounded-[8px] text-[11px] font-bold transition-colors",
-                  movementType === opt.value
+                  movementType === type
                     ? "bg-selected text-selected-foreground"
                     : "bg-muted text-foreground hover:bg-muted",
                 )}
               >
-                {opt.label}
+                {MOVEMENT_LABELS[type]}
               </Button>
             ))}
           </div>
