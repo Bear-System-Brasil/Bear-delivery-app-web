@@ -563,11 +563,6 @@ export default function CashRegisterPage() {
           value: summary.totalDebit,
           gaveta: false,
         },
-        {
-          label: "Transferência",
-          value: summary.totalTransfer,
-          gaveta: false,
-        },
       ]
     : [];
   // Os totais são líquidos, então um método pode fechar negativo (mais
@@ -663,14 +658,20 @@ export default function CashRegisterPage() {
                     />
                     <KpiCell
                       label="Entradas"
-                      value={formatCurrency(summary?.totalDeposits ?? 0)}
-                      sub="Suprimentos em dinheiro"
+                      value={formatCurrency(
+                        (summary?.totalSales ?? 0) +
+                          (summary?.totalDeposits ?? 0),
+                      )}
+                      sub="Vendas e suprimentos"
                       valueClassName="text-emerald-700 dark:text-emerald-400"
                     />
                     <KpiCell
                       label="Saídas"
-                      value={formatCurrency(summary?.totalWithdrawals ?? 0)}
-                      sub="Sangrias em dinheiro"
+                      value={formatCurrency(
+                        (summary?.totalWithdrawals ?? 0) +
+                          (summary?.totalRefunds ?? 0),
+                      )}
+                      sub="Sangrias e reembolsos"
                       valueClassName="text-red-600 dark:text-red-400"
                     />
                   </div>
@@ -684,7 +685,7 @@ export default function CashRegisterPage() {
                 >
                   {summaryLoading ? (
                     <div className="space-y-2 p-4">
-                      {[1, 2, 3, 4, 5].map((i) => (
+                      {[1, 2, 3, 4].map((i) => (
                         <Skeleton key={i} className="h-7 w-full rounded-md" />
                       ))}
                     </div>
@@ -747,40 +748,35 @@ export default function CashRegisterPage() {
                 </SectionCard>
               </div>
 
-              {/* Conferência de fechamento */}
+              {/* Conferência de fechamento. flex-col + h-full no lg pra o card
+                  preencher a altura da coluna da esquerda e o botão ancorar no
+                  rodapé - assim os blocos ficam alinhados. */}
               <SectionCard
                 icon={Scale}
                 title="Conferência de fechamento"
-                className="lg:sticky lg:top-[26px]"
+                className="lg:flex lg:h-full lg:flex-col"
               >
-                <div className="flex flex-col gap-2 px-4 pt-3">
-                  <p className="text-[11.5px] text-muted-foreground">
-                    Confira o dinheiro físico da gaveta
+                {/* Número direto, sem repetir o fundo de troco (que já aparece
+                    na faixa do topo): o que precisa ter na gaveta agora. */}
+                <div className="px-4 pt-4">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="text-[13px] font-semibold text-foreground">
+                      Esperado na gaveta
+                    </span>
+                    <span className="whitespace-nowrap text-xl font-bold tabular-nums text-foreground">
+                      {formatCurrency(expectedInDrawer)}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-[11.5px] text-muted-foreground">
+                    O que deve ter em dinheiro na gaveta agora.
                   </p>
-                  <SummaryRow
-                    label="Fundo de troco"
-                    value={formatCurrency(registerOpeningBalance)}
-                  />
                 </div>
 
-                <div className="mx-4 mt-3 flex items-baseline justify-between gap-3 border-t border-border pt-3">
-                  <span className="text-[13px] font-semibold text-foreground">
-                    Esperado na gaveta
-                  </span>
-                  <span className="whitespace-nowrap text-lg font-bold tabular-nums text-foreground">
-                    {formatCurrency(expectedInDrawer)}
-                  </span>
-                </div>
-
-                {/* Detalhamento: brutos por tipo de movimento, só pra o
-                    operador enxergar o que compôs o turno. Não entram na
-                    conta acima - somá-los de novo contaria a sangria duas
-                    vezes, que era exatamente o bug da conferência. Agora sem
-                    a caixa cinza nem o título destacado, só uma nota. */}
+                {/* Detalhamento por tipo, só informativo - não entra na conta
+                    (somá-lo de novo contaria a sangria duas vezes). */}
                 <div className="mx-4 mt-3 flex flex-col gap-1 border-t border-border pt-3">
                   <p className="text-[11px] text-muted-foreground">
-                    Brutos por tipo do turno — já refletidos acima, não somar de
-                    novo.
+                    Resumo do turno, por tipo — não entra no cálculo acima.
                   </p>
                   <SummaryRow
                     label="Vendas (todos os métodos)"
@@ -804,9 +800,7 @@ export default function CashRegisterPage() {
                   />
                 </div>
 
-                {/* O fechamento abre num modal, deixando a conferência da tela
-                    só com o resumo - mais limpo. */}
-                <div className="mt-3 border-t border-border p-4">
+                <div className="mt-3 border-t border-border p-4 lg:mt-auto">
                   <Button
                     onClick={() => setDialog("close-register")}
                     disabled={closeMutation.isPending}
@@ -815,9 +809,6 @@ export default function CashRegisterPage() {
                     <Lock className="h-3.5 w-3.5" />
                     Fechar caixa
                   </Button>
-                  <p className="mt-2 text-[11px] text-muted-foreground">
-                    O fechamento não pode ser desfeito.
-                  </p>
                 </div>
               </SectionCard>
             </div>
