@@ -1,9 +1,12 @@
 "use client";
 
+import {
+  ImageUploadDialog,
+  type ImageUploadResult,
+} from "@/components/company-image-upload/image-upload-dialog";
 import { apiService } from "@/services/api";
-import { Camera, Loader2 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { Camera } from "lucide-react";
+import { useEffect, useState } from "react";
 
 interface CompanyLogoUploadProps {
   value: string;
@@ -26,72 +29,24 @@ export function CompanyLogoUpload({
   companyData,
   maxSizeMB = 5,
 }: CompanyLogoUploadProps) {
-  const [preview, setPreview] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
-  useEffect(() => {
-    if (isMounted) {
-      setPreview(value || null);
-    }
-  }, [value, isMounted]);
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const input = e.target;
-    const file = input.files?.[0];
-
-    // Limpa o valor do input imediatamente para permitir selecionar o mesmo arquivo em envios seguintes
-    input.value = "";
-
-    if (!file) return;
-
-    if (!file.type.startsWith("image/")) {
-      toast.error("Por favor, selecione uma imagem válida");
-      return;
-    }
-
-    const fileSizeMB = file.size / (1024 * 1024);
-    if (fileSizeMB > maxSizeMB) {
-      toast.error(`A imagem deve ter no máximo ${maxSizeMB}MB`);
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setPreview(reader.result as string);
+  const upload = async (file: File): Promise<ImageUploadResult> => {
+    const response = await apiService.uploadCompanyLogo(
+      file,
+      companyId,
+      companyData,
+    );
+    return {
+      success: response.success,
+      url: response.data?.logo_url,
+      message: response.message,
     };
-    reader.readAsDataURL(file);
-
-    try {
-      setUploading(true);
-      const response = await apiService.uploadCompanyLogo(
-        file,
-        companyId,
-        companyData,
-      );
-
-      if (response.success && response.data?.logo_url) {
-        onChange(response.data.logo_url);
-        setPreview(response.data.logo_url);
-        toast.success("Logo atualizado com sucesso!");
-      } else {
-        toast.error(response.message || "Erro ao fazer upload");
-        setPreview(value || null);
-      }
-    } catch (_error) {
-      toast.error("Erro ao fazer upload do logo");
-      setPreview(value || null);
-    } finally {
-      setUploading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
-    }
   };
 
   if (!isMounted) {
@@ -101,41 +56,46 @@ export function CompanyLogoUpload({
   }
 
   return (
-    <div
-      onClick={() => !uploading && fileInputRef.current?.click()}
-      className="group relative h-[76px] w-[76px] shrink-0 -mt-[30px] cursor-pointer overflow-hidden rounded-full border-[3px] border-background bg-card shadow-sm"
-    >
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        onChange={handleFileChange}
-        onClick={(e) => {
-          e.stopPropagation();
-          (e.target as HTMLInputElement).value = "";
-        }}
-        className="hidden"
-      />
-
-      {preview ? (
-        <img
-          src={preview}
-          alt="Logo da empresa"
-          className="h-full w-full object-cover"
-        />
-      ) : (
-        <div className="flex h-full w-full items-center justify-center bg-muted text-[10px] font-semibold text-muted-foreground">
-          Logo
-        </div>
-      )}
-
-      <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/0 transition-colors group-hover:bg-black/35">
-        {uploading ? (
-          <Loader2 className="h-4 w-4 animate-spin text-white" />
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-label="Logo da empresa"
+        className="group relative h-[76px] w-[76px] shrink-0 -mt-[30px] cursor-pointer overflow-hidden rounded-full border-[3px] border-background bg-card shadow-sm"
+      >
+        {value ? (
+          // Logo do restaurante segue como <img> por decisão de projeto.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={value}
+            alt="Logo da empresa"
+            className="h-full w-full object-cover"
+          />
         ) : (
-          <Camera className="h-4 w-4 text-white opacity-0 transition-opacity group-hover:opacity-100" />
+          <div className="flex h-full w-full items-center justify-center bg-muted text-[10px] font-semibold text-muted-foreground">
+            Logo
+          </div>
         )}
-      </div>
-    </div>
+
+        <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/0 transition-colors group-hover:bg-black/35">
+          <Camera className="h-4 w-4 text-white opacity-0 transition-opacity group-hover:opacity-100" />
+        </div>
+      </button>
+
+      <ImageUploadDialog
+        open={open}
+        onOpenChange={setOpen}
+        currentUrl={value}
+        title="Logo da empresa"
+        description="Veja a imagem atual e use “Trocar foto” para enviar outra."
+        alt="Logo da empresa"
+        shape="avatar"
+        emptyHint="Nenhum logo enviado ainda"
+        maxSizeMB={maxSizeMB}
+        successMessage="Logo atualizado com sucesso!"
+        upload={upload}
+        onUploaded={onChange}
+      />
+    </>
   );
 }

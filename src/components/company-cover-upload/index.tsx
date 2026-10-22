@@ -1,9 +1,12 @@
 "use client";
 
+import {
+  ImageUploadDialog,
+  type ImageUploadResult,
+} from "@/components/company-image-upload/image-upload-dialog";
 import { apiService } from "@/services/api";
-import { Camera, ImagePlus, Loader2 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { Camera, ImagePlus } from "lucide-react";
+import { useEffect, useState } from "react";
 
 interface CompanyCoverUploadProps {
   value: string;
@@ -26,72 +29,24 @@ export function CompanyCoverUpload({
   companyData,
   maxSizeMB = 5,
 }: CompanyCoverUploadProps) {
-  const [preview, setPreview] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
-  useEffect(() => {
-    if (isMounted) {
-      setPreview(value || null);
-    }
-  }, [value, isMounted]);
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const input = e.target;
-    const file = input.files?.[0];
-
-    // Limpa o valor do input imediatamente para permitir selecionar o mesmo arquivo em envios seguintes
-    input.value = "";
-
-    if (!file) return;
-
-    if (!file.type.startsWith("image/")) {
-      toast.error("Por favor, selecione uma imagem válida");
-      return;
-    }
-
-    const fileSizeMB = file.size / (1024 * 1024);
-    if (fileSizeMB > maxSizeMB) {
-      toast.error(`A imagem deve ter no máximo ${maxSizeMB}MB`);
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setPreview(reader.result as string);
+  const upload = async (file: File): Promise<ImageUploadResult> => {
+    const response = await apiService.uploadCompanyCover(
+      file,
+      companyId,
+      companyData,
+    );
+    return {
+      success: response.success,
+      url: response.data?.cover_url,
+      message: response.message,
     };
-    reader.readAsDataURL(file);
-
-    try {
-      setUploading(true);
-      const response = await apiService.uploadCompanyCover(
-        file,
-        companyId,
-        companyData,
-      );
-
-      if (response.success && response.data?.cover_url) {
-        onChange(response.data.cover_url);
-        setPreview(response.data.cover_url);
-        toast.success("Imagem de capa atualizada com sucesso!");
-      } else {
-        toast.error(response.message || "Erro ao fazer upload");
-        setPreview(value || null);
-      }
-    } catch (_error) {
-      toast.error("Erro ao fazer upload da imagem de capa");
-      setPreview(value || null);
-    } finally {
-      setUploading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
-    }
   };
 
   if (!isMounted) {
@@ -99,44 +54,49 @@ export function CompanyCoverUpload({
   }
 
   return (
-    <div
-      onClick={() => !uploading && fileInputRef.current?.click()}
-      className="group relative h-[150px] w-full cursor-pointer overflow-hidden bg-muted"
-    >
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        onChange={handleFileChange}
-        onClick={(e) => {
-          e.stopPropagation();
-          (e.target as HTMLInputElement).value = "";
-        }}
-        className="hidden"
-      />
-
-      {preview ? (
-        <img
-          src={preview}
-          alt="Capa da empresa"
-          className="h-full w-full object-cover"
-        />
-      ) : (
-        <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 text-muted-foreground">
-          <ImagePlus className="h-5 w-5" />
-          <span className="text-[11.5px] font-semibold">
-            Arraste a imagem de capa · 1200×400
-          </span>
-        </div>
-      )}
-
-      <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/35">
-        {uploading ? (
-          <Loader2 className="h-5 w-5 animate-spin text-white" />
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-label="Imagem de capa"
+        className="group relative h-[150px] w-full cursor-pointer overflow-hidden bg-muted"
+      >
+        {value ? (
+          // Capa do restaurante segue como <img> por decisão de projeto.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={value}
+            alt="Capa da empresa"
+            className="h-full w-full object-cover"
+          />
         ) : (
-          <Camera className="h-5 w-5 text-white opacity-0 transition-opacity group-hover:opacity-100" />
+          <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 text-muted-foreground">
+            <ImagePlus className="h-5 w-5" />
+            <span className="text-[11.5px] font-semibold">
+              Adicionar imagem de capa · 1200×400
+            </span>
+          </div>
         )}
-      </div>
-    </div>
+
+        <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/35">
+          <Camera className="h-5 w-5 text-white opacity-0 transition-opacity group-hover:opacity-100" />
+        </div>
+      </button>
+
+      <ImageUploadDialog
+        open={open}
+        onOpenChange={setOpen}
+        currentUrl={value}
+        title="Imagem de capa"
+        description="Veja a imagem atual e use “Trocar foto” para enviar outra."
+        alt="Capa da empresa"
+        shape="cover"
+        emptyHint="Nenhuma capa enviada ainda · 1200×400"
+        maxSizeMB={maxSizeMB}
+        successMessage="Imagem de capa atualizada com sucesso!"
+        upload={upload}
+        onUploaded={onChange}
+      />
+    </>
   );
 }
