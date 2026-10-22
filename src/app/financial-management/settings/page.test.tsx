@@ -10,7 +10,18 @@ const toastSuccess = vi.hoisted(() => vi.fn());
 vi.mock("sonner", () => ({ toast: { success: toastSuccess } }));
 
 vi.mock("@/components/admin-page-layout", () => ({
-  AdminPageLayout: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  AdminPageLayout: ({
+    children,
+    actions,
+  }: {
+    children: ReactNode;
+    actions?: ReactNode;
+  }) => (
+    <div>
+      {actions}
+      {children}
+    </div>
+  ),
 }));
 
 const initialState = useFinancialPreferencesStore.getState();
