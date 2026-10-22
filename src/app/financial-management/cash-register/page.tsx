@@ -772,10 +772,8 @@ export default function CashRegisterPage() {
                 title="Conferência de fechamento"
                 className="lg:flex lg:h-full lg:flex-col"
               >
-                {/* Deixa explícito que a gaveta = fundo de troco + dinheiro do
-                    turno. Sem isso o "Esperado" não batia com o "Dinheiro" de
-                    "Por forma de pagamento" e o fundo de troco ficava solto só
-                    na faixa do topo (LDMF-407). */}
+                {/* Número direto, sem repetir o fundo de troco (que já aparece
+                    na faixa do topo): o que precisa ter na gaveta agora. */}
                 <div className="px-4 pt-4">
                   <div className="flex items-baseline justify-between gap-3">
                     <span className="text-[13px] font-semibold text-foreground">
@@ -786,8 +784,7 @@ export default function CashRegisterPage() {
                     </span>
                   </div>
                   <p className="mt-1 text-[11.5px] text-muted-foreground">
-                    Fundo de troco ({formatCurrency(registerOpeningBalance)}) +
-                    dinheiro do turno em espécie.
+                    O que deve ter em dinheiro na gaveta agora.
                   </p>
                 </div>
 
@@ -795,7 +792,7 @@ export default function CashRegisterPage() {
                     (somá-lo de novo contaria a sangria duas vezes). */}
                 <div className="mx-4 mt-3 flex flex-col gap-1 border-t border-border pt-3">
                   <p className="text-[11px] text-muted-foreground">
-                    Resumo do turno, por tipo.
+                    Resumo do turno, por tipo — não entra no cálculo acima.
                   </p>
                   <SummaryRow
                     label="Vendas (todos os métodos)"
@@ -1151,7 +1148,7 @@ export default function CashRegisterPage() {
         >
           <ModalTitle onClose={closeDialog}>Fechar caixa</ModalTitle>
 
-          <div className="mb-1 flex items-baseline justify-between gap-3">
+          <div className="mb-3 flex items-baseline justify-between gap-3">
             <span className="text-[13px] font-semibold text-foreground">
               Esperado na gaveta
             </span>
@@ -1159,9 +1156,6 @@ export default function CashRegisterPage() {
               {formatCurrency(expectedInDrawer)}
             </span>
           </div>
-          <p className="mb-3 text-[11px] text-muted-foreground">
-            Inclui o fundo de troco ({formatCurrency(registerOpeningBalance)}).
-          </p>
 
           <FieldLabel>Valor contado</FieldLabel>
           <div className="relative mb-2">
