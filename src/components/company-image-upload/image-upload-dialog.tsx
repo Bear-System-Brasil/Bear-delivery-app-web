@@ -146,13 +146,14 @@ export function ImageUploadDialog({
           {description && <DialogDescription>{description}</DialogDescription>}
         </DialogHeader>
 
-        {/* Avatar: círculo fixo. Capa: moldura flexível que acompanha a imagem
-            (altura só limitada por max-h) - num box 3:1 travado, uma capa
-            quase-quadrada ficava minúscula entre duas tarjas (LDMF-410). */}
+        {/* Moldura flexível que acompanha a imagem (altura só limitada por
+            max-h), pra qualquer proporção aparecer inteira e sem tarja. Forçar
+            círculo/quadrado deixava foto não-quadrada com faixa cinza dentro do
+            círculo (LDMF-412); avatar só difere por uma largura máxima menor. */}
         <div
           className={
             shape === "avatar"
-              ? "mx-auto flex aspect-square w-full max-w-[240px] items-center justify-center overflow-hidden rounded-full border border-border bg-muted"
+              ? "mx-auto flex min-h-[180px] w-full max-w-[360px] items-center justify-center overflow-hidden rounded-lg border border-border bg-muted p-3"
               : "flex min-h-[180px] w-full items-center justify-center overflow-hidden rounded-lg border border-border bg-muted p-3"
           }
         >
@@ -162,11 +163,7 @@ export function ImageUploadDialog({
             <img
               src={shownUrl}
               alt={alt}
-              className={
-                shape === "avatar"
-                  ? "h-full w-full object-contain"
-                  : "max-h-[280px] w-auto max-w-full object-contain"
-              }
+              className="max-h-[280px] w-auto max-w-full object-contain"
             />
           ) : (
             <span className="px-4 text-center text-xs text-muted-foreground">
