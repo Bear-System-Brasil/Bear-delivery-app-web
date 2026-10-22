@@ -798,6 +798,12 @@ export const useMenuManagement = () => {
           stockQuantity: product.stockQuantity || 0,
         },
       });
+      // Confirma que gravou - o toggle sozinho não deixava claro se salvou
+      // (LDMF-410). Id fixo para cliques seguidos não empilharem toasts.
+      toast.success(
+        !product.isAvailable ? "Prato disponível" : "Prato indisponível",
+        { id: "menu-availability" },
+      );
     } catch (error) {
       queryClient.setQueryData(productsQueryKey, previousProducts);
       console.error("Erro ao atualizar disponibilidade:", error);

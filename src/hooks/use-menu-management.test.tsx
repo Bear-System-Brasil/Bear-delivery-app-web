@@ -674,6 +674,23 @@ describe("useMenuManagement", () => {
       await waitFor(() => expect(result.current.allProducts[0].isAvailable).toBe(true));
       expect(toast.error).toHaveBeenCalledWith("Erro ao atualizar disponibilidade");
     });
+
+    it("avisa que salvou ao virar a disponibilidade", async () => {
+      server = [product("p1", { isAvailable: true })];
+      api.updateProduct.mockResolvedValue({
+        success: true,
+        data: product("p1", { isAvailable: false }),
+      });
+      const { result } = await renderMenu();
+
+      await act(async () => {
+        await result.current.handleToggleAvailability(result.current.allProducts[0]);
+      });
+
+      expect(toast.success).toHaveBeenCalledWith("Prato indisponível", {
+        id: "menu-availability",
+      });
+    });
   });
 
   describe("unificação de cadastro com abas (LDMF-332)", () => {
