@@ -4,6 +4,11 @@ import { AdminPageLayout } from "@/components/admin-page-layout";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   useCashDeposit,
@@ -776,12 +781,47 @@ export default function CashRegisterPage() {
                 title="Conferência de fechamento"
                 className="flex h-full flex-col"
               >
-                {/* Número direto, sem repetir o fundo de troco (que já aparece
-                    na faixa do topo): o que precisa ter na gaveta agora. */}
+                {/* O valor aparece direto; o ⓘ abre a composição (fundo de troco
+                    + dinheiro do turno) sob demanda, sem ocupar altura - era a
+                    dúvida de onde saía o R$ do fundo de troco. */}
                 <div className="px-4 pt-4">
                   <div className="flex items-baseline justify-between gap-3">
-                    <span className="text-[13px] font-semibold text-foreground">
+                    <span className="flex items-center gap-1 text-[13px] font-semibold text-foreground">
                       Esperado na gaveta
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button
+                            type="button"
+                            aria-label="Como o esperado na gaveta é calculado"
+                            className="text-muted-foreground transition-colors hover:text-foreground"
+                          >
+                            <Info className="h-3.5 w-3.5" />
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent
+                          align="start"
+                          className="w-64 text-[12px] leading-relaxed"
+                        >
+                          <p className="font-semibold text-foreground">
+                            Como é calculado
+                          </p>
+                          <p className="mt-1 text-muted-foreground">
+                            Fundo de troco da abertura{" "}
+                            <strong className="font-semibold text-foreground">
+                              {formatCurrency(registerOpeningBalance)}
+                            </strong>{" "}
+                            + dinheiro líquido do turno{" "}
+                            <strong className="font-semibold text-foreground">
+                              {formatCurrency(netCash)}
+                            </strong>
+                            .
+                          </p>
+                          <p className="mt-1.5 text-muted-foreground">
+                            O fundo de troco não é um movimento do turno, por isso
+                            não aparece em “Por forma de pagamento”.
+                          </p>
+                        </PopoverContent>
+                      </Popover>
                     </span>
                     <span className="whitespace-nowrap text-xl font-bold tabular-nums text-foreground">
                       {formatCurrency(expectedInDrawer)}
