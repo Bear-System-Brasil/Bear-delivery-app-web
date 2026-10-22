@@ -665,7 +665,10 @@ export default function CashRegisterPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 items-start gap-4 lg:[grid-template-columns:repeat(auto-fit,minmax(440px,1fr))]">
+            {/* auto-fit sem trava de breakpoint: vira 2 colunas assim que cabe
+                (~800px+ de conteúdo, inclui o desktop mode do mobile em ~980px)
+                e empilha sozinho em telas estreitas de verdade. */}
+            <div className="grid items-start gap-4 [grid-template-columns:repeat(auto-fit,minmax(360px,1fr))]">
               {/* Coluna principal */}
               <div className="flex min-w-0 flex-col gap-4">
                 {summaryLoading ? (
@@ -764,13 +767,14 @@ export default function CashRegisterPage() {
                 </SectionCard>
               </div>
 
-              {/* Conferência de fechamento. flex-col + h-full no lg pra o card
-                  preencher a altura da coluna da esquerda e o botão ancorar no
-                  rodapé - assim os blocos ficam alinhados. */}
+              {/* Conferência de fechamento. flex-col + h-full pra, quando as
+                  duas colunas aparecem lado a lado, o card preencher a altura da
+                  coluna da esquerda e o botão ancorar no rodapé - assim os blocos
+                  ficam do mesmo tamanho. Em coluna única não tem efeito. */}
               <SectionCard
                 icon={Scale}
                 title="Conferência de fechamento"
-                className="lg:flex lg:h-full lg:flex-col"
+                className="flex h-full flex-col"
               >
                 {/* Número direto, sem repetir o fundo de troco (que já aparece
                     na faixa do topo): o que precisa ter na gaveta agora. */}
@@ -816,7 +820,7 @@ export default function CashRegisterPage() {
                   />
                 </div>
 
-                <div className="mt-3 border-t border-border p-4 lg:mt-auto">
+                <div className="mt-3 border-t border-border p-4 [@media(min-width:800px)]:mt-auto">
                   <Button
                     onClick={() => setDialog("close-register")}
                     disabled={closeMutation.isPending}
