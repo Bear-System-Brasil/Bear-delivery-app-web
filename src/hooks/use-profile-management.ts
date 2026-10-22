@@ -449,7 +449,14 @@ export const useProfileManagement = () => {
       };
 
       await updateProfile.mutateAsync(payload);
-      updateUser({ ...user, ...data });
+      // O número do CPF não fica no store (persistido no localStorage); só
+      // o indicador de que a conta tem CPF (LDMF-362).
+      const { cpf: _cpf, ...profileData } = data;
+      updateUser({
+        ...user,
+        ...profileData,
+        ...(cpfChanged ? { hasCpf: true } : {}),
+      });
       editingState.close();
       toast.success("Perfil atualizado com sucesso!");
     } catch (error) {
