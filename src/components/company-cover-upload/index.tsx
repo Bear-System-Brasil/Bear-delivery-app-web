@@ -50,7 +50,7 @@ export function CompanyCoverUpload({
   };
 
   if (!isMounted) {
-    return <div className="h-[150px] w-full bg-muted" />;
+    return <div className="aspect-[3/1] max-h-[210px] min-h-[150px] w-full bg-muted" />;
   }
 
   return (
@@ -59,7 +59,9 @@ export function CompanyCoverUpload({
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Imagem de capa"
-        className="group relative h-[150px] w-full cursor-pointer overflow-hidden bg-muted"
+        // Proporção 3:1 (spec 1200x400) com trava: cresce do mobile (~150px)
+        // ate um teto no desktop em vez de virar uma faixa fina de 150px.
+        className="group relative aspect-[3/1] max-h-[210px] min-h-[150px] w-full cursor-pointer overflow-hidden bg-muted"
       >
         {value ? (
           // Capa do restaurante segue como <img> por decisão de projeto.
