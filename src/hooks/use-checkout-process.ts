@@ -6,6 +6,7 @@ import {
   type CreateOrderRequest,
 } from "@/services/api";
 import { useAuthStore, useCartStore } from "@/stores";
+import { userHasCpf } from "@/stores/auth-store";
 import { getDeliveryDiscount, getPromoDiscount } from "@/stores/cart-store";
 import {
   formatCpfDisplay,
@@ -459,7 +460,7 @@ export const useCheckoutProcess = () => {
     getCheckoutFieldErrors({
       values: deliveryInfo,
       orderType,
-      hasCpf: Boolean(user?.cpf && onlyNumbers(user.cpf).length === 11),
+      hasCpf: userHasCpf(user),
     });
 
   /** Valida os dados de entrega (etapa 1 do checkout). */
@@ -540,7 +541,7 @@ export const useCheckoutProcess = () => {
       return;
     }
 
-    const hasCpf = Boolean(user?.cpf && onlyNumbers(user.cpf).length === 11);
+    const hasCpf = userHasCpf(user);
     if (!hasCpf && !isValidCpf(deliveryInfo.cpf)) {
       showCheckoutError("Informe um CPF válido para finalizar o pedido.");
       return;
@@ -595,7 +596,9 @@ export const useCheckoutProcess = () => {
           );
           return;
         }
-        useAuthStore.getState?.()?.updateUser?.({ ...user, cpf: cleanCpf });
+        // Guarda só o indicador: o número do CPF não fica no store, que é
+        // persistido no localStorage.
+        useAuthStore.getState?.()?.updateUser?.({ hasCpf: true });
       }
 
       // --------------------------------------------------
@@ -926,7 +929,7 @@ export const useCheckoutProcess = () => {
     }
   }, [user]);
 
-  const hasCpf = Boolean(user?.cpf && onlyNumbers(user.cpf).length === 11);
+  const hasCpf = userHasCpf(user);
 
   return {
     // Address management
