@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { normalizeAuthUser, useAuthStore, type User } from "./auth-store";
+import {
+  normalizeAuthUser,
+  useAuthStore,
+  userHasCpf,
+  type User,
+} from "./auth-store";
 
 afterEach(() => {
   useAuthStore.setState(
@@ -117,6 +122,35 @@ describe("normalizeAuthUser", () => {
       logo_url: "logo.png",
     });
     expect(user.photoUrl).toBe("foto.png");
+  });
+});
+
+describe("indicador de CPF (LDMF-362)", () => {
+  it("normalizeAuthUser guarda o hasCpf que vem do back", () => {
+    expect(
+      normalizeAuthUser({ id: "u1", email: "a@a.com", hasCpf: true }).hasCpf,
+    ).toBe(true);
+    expect(
+      normalizeAuthUser({ id: "u1", email: "a@a.com", hasCpf: false }).hasCpf,
+    ).toBe(false);
+  });
+
+  it("normalizeAuthUser deixa o hasCpf vazio quando o back não manda", () => {
+    expect(
+      normalizeAuthUser({ id: "u1", email: "a@a.com" }).hasCpf,
+    ).toBeUndefined();
+  });
+
+  it("userHasCpf segue o indicador quando ele existe", () => {
+    expect(userHasCpf({ cpf: "", hasCpf: true })).toBe(true);
+    expect(userHasCpf({ cpf: "12345678900", hasCpf: false })).toBe(false);
+  });
+
+  it("userHasCpf sem indicador considera sem CPF, salvo número de sessão antiga", () => {
+    expect(userHasCpf({ cpf: "" })).toBe(false);
+    expect(userHasCpf({ cpf: "123" })).toBe(false);
+    expect(userHasCpf({ cpf: "123.456.789-00" })).toBe(true);
+    expect(userHasCpf(null)).toBe(false);
   });
 });
 
