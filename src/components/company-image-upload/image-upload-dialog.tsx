@@ -9,7 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Loader2, Upload } from "lucide-react";
+import { Loader2, Trash2, Upload } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -36,6 +36,13 @@ interface ImageUploadDialogProps {
   /** Faz o upload de fato. Só é chamado ao confirmar com "Salvar foto". */
   upload: (file: File) => Promise<ImageUploadResult>;
   onUploaded: (url: string) => void;
+  /**
+   * Opcional: quando passado e já existe foto, mostra "Remover foto" no
+   * rodapé. Fica a cargo do pai limpar o valor (ex.: onChange("")). Logo e
+   * capa não passam, então seguem sem opção de remover.
+   */
+  onRemove?: () => void;
+  removeLabel?: string;
 }
 
 /**
@@ -56,6 +63,8 @@ export function ImageUploadDialog({
   successMessage,
   upload,
   onUploaded,
+  onRemove,
+  removeLabel = "Remover foto",
 }: ImageUploadDialogProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
@@ -113,6 +122,13 @@ export function ImageUploadDialog({
     } finally {
       setUploading(false);
     }
+  };
+
+  const handleRemove = () => {
+    if (uploading) return;
+    onRemove?.();
+    clearPending();
+    onOpenChange(false);
   };
 
   const handleOpenChange = (next: boolean) => {
@@ -189,15 +205,28 @@ export function ImageUploadDialog({
               </Button>
             </>
           ) : (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => fileInputRef.current?.click()}
-              className="gap-2"
-            >
-              <Upload className="h-4 w-4" />
-              {hasImage ? "Trocar foto" : "Escolher foto"}
-            </Button>
+            <>
+              {onRemove && currentUrl && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleRemove}
+                  className="gap-2 text-destructive hover:text-destructive"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  {removeLabel}
+                </Button>
+              )}
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => fileInputRef.current?.click()}
+                className="gap-2"
+              >
+                <Upload className="h-4 w-4" />
+                {hasImage ? "Trocar foto" : "Escolher foto"}
+              </Button>
+            </>
           )}
         </DialogFooter>
       </DialogContent>
