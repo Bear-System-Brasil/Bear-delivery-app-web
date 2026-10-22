@@ -10,7 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Loader2, Trash2, Upload } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 export interface ImageUploadResult {
@@ -74,9 +74,24 @@ export function ImageUploadDialog({
   const shownUrl = pendingPreview ?? currentUrl;
   const hasImage = Boolean(shownUrl);
 
+  // Revoga o object URL pendente se o componente sair sem limpar (evita vazar).
+  const previewRef = useRef<string | null>(null);
+  useEffect(() => {
+    previewRef.current = pendingPreview;
+  }, [pendingPreview]);
+  useEffect(
+    () => () => {
+      if (previewRef.current) URL.revokeObjectURL(previewRef.current);
+    },
+    [],
+  );
+
   const clearPending = () => {
+    setPendingPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
     setPendingFile(null);
-    setPendingPreview(null);
   };
 
   const handlePick = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -98,9 +113,15 @@ export function ImageUploadDialog({
       return;
     }
 
-    const reader = new FileReader();
-    reader.onloadend = () => setPendingPreview(reader.result as string);
-    reader.readAsDataURL(file);
+    // createObjectURL é síncrono: o preview troca junto com o arquivo. O
+    // FileReader/readAsDataURL antigo era assíncrono - abria uma janela em que
+    // o pendente já valia (dava pra "Salvar") mas o preview ainda mostrava a
+    // foto antiga, e com imagem grande o data URL travava/ficava "seletivo"
+    // (LDMF-412).
+    setPendingPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return URL.createObjectURL(file);
+    });
     setPendingFile(file);
   };
 
