@@ -56,8 +56,8 @@ function PreferenceRow({
     <div
       className={
         inline
-          ? "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-b border-border px-4 py-4 last:border-b-0 sm:px-5"
-          : "grid grid-cols-1 gap-2.5 border-b border-border px-4 py-4 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_240px] sm:items-center sm:gap-6 sm:px-5"
+          ? "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-b border-border px-4 py-3 last:border-b-0 sm:px-5"
+          : "grid grid-cols-1 gap-2.5 border-b border-border px-4 py-3 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_240px] sm:items-center sm:gap-6 sm:px-5"
       }
     >
       <div className="min-w-0">
@@ -100,7 +100,7 @@ export default function SettingsPage() {
       icon={Settings}
       mainClassName="p-4 pb-20 sm:p-6 md:pb-10 lg:pl-64 lg:pr-8"
     >
-      <div className="mx-auto max-w-2xl space-y-6">
+      <div className="mx-auto max-w-2xl space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-muted-foreground">
             Preferências de operação do caixa.
