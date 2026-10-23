@@ -74,23 +74,26 @@ export function ImageUploadDialog({
   const shownUrl = pendingPreview ?? currentUrl;
   const hasImage = Boolean(shownUrl);
 
-  // Revoga o object URL pendente se o componente sair sem limpar (evita vazar).
+  // Object URL do preview pendente. Fica num ref atualizado na hora (não num
+  // efeito) pra revogar fora do updater do setState: o React pode rodar o
+  // updater mais de uma vez, e efeito colateral ali dentro é frágil.
   const previewRef = useRef<string | null>(null);
-  useEffect(() => {
-    previewRef.current = pendingPreview;
-  }, [pendingPreview]);
   useEffect(
     () => () => {
+      // Revoga o pendente se o componente sair sem limpar (evita vazar).
       if (previewRef.current) URL.revokeObjectURL(previewRef.current);
     },
     [],
   );
 
+  const replacePreview = (next: string | null) => {
+    if (previewRef.current) URL.revokeObjectURL(previewRef.current);
+    previewRef.current = next;
+    setPendingPreview(next);
+  };
+
   const clearPending = () => {
-    setPendingPreview((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      return null;
-    });
+    replacePreview(null);
     setPendingFile(null);
   };
 
@@ -118,10 +121,7 @@ export function ImageUploadDialog({
     // o pendente já valia (dava pra "Salvar") mas o preview ainda mostrava a
     // foto antiga, e com imagem grande o data URL travava/ficava "seletivo"
     // (LDMF-412).
-    setPendingPreview((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      return URL.createObjectURL(file);
-    });
+    replacePreview(URL.createObjectURL(file));
     setPendingFile(file);
   };
 
