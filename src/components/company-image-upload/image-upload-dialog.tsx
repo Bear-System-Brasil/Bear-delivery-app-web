@@ -74,6 +74,8 @@ export function ImageUploadDialog({
   const [reading, setReading] = useState(false);
   // Conta as escolhas, pra descartar uma leitura que terminou depois de outra.
   const pickSeqRef = useRef(0);
+  // O navegador não conseguiu desenhar o preview pendente (a <img> deu erro).
+  const [previewFailed, setPreviewFailed] = useState(false);
 
   const shownUrl = pendingPreview ?? currentUrl;
   const hasImage = Boolean(shownUrl);
@@ -96,6 +98,7 @@ export function ImageUploadDialog({
     if (previewRef.current) URL.revokeObjectURL(previewRef.current);
     previewRef.current = next;
     setPendingPreview(next);
+    setPreviewFailed(false);
   };
 
   const clearPending = () => {
@@ -213,12 +216,24 @@ export function ImageUploadDialog({
               <Loader2 className="h-4 w-4 animate-spin" />
               Carregando a imagem...
             </span>
+          ) : pendingPreview && previewFailed ? (
+            // Sem o ícone de imagem quebrada: o arquivo foi lido e pode ser
+            // salvo, só o navegador não conseguiu mostrar a prévia.
+            <span
+              role="status"
+              className="px-4 text-center text-xs text-muted-foreground"
+            >
+              Não deu pra mostrar a prévia, mas a foto pode ser salva.
+            </span>
           ) : hasImage ? (
             // Logo/capa do restaurante seguem como <img> por decisão de projeto.
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={shownUrl}
               alt={alt}
+              onError={() => {
+                if (pendingPreview) setPreviewFailed(true);
+              }}
               className="max-h-[280px] w-auto max-w-full object-contain"
             />
           ) : (

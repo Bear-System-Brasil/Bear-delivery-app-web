@@ -175,3 +175,31 @@ describe("ImageUploadDialog - leitura do arquivo antes do preview", () => {
     expect(URL.createObjectURL).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("ImageUploadDialog - preview que o navegador não desenha", () => {
+  it("troca o ícone quebrado por um aviso e mantém o Salvar", async () => {
+    renderDialog();
+
+    await pick("a.png");
+    fireEvent.error(screen.getByRole("img", { name: "Foto de perfil" }));
+
+    expect(screen.queryByRole("img", { name: "Foto de perfil" })).toBeNull();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Não deu pra mostrar a prévia, mas a foto pode ser salva.",
+    );
+    expect(screen.getByRole("button", { name: "Salvar foto" })).toBeEnabled();
+  });
+
+  it("cancelar tira o aviso e escolher de novo tenta mostrar a prévia", async () => {
+    renderDialog();
+
+    await pick("a.png");
+    fireEvent.error(screen.getByRole("img", { name: "Foto de perfil" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+
+    expect(screen.queryByRole("status")).toBeNull();
+
+    await pick("b.png");
+    expect(previewSrc()).toBe("blob:preview-2");
+  });
+});
