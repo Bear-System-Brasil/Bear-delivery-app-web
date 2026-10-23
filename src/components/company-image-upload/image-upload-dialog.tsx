@@ -173,10 +173,14 @@ export function ImageUploadDialog({
     try {
       bytes = await readWithRetry(file, () => seq === pickSeqRef.current);
     } catch {
-      if (seq === pickSeqRef.current) {
-        setReading(false);
-        toast.error("Não foi possível ler a imagem. Tente de novo.");
-      }
+      if (seq !== pickSeqRef.current) return;
+      // Não bloqueia o Salvar: no celular o upload, que lê o arquivo depois,
+      // quase sempre funciona mesmo quando esta leitura falha. O preview tenta
+      // o arquivo original (como antes); se a <img> não desenhar, o onError
+      // troca pelo aviso de prévia indisponível.
+      replacePreview(URL.createObjectURL(file));
+      setPendingFile(file);
+      setReading(false);
       return;
     }
     // Outra escolha, cancelar ou fechar no meio da leitura: descarta esta.

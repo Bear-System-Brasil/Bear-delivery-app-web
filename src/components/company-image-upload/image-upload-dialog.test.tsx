@@ -190,7 +190,7 @@ describe("ImageUploadDialog - leitura do arquivo antes do preview", () => {
     expect(URL.createObjectURL).not.toHaveBeenCalled();
   });
 
-  it("falha ao ler o arquivo avisa e não deixa salvar", async () => {
+  it("todas as tentativas falhando não bloqueiam o Salvar", async () => {
     vi.useFakeTimers();
     const { toast } = await import("sonner");
     renderDialog();
@@ -203,14 +203,20 @@ describe("ImageUploadDialog - leitura do arquivo antes do preview", () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(ALL_RETRIES_MS);
     });
-    expect(read).toHaveBeenCalledTimes(READ_RETRY_DELAYS_MS.length + 1);
 
-    expect(toast.error).toHaveBeenCalledWith(
-      "Não foi possível ler a imagem. Tente de novo.",
+    expect(read).toHaveBeenCalledTimes(READ_RETRY_DELAYS_MS.length + 1);
+    expect(toast.error).not.toHaveBeenCalled();
+    // O preview tenta o arquivo original, como antes da leitura.
+    expect(URL.createObjectURL).toHaveBeenCalledWith(file);
+    expect(previewSrc()).toBe("blob:preview-1");
+    expect(screen.getByRole("button", { name: "Salvar foto" })).toBeEnabled();
+
+    // Se nem assim a <img> desenhar, fica o aviso e o Salvar segue liberado.
+    fireEvent.error(screen.getByRole("img", { name: "Foto de perfil" }));
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Não deu pra mostrar a prévia, mas a foto pode ser salva.",
     );
-    expect(screen.queryByRole("status")).toBeNull();
-    expect(screen.queryByRole("button", { name: "Salvar foto" })).toBeNull();
-    expect(URL.createObjectURL).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Salvar foto" })).toBeEnabled();
   });
 
   it("leitura que termina depois de uma escolha mais nova é descartada", async () => {
