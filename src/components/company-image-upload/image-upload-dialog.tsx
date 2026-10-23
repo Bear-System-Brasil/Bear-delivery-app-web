@@ -70,6 +70,10 @@ export function ImageUploadDialog({
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [pendingPreview, setPendingPreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  // Lendo o arquivo escolhido antes de mostrar o preview.
+  const [reading, setReading] = useState(false);
+  // Conta as escolhas, pra descartar uma leitura que terminou depois de outra.
+  const pickSeqRef = useRef(0);
 
   const shownUrl = pendingPreview ?? currentUrl;
   const hasImage = Boolean(shownUrl);
@@ -80,7 +84,9 @@ export function ImageUploadDialog({
   const previewRef = useRef<string | null>(null);
   useEffect(
     () => () => {
-      // Revoga o pendente se o componente sair sem limpar (evita vazar).
+      // Revoga o pendente se o componente sair sem limpar (evita vazar) e
+      // descarta uma leitura que ainda esteja em andamento.
+      pickSeqRef.current++;
       if (previewRef.current) URL.revokeObjectURL(previewRef.current);
     },
     [],
@@ -93,11 +99,14 @@ export function ImageUploadDialog({
   };
 
   const clearPending = () => {
+    // Invalida uma leitura em andamento pra ela não repor o preview depois.
+    pickSeqRef.current++;
+    setReading(false);
     replacePreview(null);
     setPendingFile(null);
   };
 
-  const handlePick = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePick = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const input = e.target;
     const file = input.files?.[0];
     // Libera reescolher o mesmo arquivo depois.
@@ -116,13 +125,31 @@ export function ImageUploadDialog({
       return;
     }
 
-    // createObjectURL é síncrono: o preview troca junto com o arquivo. O
-    // FileReader/readAsDataURL antigo era assíncrono - abria uma janela em que
-    // o pendente já valia (dava pra "Salvar") mas o preview ainda mostrava a
-    // foto antiga, e com imagem grande o data URL travava/ficava "seletivo"
-    // (LDMF-412).
-    replacePreview(URL.createObjectURL(file));
+    // Lê o arquivo inteiro antes de montar o preview. No Chrome do Android o
+    // File escolhido aponta pro seletor do sistema e é lido aos poucos; o
+    // object URL criado direto dele às vezes falhava e a <img> mostrava o
+    // ícone de imagem quebrada, embora o upload funcionasse (LDMF-412). Com
+    // os bytes já em memória, o preview não depende mais dessa leitura.
+    const seq = ++pickSeqRef.current;
+    setReading(true);
+    let bytes: ArrayBuffer;
+    try {
+      bytes = await file.arrayBuffer();
+    } catch {
+      if (seq === pickSeqRef.current) {
+        setReading(false);
+        toast.error("Não foi possível ler a imagem. Tente de novo.");
+      }
+      return;
+    }
+    // Outra escolha, cancelar ou fechar no meio da leitura: descarta esta.
+    if (seq !== pickSeqRef.current) return;
+
+    // Preview e arquivo trocam juntos, sem janela em que o pendente já vale
+    // mas o preview ainda mostra a foto antiga.
+    replacePreview(URL.createObjectURL(new Blob([bytes], { type: file.type })));
     setPendingFile(file);
+    setReading(false);
   };
 
   const handleSave = async () => {
@@ -178,7 +205,15 @@ export function ImageUploadDialog({
               : "flex min-h-[180px] w-full items-center justify-center overflow-hidden rounded-lg border border-border bg-muted p-3"
           }
         >
-          {hasImage ? (
+          {reading ? (
+            <span
+              role="status"
+              className="flex items-center gap-2 text-xs text-muted-foreground"
+            >
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Carregando a imagem...
+            </span>
+          ) : hasImage ? (
             // Logo/capa do restaurante seguem como <img> por decisão de projeto.
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -229,6 +264,7 @@ export function ImageUploadDialog({
                   type="button"
                   variant="outline"
                   onClick={handleRemove}
+                  disabled={reading}
                   className="gap-2 text-destructive hover:text-destructive"
                 >
                   <Trash2 className="h-4 w-4" />
@@ -239,6 +275,7 @@ export function ImageUploadDialog({
                 type="button"
                 variant="outline"
                 onClick={() => fileInputRef.current?.click()}
+                disabled={reading}
                 className="gap-2"
               >
                 <Upload className="h-4 w-4" />

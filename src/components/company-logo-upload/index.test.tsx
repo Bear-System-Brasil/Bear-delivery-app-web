@@ -53,7 +53,7 @@ describe("CompanyLogoUpload", () => {
     // Escolher o arquivo não grava nada ainda.
     expect(apiService.uploadCompanyLogo).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("button", { name: "Salvar foto" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Salvar foto" }));
 
     await waitFor(() =>
       expect(apiService.uploadCompanyLogo).toHaveBeenCalledTimes(1),
