@@ -75,7 +75,13 @@ const CART_ITEMS = [
 
 const SOUND = { play: vi.fn(), unlock: vi.fn() };
 const AUTH: {
-  user: { id: string; name: string; phone: string; cpf?: string } | null;
+  user: {
+    id: string;
+    name: string;
+    phone: string;
+    cpf?: string;
+    hasCpf?: boolean;
+  } | null;
 } = {
   user: {
     id: "user-1",
@@ -139,7 +145,15 @@ const cartStore = {
 vi.mock("@/hooks/use-sound", () => ({ useSound: () => SOUND }));
 
 const authStoreUpdateUser = vi.fn(
-  (updated: Partial<{ id: string; name: string; phone: string; cpf?: string }>) => {
+  (
+    updated: Partial<{
+      id: string;
+      name: string;
+      phone: string;
+      cpf?: string;
+      hasCpf?: boolean;
+    }>,
+  ) => {
     if (AUTH.user) {
       AUTH.user = { ...AUTH.user, ...updated };
     }
@@ -1201,8 +1215,10 @@ describe("useCheckoutProcess - primeiro pedido e CPF (LDMF-301)", () => {
     });
 
     expect(updateCpf).toHaveBeenCalledWith("12345678900");
-    expect(authStoreUpdateUser).toHaveBeenCalledWith(
-      expect.objectContaining({ cpf: "12345678900" }),
+    // Só o indicador vai para o store: o número não fica no localStorage.
+    expect(authStoreUpdateUser).toHaveBeenCalledWith({ hasCpf: true });
+    expect(authStoreUpdateUser).not.toHaveBeenCalledWith(
+      expect.objectContaining({ cpf: expect.anything() }),
     );
     expect(finishOrder).toHaveBeenCalledTimes(1);
   });
@@ -1250,6 +1266,64 @@ describe("useCheckoutProcess - primeiro pedido e CPF (LDMF-301)", () => {
 
     expect(updateCpf).not.toHaveBeenCalled();
     expect(finishOrder).toHaveBeenCalledTimes(1);
+  });
+
+  // LDMF-362: o back não devolve mais o número, só o indicador.
+  it("conta com hasCpf finaliza sem informar CPF e sem regravar o CPF", async () => {
+    AUTH.user = {
+      id: "user-1",
+      name: "Cliente",
+      phone: "11999999999",
+      cpf: "",
+      hasCpf: true,
+    };
+    finishOrder.mockResolvedValueOnce({ success: true, data: { id: "order-101" } });
+
+    const { result } = renderCheckout();
+    await waitFor(() => expect(result.current.selectedAddressId).toBe("addr-1"));
+
+    expect(result.current.hasCpf).toBe(true);
+    expect(result.current.isDeliveryValid()).toBe(true);
+
+    act(() => {
+      result.current.setOrderType("delivery");
+      result.current.setPaymentMethod("pix_on_delivery");
+    });
+
+    await act(async () => {
+      await result.current.handleSubmitOrder();
+    });
+
+    expect(updateCpf).not.toHaveBeenCalled();
+    expect(finishOrder).toHaveBeenCalledTimes(1);
+  });
+
+  it("conta com hasCpf false continua obrigada a informar o CPF", async () => {
+    AUTH.user = {
+      id: "user-2",
+      name: "Cliente Sem CPF",
+      phone: "11999999999",
+      hasCpf: false,
+    };
+
+    const { result } = renderCheckout();
+    await waitFor(() => expect(result.current.selectedAddressId).toBe("addr-1"));
+
+    expect(result.current.hasCpf).toBe(false);
+
+    act(() => {
+      result.current.setOrderType("delivery");
+      result.current.setPaymentMethod("pix_on_delivery");
+    });
+
+    await act(async () => {
+      await result.current.handleSubmitOrder();
+    });
+
+    expect(toastError).toHaveBeenCalledWith(
+      "Informe um CPF válido para finalizar o pedido.",
+    );
+    expect(finishOrder).not.toHaveBeenCalled();
   });
 });
 

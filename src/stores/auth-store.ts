@@ -19,6 +19,23 @@ export interface User {
   cnpj?: string;
   logo_url?: string;
   cover_url?: string;
+  /**
+   * Indicador de CPF vindo do back (LDMF-362). O back não devolve mais o
+   * número; sem o indicador, a conta é tratada como sem CPF.
+   */
+  hasCpf?: boolean;
+}
+
+/**
+ * Se a conta já tem CPF. Vale o indicador do back; sem ele, só aceita o
+ * número de 11 dígitos que sessões antigas ainda guardam no store.
+ */
+export function userHasCpf(
+  user: Pick<User, "cpf" | "hasCpf"> | null | undefined,
+) {
+  if (!user) return false;
+  if (typeof user.hasCpf === "boolean") return user.hasCpf;
+  return Boolean(user.cpf && user.cpf.replace(/\D/g, "").length === 11);
 }
 
 /**
@@ -60,6 +77,7 @@ export function normalizeAuthUser(raw: RawAuthUser): User {
     role,
     companyId: raw.companyId || undefined,
     photoUrl: raw.photoUrl,
+    hasCpf: typeof raw.hasCpf === "boolean" ? raw.hasCpf : undefined,
   };
 }
 

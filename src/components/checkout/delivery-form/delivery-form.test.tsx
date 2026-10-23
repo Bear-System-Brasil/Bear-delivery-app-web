@@ -68,11 +68,13 @@ function Harness({
   addressMode = "new",
   userAddresses = [],
   fieldErrors,
+  hasCpf = true,
 }: {
   orderType?: "delivery" | "pickup";
   addressMode?: "select" | "new";
   userAddresses?: { id: string }[];
   fieldErrors?: CheckoutFieldErrors;
+  hasCpf?: boolean;
 }) {
   const [info, setInfo] = useState<DeliveryInfo>(EMPTY);
 
@@ -96,7 +98,7 @@ function Harness({
       orderType={orderType}
       setOrderType={noop}
       restaurant={null}
-      hasCpf
+      hasCpf={hasCpf}
       fieldErrors={fieldErrors}
     />
   );
@@ -224,5 +226,23 @@ describe("DeliveryForm - campos faltando", () => {
 
     expect(screen.queryByLabelText("Rua")).not.toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+});
+
+describe("DeliveryForm - CPF da conta (LDMF-362)", () => {
+  const VALIDATED = "CPF já validado na sua conta. Pode prosseguir com o pedido.";
+
+  it("conta com CPF não vê o campo e vê a mensagem de CPF validado", () => {
+    render(<Harness hasCpf />);
+
+    expect(screen.queryByLabelText("CPF")).not.toBeInTheDocument();
+    expect(screen.getByText(VALIDATED)).toBeInTheDocument();
+  });
+
+  it("conta sem CPF vê o campo e não vê a mensagem", () => {
+    render(<Harness hasCpf={false} />);
+
+    expect(screen.getByLabelText("CPF")).toBeInTheDocument();
+    expect(screen.queryByText(VALIDATED)).not.toBeInTheDocument();
   });
 });

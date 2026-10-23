@@ -24,6 +24,14 @@ function TestWrapper({
   handleSaveProfile = vi.fn(),
   open = vi.fn(),
   isPending = false,
+  user = mockUser,
+}: {
+  isOpen?: boolean;
+  handleCancelEdit?: () => void;
+  handleSaveProfile?: () => void;
+  open?: () => void;
+  isPending?: boolean;
+  user?: User;
 }) {
   const form = useForm<ProfileFormData>({
     defaultValues: {
@@ -56,7 +64,7 @@ function TestWrapper({
       updateProfile={updateProfile}
       profileForm={form}
       editingState={editingState}
-      user={mockUser}
+      user={user}
     />
   );
 }
@@ -218,5 +226,31 @@ describe("PersonalInformation - data de nascimento (LDMF-303)", () => {
     fireEvent.click(screen.getByRole("button", { name: /salvar/i }));
     await waitFor(() => expect(save).toHaveBeenCalled());
     expect(save.mock.calls[0][0]).toMatchObject({ birthDate: "15/05/1990" });
+  });
+});
+
+describe("PersonalInformation - CPF da conta (LDMF-362)", () => {
+  // O back só diz se a conta tem CPF; o número não vem.
+  const withCpf: User = { ...mockUser, cpf: "", hasCpf: true };
+  const withoutCpf: User = { ...mockUser, cpf: "", hasCpf: false };
+
+  it("conta com CPF mostra que o CPF está cadastrado", () => {
+    render(<TestWrapper user={withCpf} />);
+    expect(screen.getByText("CPF cadastrado na sua conta.")).toBeInTheDocument();
+  });
+
+  it("conta com CPF continua podendo trocar o CPF na edição", () => {
+    render(<TestWrapper user={withCpf} isOpen />);
+    expect(screen.getByLabelText("CPF")).not.toBeDisabled();
+    expect(
+      screen.getByText(/CPF cadastrado na sua conta\. Para trocar/),
+    ).toBeInTheDocument();
+  });
+
+  it("conta sem CPF mostra que não há CPF cadastrado", () => {
+    render(<TestWrapper user={withoutCpf} />);
+    expect(
+      screen.getByText("Nenhum CPF cadastrado na sua conta."),
+    ).toBeInTheDocument();
   });
 });

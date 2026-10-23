@@ -384,6 +384,8 @@ export interface RawAuthUser {
   legalName?: string;
   cnpj?: string;
   logo_url?: string;
+  /** Se a conta tem CPF, sem o número (LDMF-302). */
+  hasCpf?: boolean;
 }
 
 /**
