@@ -4,6 +4,11 @@ import { AdminPageLayout } from "@/components/admin-page-layout";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   useCashDeposit,
@@ -397,13 +402,15 @@ export default function CashRegisterPage() {
     isError: movementsError,
     refetch: refetchMovements,
   } = useCashMovements(
+    // Os filtros de tipo/método NÃO vão pro backend: a rota aceita os params
+    // no Swagger mas não os aplica (LDMF-408), então a filtragem é feita aqui
+    // na tela, sobre a lista completa do caixa. O backend devolve o turno
+    // inteiro numa página só (não pagina de verdade), então filtrar aqui é
+    // completo, não só a página atual.
     {
       page: movementsPage,
       limit: MOVEMENTS_PAGE_SIZE,
       cashRegisterId: register?.id,
-      type: movementTypeFilter === "ALL" ? undefined : movementTypeFilter,
-      paymentMethod:
-        movementMethodFilter === "ALL" ? undefined : movementMethodFilter,
     },
     { enabled: !!register?.id },
   );
@@ -412,7 +419,23 @@ export default function CashRegisterPage() {
   const movementsMeta = movementsData?.meta;
   const movementsTotalPages = movementsMeta?.totalPages ?? 1;
 
-  // Filtro novo sempre volta pra página 1 (ver pagination.md).
+  // Filtragem na tela (ver comentário acima).
+  const filteredMovements = movements.filter((movement) => {
+    if (
+      movementTypeFilter !== "ALL" &&
+      movement.type !== movementTypeFilter
+    ) {
+      return false;
+    }
+    if (
+      movementMethodFilter !== "ALL" &&
+      movement.paymentMethod !== movementMethodFilter
+    ) {
+      return false;
+    }
+    return true;
+  });
+
   const changeMovementType = (value: CashMovementType | "ALL") => {
     setMovementTypeFilter(value);
     setMovementsPage(1);
@@ -529,13 +552,16 @@ export default function CashRegisterPage() {
     saleMutation.isPending ||
     refundMutation.isPending;
 
-  // Fundo de troco + líquido em dinheiro. `totalCash` já vem do backend como
-  // SALE + DEPOSIT − WITHDRAWAL − REFUND, então sangria e reembolso NÃO se
-  // subtraem de novo aqui - era isso que fazia a sangria contar duas vezes.
+  // Gaveta é dinheiro físico: fundo de troco + líquido EM DINHEIRO do turno.
+  // `totalCash` já vem do backend como SALE + DEPOSIT − WITHDRAWAL − REFUND só
+  // do método dinheiro, então sangria e reembolso NÃO se subtraem de novo aqui
+  // - era isso que fazia a sangria contar duas vezes.
+  //
+  // Não usar `availableBalance`: ele soma todos os métodos (cartão e pix
+  // entram nele), então inflava a gaveta com dinheiro que não está nela.
   const registerOpeningBalance = register?.openingBalance ?? 0;
   const netCash = summary?.totalCash ?? 0;
-  const expectedInDrawer =
-    summary?.availableBalance ?? registerOpeningBalance + netCash;
+  const expectedInDrawer = registerOpeningBalance + netCash;
 
   const hasContado = countedTotal.trim() !== "";
   const contadoVal = parseFloat(countedTotal.replace(",", "."));
@@ -644,7 +670,10 @@ export default function CashRegisterPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 items-start gap-4 lg:[grid-template-columns:repeat(auto-fit,minmax(440px,1fr))]">
+            {/* auto-fit sem trava de breakpoint: vira 2 colunas assim que cabe
+                (~800px+ de conteúdo, inclui o desktop mode do mobile em ~980px)
+                e empilha sozinho em telas estreitas de verdade. */}
+            <div className="grid items-start gap-4 [grid-template-columns:repeat(auto-fit,minmax(360px,1fr))]">
               {/* Coluna principal */}
               <div className="flex min-w-0 flex-col gap-4">
                 {summaryLoading ? (
@@ -743,20 +772,56 @@ export default function CashRegisterPage() {
                 </SectionCard>
               </div>
 
-              {/* Conferência de fechamento. flex-col + h-full no lg pra o card
-                  preencher a altura da coluna da esquerda e o botão ancorar no
-                  rodapé - assim os blocos ficam alinhados. */}
+              {/* Conferência de fechamento. flex-col + h-full pra, quando as
+                  duas colunas aparecem lado a lado, o card preencher a altura da
+                  coluna da esquerda e o botão ancorar no rodapé - assim os blocos
+                  ficam do mesmo tamanho. Em coluna única não tem efeito. */}
               <SectionCard
                 icon={Scale}
                 title="Conferência de fechamento"
-                className="lg:flex lg:h-full lg:flex-col"
+                className="flex h-full flex-col"
               >
-                {/* Número direto, sem repetir o fundo de troco (que já aparece
-                    na faixa do topo): o que precisa ter na gaveta agora. */}
+                {/* O valor aparece direto; o ⓘ abre a composição (fundo de troco
+                    + dinheiro do turno) sob demanda, sem ocupar altura - era a
+                    dúvida de onde saía o R$ do fundo de troco. */}
                 <div className="px-4 pt-4">
                   <div className="flex items-baseline justify-between gap-3">
-                    <span className="text-[13px] font-semibold text-foreground">
+                    <span className="flex items-center gap-1 text-[13px] font-semibold text-foreground">
                       Esperado na gaveta
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button
+                            type="button"
+                            aria-label="Como o esperado na gaveta é calculado"
+                            className="text-muted-foreground transition-colors hover:text-foreground"
+                          >
+                            <Info className="h-3.5 w-3.5" />
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent
+                          align="start"
+                          className="w-64 text-[12px] leading-relaxed"
+                        >
+                          <p className="font-semibold text-foreground">
+                            Como é calculado
+                          </p>
+                          <p className="mt-1 text-muted-foreground">
+                            Fundo de troco da abertura{" "}
+                            <strong className="font-semibold text-foreground">
+                              {formatCurrency(registerOpeningBalance)}
+                            </strong>{" "}
+                            + dinheiro líquido do turno{" "}
+                            <strong className="font-semibold text-foreground">
+                              {formatCurrency(netCash)}
+                            </strong>
+                            .
+                          </p>
+                          <p className="mt-1.5 text-muted-foreground">
+                            O fundo de troco não é um movimento do turno, por isso
+                            não aparece em “Por forma de pagamento”.
+                          </p>
+                        </PopoverContent>
+                      </Popover>
                     </span>
                     <span className="whitespace-nowrap text-xl font-bold tabular-nums text-foreground">
                       {formatCurrency(expectedInDrawer)}
@@ -795,7 +860,7 @@ export default function CashRegisterPage() {
                   />
                 </div>
 
-                <div className="mt-3 border-t border-border p-4 lg:mt-auto">
+                <div className="mt-3 border-t border-border p-4 [@media(min-width:800px)]:mt-auto">
                   <Button
                     onClick={() => setDialog("close-register")}
                     disabled={closeMutation.isPending}
@@ -818,8 +883,8 @@ export default function CashRegisterPage() {
               aside={
                 <div className="flex flex-wrap items-center justify-end gap-2">
                   <span className="rounded bg-muted px-2 py-0.5 text-[11.5px] font-semibold tabular-nums text-muted-foreground">
-                    {movementsMeta?.total ?? 0} movimento
-                    {(movementsMeta?.total ?? 0) !== 1 ? "s" : ""}
+                    {filteredMovements.length} movimento
+                    {filteredMovements.length !== 1 ? "s" : ""}
                   </span>
                   <select
                     aria-label="Filtrar por tipo"
@@ -880,7 +945,7 @@ export default function CashRegisterPage() {
                     Use Atualizar para tentar de novo
                   </div>
                 </div>
-              ) : movements.length === 0 ? (
+              ) : filteredMovements.length === 0 ? (
                 <div className="px-4 py-8 text-center">
                   <div className="text-[13px] font-semibold text-foreground">
                     Nenhum movimento encontrado
@@ -900,7 +965,7 @@ export default function CashRegisterPage() {
                       movementsFetching && "opacity-60",
                     )}
                   >
-                    {movements.map((movement) => {
+                    {filteredMovements.map((movement) => {
                       const signed = movementSignedAmount(movement);
                       return (
                         <div key={movement.id} className="px-4 py-3">
@@ -967,7 +1032,7 @@ export default function CashRegisterPage() {
                       </div>
 
                       <div className={cn(movementsFetching && "opacity-60")}>
-                        {movements.map((movement) => {
+                        {filteredMovements.map((movement) => {
                           const signed = movementSignedAmount(movement);
                           return (
                             <div
