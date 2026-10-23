@@ -294,7 +294,7 @@ function CompanyProfileContent() {
             {/* Hero card: cover + logo + summary */}
             <Card className="mb-4 overflow-hidden rounded-lg border-border bg-card shadow-none">
               {isLoadingProfile ? (
-                <Skeleton className="h-[150px] w-full rounded-none" />
+                <Skeleton className="aspect-[3/1] max-h-[210px] min-h-[150px] w-full rounded-none" />
               ) : (
                 <CompanyCoverUpload
                   value={formData.cover_url}
