@@ -46,6 +46,40 @@ interface ImageUploadDialogProps {
 }
 
 /**
+ * Esperas entre as tentativas de ler o arquivo escolhido. No Chrome do Android
+ * a leitura logo depois da escolha falha com frequência e passa alguns
+ * instantes depois (medido no celular, LDMF-412), então tenta de novo antes de
+ * desistir. Somando, ~2s de espera no pior caso.
+ */
+export const READ_RETRY_DELAYS_MS = [300, 700, 1200];
+
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Lê o arquivo inteiro, tentando de novo nas esperas acima. Para no meio se
+ * `isCurrent` disser que a escolha já foi substituída (outra foto, cancelar,
+ * fechar). Se todas falharem, rejeita com o último erro.
+ */
+async function readWithRetry(
+  file: File,
+  isCurrent: () => boolean,
+): Promise<ArrayBuffer> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= READ_RETRY_DELAYS_MS.length; attempt++) {
+    if (attempt > 0) {
+      await wait(READ_RETRY_DELAYS_MS[attempt - 1]);
+      if (!isCurrent()) throw new Error("escolha substituida");
+    }
+    try {
+      return await file.arrayBuffer();
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError;
+}
+
+/**
  * Abre a imagem em tamanho cheio (sem corte) e só grava no backend depois de
  * escolher "Trocar foto" e confirmar em "Salvar foto" - não salva ao escolher
  * o arquivo, diferente do comportamento antigo (LDMF-410).
@@ -137,7 +171,7 @@ export function ImageUploadDialog({
     setReading(true);
     let bytes: ArrayBuffer;
     try {
-      bytes = await file.arrayBuffer();
+      bytes = await readWithRetry(file, () => seq === pickSeqRef.current);
     } catch {
       if (seq === pickSeqRef.current) {
         setReading(false);
