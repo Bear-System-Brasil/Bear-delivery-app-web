@@ -56,8 +56,8 @@ function PreferenceRow({
     <div
       className={
         inline
-          ? "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-b border-border px-4 py-3.5 last:border-b-0 sm:px-5"
-          : "grid grid-cols-1 gap-2.5 border-b border-border px-4 py-3.5 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_240px] sm:items-center sm:gap-6 sm:px-5"
+          ? "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-b border-border px-4 py-3 last:border-b-0 sm:px-5"
+          : "grid grid-cols-1 gap-2.5 border-b border-border px-4 py-3 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_240px] sm:items-center sm:gap-6 sm:px-5"
       }
     >
       <div className="min-w-0">
@@ -100,10 +100,24 @@ export default function SettingsPage() {
       icon={Settings}
       mainClassName="p-4 pb-20 sm:p-6 md:pb-10 lg:pl-64 lg:pr-8"
     >
-      <div className="mx-auto max-w-3xl space-y-4">
-        <p className="text-sm text-muted-foreground">
-          Preferências de operação do caixa.
-        </p>
+      <div className="mx-auto max-w-2xl space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-muted-foreground">
+            Preferências de operação do caixa.
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              resetFinancialPreferences();
+              notifySaved("Preferências restauradas");
+            }}
+            className="shrink-0 gap-2 rounded-lg"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            Restaurar padrão
+          </Button>
+        </div>
 
         <div className="flex items-start gap-2 rounded-lg border border-border bg-card px-3 py-2.5 text-[12.5px] text-muted-foreground">
           <Monitor className="mt-0.5 h-3.5 w-3.5 shrink-0" />
@@ -192,21 +206,6 @@ export default function SettingsPage() {
             }
           />
         </section>
-
-        <div className="flex justify-end">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              resetFinancialPreferences();
-              notifySaved("Preferências restauradas");
-            }}
-            className="gap-2 rounded-lg"
-          >
-            <RotateCcw className="h-3.5 w-3.5" />
-            Restaurar padrão
-          </Button>
-        </div>
       </div>
     </AdminPageLayout>
   );
