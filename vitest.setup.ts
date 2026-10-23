@@ -15,6 +15,16 @@ if (typeof globalThis.ResizeObserver === "undefined") {
     ResizeObserverStub as unknown as typeof ResizeObserver;
 }
 
+// jsdom não implementa URL.createObjectURL/revokeObjectURL, usados no preview
+// de upload de imagem (ImageUploadDialog). Sem o stub, escolher um arquivo no
+// teste quebra.
+if (typeof URL.createObjectURL === "undefined") {
+  URL.createObjectURL = () => "blob:mock";
+}
+if (typeof URL.revokeObjectURL === "undefined") {
+  URL.revokeObjectURL = () => {};
+}
+
 afterEach(() => {
   cleanup();
 });
