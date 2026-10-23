@@ -308,3 +308,32 @@ describe("ImageUploadDialog - arquivo que vai pro upload", () => {
     expect(upload).toHaveBeenCalledWith(picked);
   });
 });
+
+describe("ImageUploadDialog - limpeza do input de arquivo", () => {
+  it("só limpa o input depois de terminar a leitura", async () => {
+    renderDialog();
+
+    const input = fileInput();
+    const cleared = vi.fn();
+    Object.defineProperty(input, "value", {
+      configurable: true,
+      get: () => "",
+      set: cleared,
+    });
+
+    let finish!: (b: ArrayBuffer) => void;
+    const file = new File(["x"], "a.png", { type: "image/png" });
+    vi.spyOn(file, "arrayBuffer").mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    fireEvent.change(input, { target: { files: [file] } });
+
+    expect(cleared).not.toHaveBeenCalled();
+
+    await act(async () => finish(new ArrayBuffer(1)));
+
+    expect(cleared).toHaveBeenCalledWith("");
+  });
+});

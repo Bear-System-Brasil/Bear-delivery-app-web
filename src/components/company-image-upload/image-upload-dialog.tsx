@@ -145,10 +145,17 @@ export function ImageUploadDialog({
 
   const handlePick = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const input = e.target;
-    const file = input.files?.[0];
-    // Libera reescolher o mesmo arquivo depois.
-    input.value = "";
+    try {
+      await pickFile(input.files?.[0]);
+    } finally {
+      // Libera reescolher o mesmo arquivo depois. Só limpa depois da leitura:
+      // no Android, limpar o input logo na escolha pode soltar o acesso ao
+      // arquivo antes de lê-lo (LDMF-412).
+      input.value = "";
+    }
+  };
 
+  const pickFile = async (file: File | undefined) => {
     if (!file) return;
 
     if (!file.type.startsWith("image/")) {
