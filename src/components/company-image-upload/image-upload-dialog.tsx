@@ -63,6 +63,7 @@ const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 async function readWithRetry(
   file: File,
   isCurrent: () => boolean,
+  onFail?: (error: unknown) => void,
 ): Promise<ArrayBuffer> {
   let lastError: unknown;
   for (let attempt = 0; attempt <= READ_RETRY_DELAYS_MS.length; attempt++) {
@@ -74,6 +75,7 @@ async function readWithRetry(
       return await file.arrayBuffer();
     } catch (error) {
       lastError = error;
+      onFail?.(error);
     }
   }
   throw lastError;
@@ -110,6 +112,10 @@ export function ImageUploadDialog({
   const pickSeqRef = useRef(0);
   // O navegador não conseguiu desenhar o preview pendente (a <img> deu erro).
   const [previewFailed, setPreviewFailed] = useState(false);
+  // DIAGNOSTICO TEMPORARIO (LDMF-412) - remover antes do PR. Mostra quantas
+  // leituras falharam e o erro que o Chrome do Android devolveu, pra medir no
+  // celular em vez de deduzir.
+  const [readDiag, setReadDiag] = useState<string | null>(null);
 
   const shownUrl = pendingPreview ?? currentUrl;
   const hasImage = Boolean(shownUrl);
@@ -139,6 +145,7 @@ export function ImageUploadDialog({
     // Invalida uma leitura em andamento pra ela não repor o preview depois.
     pickSeqRef.current++;
     setReading(false);
+    setReadDiag(null);
     replacePreview(null);
     setPendingFile(null);
   };
@@ -176,11 +183,22 @@ export function ImageUploadDialog({
     // os bytes já em memória, o preview não depende mais dessa leitura.
     const seq = ++pickSeqRef.current;
     setReading(true);
+    setReadDiag(null);
+    const failures: string[] = [];
+    const describe = (error: unknown) =>
+      error instanceof Error ? `${error.name}: ${error.message}` : String(error);
     let bytes: ArrayBuffer;
     try {
-      bytes = await readWithRetry(file, () => seq === pickSeqRef.current);
+      bytes = await readWithRetry(
+        file,
+        () => seq === pickSeqRef.current,
+        (error) => failures.push(describe(error)),
+      );
     } catch {
       if (seq !== pickSeqRef.current) return;
+      setReadDiag(
+        `leitura falhou ${failures.length}x, sem preview lido (${failures[failures.length - 1]})`,
+      );
       // Não bloqueia o Salvar: no celular o upload, que lê o arquivo depois,
       // quase sempre funciona mesmo quando esta leitura falha. O preview tenta
       // o arquivo original (como antes); se a <img> não desenhar, o onError
@@ -192,6 +210,11 @@ export function ImageUploadDialog({
     }
     // Outra escolha, cancelar ou fechar no meio da leitura: descarta esta.
     if (seq !== pickSeqRef.current) return;
+    setReadDiag(
+      failures.length
+        ? `leitura falhou ${failures.length}x e passou na ${failures.length + 1}a (${failures[failures.length - 1]})`
+        : "leitura ok na 1a",
+    );
 
     // Preview e arquivo trocam juntos, sem janela em que o pendente já vale
     // mas o preview ainda mostra a foto antiga.
@@ -294,6 +317,16 @@ export function ImageUploadDialog({
             </span>
           )}
         </div>
+
+        {/* DIAGNOSTICO TEMPORARIO (LDMF-412) - remover antes do PR. */}
+        {readDiag && (
+          <p
+            data-testid="read-diag"
+            className="-mt-2 text-center text-[10px] text-muted-foreground"
+          >
+            diagnóstico: {readDiag}
+          </p>
+        )}
 
         <input
           ref={fileInputRef}

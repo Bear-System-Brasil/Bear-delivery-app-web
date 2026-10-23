@@ -337,3 +337,24 @@ describe("ImageUploadDialog - limpeza do input de arquivo", () => {
     expect(cleared).toHaveBeenCalledWith("");
   });
 });
+
+// DIAGNOSTICO TEMPORARIO (LDMF-412) - sai junto com o diagnóstico, antes do PR.
+describe("ImageUploadDialog - diagnóstico temporário da leitura", () => {
+  it("mostra quantas leituras falharam e o erro do navegador", async () => {
+    vi.useFakeTimers();
+    renderDialog();
+
+    const file = new File(["x"], "a.png", { type: "image/png" });
+    vi.spyOn(file, "arrayBuffer")
+      .mockRejectedValueOnce(new DOMException("sem acesso", "NotReadableError"))
+      .mockResolvedValue(new ArrayBuffer(1));
+    fireEvent.change(fileInput(), { target: { files: [file] } });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(ALL_RETRIES_MS);
+    });
+
+    expect(screen.getByTestId("read-diag")).toHaveTextContent(
+      "leitura falhou 1x e passou na 2a (NotReadableError: sem acesso)",
+    );
+  });
+});
