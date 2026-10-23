@@ -1,5 +1,5 @@
-import { render, fireEvent, waitFor } from "@testing-library/react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { beforeAll, beforeEach, describe, it, expect, vi } from "vitest";
 import { UserPhotoUpload } from "./index";
 import { apiService } from "@/services/api";
 import { toast } from "sonner";
@@ -17,84 +17,87 @@ vi.mock("sonner", () => ({
   },
 }));
 
+beforeAll(() => {
+  // O Dialog do Radix usa APIs que o jsdom não traz por padrão.
+  Element.prototype.hasPointerCapture ??= () => false;
+  Element.prototype.releasePointerCapture ??= () => {};
+  Element.prototype.scrollIntoView ??= () => {};
+});
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
+
+function openDialog() {
+  fireEvent.click(screen.getByRole("button", { name: "Foto de perfil" }));
+}
+
+function fileInput() {
+  return document.querySelector('input[type="file"]') as HTMLInputElement;
+}
+
 describe("UserPhotoUpload", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it("permite múltiplos uploads seguidos sem recarregar", async () => {
+  it("só sobe a foto depois de confirmar em Salvar foto", async () => {
     const onChange = vi.fn();
-    vi.mocked(apiService.uploadUserPhoto)
-      .mockResolvedValueOnce({
-        success: true,
-        data: { photoUrl: "https://r2.test/photo1.png" } as never,
-      })
-      .mockResolvedValueOnce({
-        success: true,
-        data: { photoUrl: "https://r2.test/photo2.png" } as never,
-      });
+    vi.mocked(apiService.uploadUserPhoto).mockResolvedValue({
+      success: true,
+      data: { photoUrl: "https://r2.test/photo.png" } as never,
+    });
 
-    const { container } = render(
-      <UserPhotoUpload
-        value=""
-        onChange={onChange}
-        userId="user-1"
-      />
+    render(<UserPhotoUpload value="" onChange={onChange} userId="user-1" />);
+    openDialog();
+
+    const file = new File(["x"], "avatar.png", { type: "image/png" });
+    fireEvent.change(fileInput(), { target: { files: [file] } });
+
+    // Escolher o arquivo não grava nada ainda.
+    expect(apiService.uploadUserPhoto).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Salvar foto" }));
+
+    await waitFor(() =>
+      expect(apiService.uploadUserPhoto).toHaveBeenCalledTimes(1),
     );
-
-    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
-    expect(input).toBeTruthy();
-
-    const file1 = new File(["test1"], "avatar.png", { type: "image/png" });
-    fireEvent.change(input, { target: { files: [file1] } });
-
-    await waitFor(() => {
-      expect(apiService.uploadUserPhoto).toHaveBeenCalledTimes(1);
-    });
-    expect(onChange).toHaveBeenCalledWith("https://r2.test/photo1.png");
-
-    // Segundo upload
-    const file2 = new File(["test2"], "avatar.png", { type: "image/png" });
-    fireEvent.click(input);
-    fireEvent.change(input, { target: { files: [file2] } });
-
-    await waitFor(() => {
-      expect(apiService.uploadUserPhoto).toHaveBeenCalledTimes(2);
-    });
-    expect(onChange).toHaveBeenCalledWith("https://r2.test/photo2.png");
+    expect(onChange).toHaveBeenCalledWith("https://r2.test/photo.png");
+    expect(toast.success).toHaveBeenCalledWith("Foto atualizada com sucesso!");
   });
 
-  it("reseta o valor do input mesmo quando a validação falha", async () => {
+  it("arquivo inválido avisa e não deixa salvar", async () => {
     const onChange = vi.fn();
-    const { container } = render(
+    render(
       <UserPhotoUpload
         value=""
         onChange={onChange}
         userId="user-1"
         maxSizeMB={1}
-      />
+      />,
     );
+    openDialog();
 
-    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    const bad = new File(["bad"], "doc.pdf", { type: "application/pdf" });
+    fireEvent.change(fileInput(), { target: { files: [bad] } });
 
-    const badFile = new File(["bad"], "doc.pdf", { type: "application/pdf" });
-    fireEvent.change(input, { target: { files: [badFile] } });
-
-    expect(toast.error).toHaveBeenCalledWith("Por favor, selecione uma imagem válida");
-    expect(input.value).toBe("");
+    expect(toast.error).toHaveBeenCalledWith(
+      "Por favor, selecione uma imagem válida",
+    );
     expect(apiService.uploadUserPhoto).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "Salvar foto" })).toBeNull();
+  });
 
-    // Arquivo válido em seguida funciona normalmente
-    vi.mocked(apiService.uploadUserPhoto).mockResolvedValueOnce({
-      success: true,
-      data: { photoUrl: "https://r2.test/photo-ok.png" } as never,
-    });
-    const goodFile = new File(["ok"], "avatar.png", { type: "image/png" });
-    fireEvent.change(input, { target: { files: [goodFile] } });
+  it("Remover foto limpa o valor quando já existe foto", () => {
+    const onChange = vi.fn();
+    render(
+      <UserPhotoUpload
+        value="https://r2.test/atual.png"
+        onChange={onChange}
+        userId="user-1"
+      />,
+    );
+    openDialog();
 
-    await waitFor(() => {
-      expect(apiService.uploadUserPhoto).toHaveBeenCalledTimes(1);
-    });
-    expect(onChange).toHaveBeenCalledWith("https://r2.test/photo-ok.png");
+    fireEvent.click(screen.getByRole("button", { name: "Remover foto" }));
+
+    expect(onChange).toHaveBeenCalledWith("");
+    expect(apiService.uploadUserPhoto).not.toHaveBeenCalled();
   });
 });

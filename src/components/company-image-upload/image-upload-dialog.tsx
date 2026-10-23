@@ -9,8 +9,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Loader2, Upload } from "lucide-react";
-import { useRef, useState } from "react";
+import { Loader2, Trash2, Upload } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 export interface ImageUploadResult {
@@ -36,6 +36,13 @@ interface ImageUploadDialogProps {
   /** Faz o upload de fato. Só é chamado ao confirmar com "Salvar foto". */
   upload: (file: File) => Promise<ImageUploadResult>;
   onUploaded: (url: string) => void;
+  /**
+   * Opcional: quando passado e já existe foto, mostra "Remover foto" no
+   * rodapé. Fica a cargo do pai limpar o valor (ex.: onChange("")). Logo e
+   * capa não passam, então seguem sem opção de remover.
+   */
+  onRemove?: () => void;
+  removeLabel?: string;
 }
 
 /**
@@ -56,6 +63,8 @@ export function ImageUploadDialog({
   successMessage,
   upload,
   onUploaded,
+  onRemove,
+  removeLabel = "Remover foto",
 }: ImageUploadDialogProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
@@ -65,9 +74,24 @@ export function ImageUploadDialog({
   const shownUrl = pendingPreview ?? currentUrl;
   const hasImage = Boolean(shownUrl);
 
+  // Revoga o object URL pendente se o componente sair sem limpar (evita vazar).
+  const previewRef = useRef<string | null>(null);
+  useEffect(() => {
+    previewRef.current = pendingPreview;
+  }, [pendingPreview]);
+  useEffect(
+    () => () => {
+      if (previewRef.current) URL.revokeObjectURL(previewRef.current);
+    },
+    [],
+  );
+
   const clearPending = () => {
+    setPendingPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
     setPendingFile(null);
-    setPendingPreview(null);
   };
 
   const handlePick = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -89,9 +113,15 @@ export function ImageUploadDialog({
       return;
     }
 
-    const reader = new FileReader();
-    reader.onloadend = () => setPendingPreview(reader.result as string);
-    reader.readAsDataURL(file);
+    // createObjectURL é síncrono: o preview troca junto com o arquivo. O
+    // FileReader/readAsDataURL antigo era assíncrono - abria uma janela em que
+    // o pendente já valia (dava pra "Salvar") mas o preview ainda mostrava a
+    // foto antiga, e com imagem grande o data URL travava/ficava "seletivo"
+    // (LDMF-412).
+    setPendingPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return URL.createObjectURL(file);
+    });
     setPendingFile(file);
   };
 
@@ -115,6 +145,13 @@ export function ImageUploadDialog({
     }
   };
 
+  const handleRemove = () => {
+    if (uploading) return;
+    onRemove?.();
+    clearPending();
+    onOpenChange(false);
+  };
+
   const handleOpenChange = (next: boolean) => {
     // Enquanto sobe, não deixa fechar por fora (ESC/overlay).
     if (uploading) return;
@@ -130,13 +167,14 @@ export function ImageUploadDialog({
           {description && <DialogDescription>{description}</DialogDescription>}
         </DialogHeader>
 
-        {/* Avatar: círculo fixo. Capa: moldura flexível que acompanha a imagem
-            (altura só limitada por max-h) - num box 3:1 travado, uma capa
-            quase-quadrada ficava minúscula entre duas tarjas (LDMF-410). */}
+        {/* Moldura flexível que acompanha a imagem (altura só limitada por
+            max-h), pra qualquer proporção aparecer inteira e sem tarja. Forçar
+            círculo/quadrado deixava foto não-quadrada com faixa cinza dentro do
+            círculo (LDMF-412); avatar só difere por uma largura máxima menor. */}
         <div
           className={
             shape === "avatar"
-              ? "mx-auto flex aspect-square w-full max-w-[240px] items-center justify-center overflow-hidden rounded-full border border-border bg-muted"
+              ? "mx-auto flex min-h-[180px] w-full max-w-[360px] items-center justify-center overflow-hidden rounded-lg border border-border bg-muted p-3"
               : "flex min-h-[180px] w-full items-center justify-center overflow-hidden rounded-lg border border-border bg-muted p-3"
           }
         >
@@ -146,11 +184,7 @@ export function ImageUploadDialog({
             <img
               src={shownUrl}
               alt={alt}
-              className={
-                shape === "avatar"
-                  ? "h-full w-full object-contain"
-                  : "max-h-[280px] w-auto max-w-full object-contain"
-              }
+              className="max-h-[280px] w-auto max-w-full object-contain"
             />
           ) : (
             <span className="px-4 text-center text-xs text-muted-foreground">
@@ -189,15 +223,28 @@ export function ImageUploadDialog({
               </Button>
             </>
           ) : (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => fileInputRef.current?.click()}
-              className="gap-2"
-            >
-              <Upload className="h-4 w-4" />
-              {hasImage ? "Trocar foto" : "Escolher foto"}
-            </Button>
+            <>
+              {onRemove && currentUrl && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleRemove}
+                  className="gap-2 text-destructive hover:text-destructive"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  {removeLabel}
+                </Button>
+              )}
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => fileInputRef.current?.click()}
+                className="gap-2"
+              >
+                <Upload className="h-4 w-4" />
+                {hasImage ? "Trocar foto" : "Escolher foto"}
+              </Button>
+            </>
           )}
         </DialogFooter>
       </DialogContent>
