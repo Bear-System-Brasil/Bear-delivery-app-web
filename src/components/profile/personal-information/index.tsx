@@ -29,7 +29,10 @@ import { User as UserType } from "@/services";
 import type { UpdateUserRequest } from "@/services/api";
 import { Controller, UseFormReturn } from "react-hook-form";
 import type { ProfileFormData } from "@/hooks";
-import { User as PqTemDoisUserType } from "@/stores/auth-store";
+import {
+  User as PqTemDoisUserType,
+  userHasCpf,
+} from "@/stores/auth-store";
 
 type SaveProfile = (data: ProfileFormData) => Promise<void>;
 
@@ -135,17 +138,30 @@ export function PersonalInformation({
           }}
         />
 
-        <FormField
-          label="CPF"
-          id="cpf"
-          icon={<IdCard className="h-4 w-4" />}
-          error={profileForm.formState.errors.cpf?.message}
-          inputProps={{
-            ...profileForm.register("cpf"),
-            disabled: !editingState.isOpen,
-            maxLength: 14,
-          }}
-        />
+        {/* O back não devolve o número do CPF, só se a conta tem um
+            (LDMF-362). Por isso o campo vem vazio e o aviso diz o estado. */}
+        <div className="space-y-1">
+          <FormField
+            label="CPF"
+            id="cpf"
+            icon={<IdCard className="h-4 w-4" />}
+            error={profileForm.formState.errors.cpf?.message}
+            inputProps={{
+              ...profileForm.register("cpf"),
+              disabled: !editingState.isOpen,
+              maxLength: 14,
+              placeholder: "000.000.000-00",
+              "aria-describedby": "cpf-status",
+            }}
+          />
+          <p id="cpf-status" className="text-xs text-muted-foreground">
+            {userHasCpf(user)
+              ? editingState.isOpen
+                ? "CPF cadastrado na sua conta. Para trocar, digite o novo CPF; em branco, ele continua o mesmo."
+                : "CPF cadastrado na sua conta."
+              : "Nenhum CPF cadastrado na sua conta."}
+          </p>
+        </div>
 
         <FormField
           label="Telefone"

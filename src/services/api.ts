@@ -384,6 +384,8 @@ export interface RawAuthUser {
   legalName?: string;
   cnpj?: string;
   logo_url?: string;
+  /** Se a conta tem CPF, sem o número (LDMF-302). */
+  hasCpf?: boolean;
 }
 
 /**
@@ -1810,16 +1812,21 @@ export const apiService = {
   // (confirmado: 401 "Token inválido ou ausente." mesmo sem nenhum guard
   // documentado). Único caller hoje é /company-profile (owner/admin, sempre
   // autenticado), então é seguro exigir auth.
+  // A rota do back é /specialities (doc specialities.md). O front chamava
+  // /specialties, que responde 404 "Cannot GET /specialties" — a lista nunca
+  // vinha, a tela caía na lista local e trocar o tipo não salvava (LDMF-395).
+  // Divergência observada vs. o comentário antigo: a doc marca o GET como
+  // público e um GET sem auth devolve 200, não o 401 que o comentário citava.
   getAllSpecialties: () =>
-    apiRequest<Specialty[]>("GET", "/specialties", undefined, true),
+    apiRequest<Specialty[]>("GET", "/specialities", undefined, true),
 
   getCompaniesBySpecialty: (specialtyId: string) =>
-    apiRequest<Company[]>("GET", `/specialties/${specialtyId}/companies`),
+    apiRequest<Company[]>("GET", `/specialities/${specialtyId}/companies`),
 
   assignSpecialtyToCompany: (specialtyId: string) =>
     apiRequest<Company>(
       "POST",
-      `/specialties/${specialtyId}`,
+      `/specialities/${specialtyId}`,
       undefined,
       true,
     ),
@@ -1827,7 +1834,7 @@ export const apiService = {
   removeSpecialtyFromCompany: (specialtyId: string) =>
     apiRequest<Company>(
       "DELETE",
-      `/specialties/${specialtyId}`,
+      `/specialities/${specialtyId}`,
       undefined,
       true,
     ),

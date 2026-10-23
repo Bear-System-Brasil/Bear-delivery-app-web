@@ -29,6 +29,20 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+/**
+ * Copia só o indicador de CPF do /user/me para o usuário do store
+ * (LDMF-362). O login não trazia esse indicador quando medido em 17/10, e o
+ * resto do /user/me é mais pobre que o dado salvo no login - por isso não
+ * substitui o usuário inteiro. Confere o id para não marcar outra conta se
+ * a sessão trocou no meio.
+ */
+function syncHasCpf(sessionUser: RawAuthUser | null) {
+  if (typeof sessionUser?.hasCpf !== "boolean") return;
+  const { user, updateUser } = useAuthStore.getState();
+  if (!user || user.id !== sessionUser.id) return;
+  updateUser({ hasCpf: sessionUser.hasCpf });
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authModalTab, setAuthModalTab] = useState<"login" | "register">(
@@ -75,6 +89,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // empresa) - não queremos substituir dado rico por um mais pobre.
         if (!currentlyAuthenticated) {
           authStore.login(normalizeAuthUser(user));
+        } else {
+          syncHasCpf(user);
         }
       } else if (currentlyAuthenticated) {
         storeLogout();
@@ -101,6 +117,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // do usuário.
       authStore.login(normalizeAuthUser(userData));
       hideAuthModal();
+      if (typeof userData.hasCpf !== "boolean") {
+        void apiService.getSession().then(({ authenticated, user }) => {
+          if (authenticated) syncHasCpf(user);
+        });
+      }
     }
   };
 

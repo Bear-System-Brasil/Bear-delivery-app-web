@@ -88,16 +88,21 @@ beforeEach(() => {
 });
 
 describe("Controle de Caixa - caixa fechado", () => {
-  it("mostra o aviso de fechado e abre o mesmo diálogo de abertura", () => {
+  it("mostra o aviso de fechado e o card inline de abertura", () => {
     render(<CashRegisterPage />);
 
     expect(screen.getByText("Caixa fechado")).toBeInTheDocument();
-    expect(screen.getByText("Nenhum caixa aberto")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Abrir caixa" }));
+    // Abrir caixa agora é inline (sem modal): card com título e botão. O botão
+    // só libera depois do fundo de troco.
     expect(
-      screen.getByRole("dialog", { name: "Abrir caixa" }),
+      screen.getByRole("heading", { name: "Abrir caixa" }),
     ).toBeInTheDocument();
+    const abrir = screen.getByRole("button", { name: "Abrir caixa" });
+    expect(abrir).toBeDisabled();
+    fireEvent.change(screen.getByPlaceholderText("0,00"), {
+      target: { value: "100" },
+    });
+    expect(abrir).toBeEnabled();
   });
 });
 
@@ -113,71 +118,84 @@ describe("Controle de Caixa - caixa aberto", () => {
     expect(screen.getByText("Caixa aberto")).toBeInTheDocument();
     for (const title of [
       "Por forma de pagamento",
-      "Registrar movimento",
       "Conferência de fechamento",
       "Extrato de movimentos",
     ]) {
       expect(screen.getByRole("heading", { name: title })).toBeInTheDocument();
     }
-    expect(screen.getByText("Detalhamento do turno")).toBeInTheDocument();
+    // O detalhamento perdeu o título destacado, mas as linhas brutas seguem.
+    expect(
+      screen.getByText("Vendas (todos os métodos)"),
+    ).toBeInTheDocument();
   });
 
-  it("os quatro tipos de movimento continuam abrindo o diálogo no tipo certo", () => {
-    render(<CashRegisterPage />);
-    const section = screen
-      .getByRole("heading", { name: "Registrar movimento" })
-      .closest("section") as HTMLElement;
-
-    for (const label of ["Sangria", "Suprimento", "Venda", "Reembolso"]) {
-      fireEvent.click(within(section).getByRole("button", { name: label }));
-      const dialog = screen.getByRole("dialog", { name: "Registrar movimento" });
-      // O tipo escolhido fica marcado dentro do diálogo.
-      expect(within(dialog).getByRole("button", { name: label })).toHaveClass(
-        "bg-selected",
-      );
-      fireEvent.click(within(dialog).getByRole("button", { name: "Cancelar" }));
-    }
-  });
-
-  it("Entrada e Saída da faixa abrem suprimento e sangria", () => {
+  it("Entrada abre em Venda e Saída em Reembolso, cada um só com seu grupo", () => {
     render(<CashRegisterPage />);
 
     fireEvent.click(screen.getByRole("button", { name: "Entrada" }));
-    let dialog = screen.getByRole("dialog", { name: "Registrar movimento" });
-    expect(within(dialog).getByRole("button", { name: "Suprimento" })).toHaveClass(
+    let dialog = screen.getByRole("dialog", { name: "Registrar entrada" });
+    expect(within(dialog).getByRole("button", { name: "Venda" })).toHaveClass(
       "bg-selected",
     );
+    // Só os tipos de entrada aparecem; os de saída não.
+    expect(
+      within(dialog).queryByRole("button", { name: "Sangria" }),
+    ).toBeNull();
+    expect(
+      within(dialog).getByRole("button", { name: "Suprimento" }),
+    ).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole("button", { name: "Cancelar" }));
 
     fireEvent.click(screen.getByRole("button", { name: "Saída" }));
-    dialog = screen.getByRole("dialog", { name: "Registrar movimento" });
-    expect(within(dialog).getByRole("button", { name: "Sangria" })).toHaveClass(
+    dialog = screen.getByRole("dialog", { name: "Registrar saída" });
+    expect(within(dialog).getByRole("button", { name: "Reembolso" })).toHaveClass(
       "bg-selected",
     );
+    expect(within(dialog).queryByRole("button", { name: "Venda" })).toBeNull();
+    expect(
+      within(dialog).getByRole("button", { name: "Sangria" }),
+    ).toBeInTheDocument();
   });
 
-  it("fechar caixa segue bloqueado até marcar a confirmação extra", () => {
+  it("confirmar fechamento fica bloqueado até valor contado e confirmação", () => {
     render(<CashRegisterPage />);
-    const fechar = screen.getByRole("button", { name: "Fechar caixa" });
 
-    expect(fechar).toBeDisabled();
+    // "Fechar caixa" agora só abre o modal; a trava é no "Confirmar fechamento".
+    fireEvent.click(screen.getByRole("button", { name: "Fechar caixa" }));
+    const dialog = screen.getByRole("dialog", { name: "Fechar caixa" });
+    const confirmar = within(dialog).getByRole("button", {
+      name: "Confirmar fechamento",
+    });
+
+    expect(confirmar).toBeDisabled();
+    fireEvent.change(within(dialog).getByPlaceholderText("0,00"), {
+      target: { value: "160" },
+    });
+    // Falta ainda a confirmação extra.
+    expect(confirmar).toBeDisabled();
     fireEvent.click(
-      screen.getByRole("checkbox", {
+      within(dialog).getByRole("checkbox", {
         name: "Confirmo que conferi o dinheiro físico da gaveta",
       }),
     );
-    expect(fechar).toBeEnabled();
+    expect(confirmar).toBeEnabled();
   });
 
   it("sem a confirmação extra nas preferências, o botão não depende do checkbox", () => {
     useFinancialPreferencesStore.setState({ confirmBeforeCloseRegister: false });
     render(<CashRegisterPage />);
 
-    expect(
-      screen.queryByRole("checkbox", {
-        name: "Confirmo que conferi o dinheiro físico da gaveta",
-      }),
-    ).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Fechar caixa" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Fechar caixa" }));
+    const dialog = screen.getByRole("dialog", { name: "Fechar caixa" });
+    expect(within(dialog).queryByRole("checkbox")).not.toBeInTheDocument();
+
+    const confirmar = within(dialog).getByRole("button", {
+      name: "Confirmar fechamento",
+    });
+    expect(confirmar).toBeDisabled();
+    fireEvent.change(within(dialog).getByPlaceholderText("0,00"), {
+      target: { value: "160" },
+    });
+    expect(confirmar).toBeEnabled();
   });
 });

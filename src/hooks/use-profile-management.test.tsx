@@ -251,6 +251,25 @@ describe("useProfileManagement", () => {
       expect(toast.success).toHaveBeenCalledWith("Perfil atualizado com sucesso!");
     });
 
+    it("trocar o CPF manda o número para o back e guarda só o hasCpf no store (LDMF-362)", async () => {
+      api.updateUser.mockResolvedValue({ success: true, data: user as never });
+      const { result } = await renderProfile();
+      act(() => result.current.editingState.open());
+
+      const data = { name: user.name, email: user.email, cpf: "529.982.247-25", phone: user.phone, birthDate: user.birthDate };
+      await act(async () => {
+        await result.current.handleSaveProfile(data);
+      });
+
+      expect(api.updateUser).toHaveBeenCalledWith(
+        expect.objectContaining({ cpf: "52998224725" }),
+      );
+      const stored = useAuthStore.getState().user;
+      expect(stored?.hasCpf).toBe(true);
+      expect(stored?.cpf).not.toBe("529.982.247-25");
+      expect(stored?.cpf).not.toBe("52998224725");
+    });
+
     it("salvar perfil com dados inalterados não envia email, cpf nem phone", async () => {
       api.updateUser.mockResolvedValue({ success: true, data: user as never });
       const { result } = await renderProfile();
