@@ -189,7 +189,14 @@ export function ImageUploadDialog({
     // Preview e arquivo trocam juntos, sem janela em que o pendente já vale
     // mas o preview ainda mostra a foto antiga.
     replacePreview(URL.createObjectURL(new Blob([bytes], { type: file.type })));
-    setPendingFile(file);
+    // O upload também usa a cópia em memória, pra não depender de o Android
+    // entregar o arquivo de novo na hora do Salvar.
+    setPendingFile(
+      new File([bytes], file.name, {
+        type: file.type,
+        lastModified: file.lastModified,
+      }),
+    );
     setReading(false);
   };
 

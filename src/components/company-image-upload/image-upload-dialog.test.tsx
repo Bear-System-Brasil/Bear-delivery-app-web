@@ -35,6 +35,7 @@ afterEach(() => {
 const ALL_RETRIES_MS = READ_RETRY_DELAYS_MS.reduce((a, b) => a + b, 0) + 100;
 
 const upload = vi.fn();
+beforeEach(() => upload.mockReset());
 
 function renderDialog() {
   return render(
@@ -268,5 +269,42 @@ describe("ImageUploadDialog - preview que o navegador não desenha", () => {
 
     await pick("b.png");
     expect(previewSrc()).toBe("blob:preview-2");
+  });
+});
+
+describe("ImageUploadDialog - arquivo que vai pro upload", () => {
+  it("leitura certa: sobe a cópia em memória, com o mesmo nome e tipo", async () => {
+    upload.mockResolvedValue({ success: true, url: "https://r2.test/x.png" });
+    renderDialog();
+
+    const picked = await pick("avatar.png");
+    fireEvent.click(screen.getByRole("button", { name: "Salvar foto" }));
+
+    await vi.waitFor(() => expect(upload).toHaveBeenCalledTimes(1));
+    const sent = upload.mock.calls[0][0] as File;
+    expect(sent).not.toBe(picked);
+    expect(sent.name).toBe("avatar.png");
+    expect(sent.type).toBe("image/png");
+    expect(sent.size).toBe(picked.size);
+  });
+
+  it("leitura falhou: sobe o arquivo original", async () => {
+    vi.useFakeTimers();
+    upload.mockResolvedValue({ success: true, url: "https://r2.test/x.png" });
+    renderDialog();
+
+    const picked = new File(["x"], "avatar.png", { type: "image/png" });
+    vi.spyOn(picked, "arrayBuffer").mockRejectedValue(new Error("leitura"));
+    await act(async () => {
+      fireEvent.change(fileInput(), { target: { files: [picked] } });
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(ALL_RETRIES_MS);
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Salvar foto" }));
+    });
+
+    expect(upload).toHaveBeenCalledWith(picked);
   });
 });
