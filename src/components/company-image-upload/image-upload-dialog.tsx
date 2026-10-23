@@ -76,6 +76,8 @@ export function ImageUploadDialog({
   const pickSeqRef = useRef(0);
   // O navegador não conseguiu desenhar o preview pendente (a <img> deu erro).
   const [previewFailed, setPreviewFailed] = useState(false);
+  // O navegador recusou ler o arquivo escolhido: só escolhendo de novo.
+  const [readFailed, setReadFailed] = useState(false);
   // DIAGNOSTICO TEMPORARIO (LDMF-412) - remover antes do PR. Mostra quantas
   // leituras falharam e o erro que o Chrome do Android devolveu, pra medir no
   // celular em vez de deduzir.
@@ -109,6 +111,7 @@ export function ImageUploadDialog({
     // Invalida uma leitura em andamento pra ela não repor o preview depois.
     pickSeqRef.current++;
     setReading(false);
+    setReadFailed(false);
     setReadDiag(null);
     replacePreview(null);
     setPendingFile(null);
@@ -152,6 +155,7 @@ export function ImageUploadDialog({
     // ~2s falharam iguais no celular (LDMF-412).
     const seq = ++pickSeqRef.current;
     setReading(true);
+    setReadFailed(false);
     setReadDiag(null);
     let bytes: ArrayBuffer;
     try {
@@ -161,12 +165,13 @@ export function ImageUploadDialog({
       setReadDiag(
         `leitura falhou (${error instanceof Error ? `${error.name}: ${error.message}` : String(error)})`,
       );
-      // Não bloqueia o Salvar: no celular o upload, que lê o arquivo depois,
-      // quase sempre funciona mesmo quando esta leitura falha. O preview tenta
-      // o arquivo original (como antes); se a <img> não desenhar, o onError
-      // troca pelo aviso de prévia indisponível.
-      replacePreview(URL.createObjectURL(file));
-      setPendingFile(file);
+      // Arquivo que o navegador não lê também não sobe: o upload falharia
+      // com o mesmo erro (visto no celular). Em vez de liberar um Salvar que
+      // não funciona, pede pra escolher a foto de novo - numa nova escolha o
+      // Android costuma liberar o arquivo.
+      replacePreview(null);
+      setPendingFile(null);
+      setReadFailed(true);
       setReading(false);
       return;
     }
@@ -248,6 +253,13 @@ export function ImageUploadDialog({
             >
               <Loader2 className="h-4 w-4 animate-spin" />
               Carregando a imagem...
+            </span>
+          ) : readFailed ? (
+            <span
+              role="status"
+              className="px-4 text-center text-xs text-muted-foreground"
+            >
+              O celular não liberou essa foto. Escolha de novo.
             </span>
           ) : pendingPreview && previewFailed ? (
             // Sem o ícone de imagem quebrada: o arquivo foi lido e pode ser
@@ -337,7 +349,11 @@ export function ImageUploadDialog({
                 className="gap-2"
               >
                 <Upload className="h-4 w-4" />
-                {hasImage ? "Trocar foto" : "Escolher foto"}
+                {readFailed
+                  ? "Escolher de novo"
+                  : hasImage
+                    ? "Trocar foto"
+                    : "Escolher foto"}
               </Button>
             </>
           )}

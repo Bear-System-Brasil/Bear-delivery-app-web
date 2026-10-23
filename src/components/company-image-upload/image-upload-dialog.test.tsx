@@ -136,29 +136,43 @@ describe("ImageUploadDialog - leitura do arquivo antes do preview", () => {
     expect(screen.getByRole("button", { name: "Salvar foto" })).toBeEnabled();
   });
 
-  it("leitura que falha não bloqueia o Salvar", async () => {
+  it("leitura recusada pede pra escolher de novo e não libera o Salvar", async () => {
     const { toast } = await import("sonner");
     renderDialog();
 
     const file = new File(["x"], "a.png", { type: "image/png" });
-    const read = vi.spyOn(file, "arrayBuffer").mockRejectedValue(new Error("leitura"));
+    const read = vi
+      .spyOn(file, "arrayBuffer")
+      .mockRejectedValue(new DOMException("x", "NotReadableError"));
     await act(async () => {
       fireEvent.change(fileInput(), { target: { files: [file] } });
     });
 
     expect(read).toHaveBeenCalledTimes(1);
     expect(toast.error).not.toHaveBeenCalled();
-    // O preview tenta o arquivo original, como antes da leitura.
-    expect(URL.createObjectURL).toHaveBeenCalledWith(file);
-    expect(previewSrc()).toBe("blob:preview-1");
-    expect(screen.getByRole("button", { name: "Salvar foto" })).toBeEnabled();
-
-    // Se nem assim a <img> desenhar, fica o aviso e o Salvar segue liberado.
-    fireEvent.error(screen.getByRole("img", { name: "Foto de perfil" }));
+    expect(URL.createObjectURL).not.toHaveBeenCalled();
     expect(screen.getByRole("status")).toHaveTextContent(
-      "Não deu pra mostrar a prévia, mas a foto pode ser salva.",
+      "O celular não liberou essa foto. Escolha de novo.",
     );
-    expect(screen.getByRole("button", { name: "Salvar foto" })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Salvar foto" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Escolher de novo" })).toBeEnabled();
+  });
+
+  it("escolher de novo depois da recusa monta o preview normalmente", async () => {
+    renderDialog();
+
+    const bad = new File(["x"], "a.png", { type: "image/png" });
+    vi.spyOn(bad, "arrayBuffer").mockRejectedValue(
+      new DOMException("x", "NotReadableError"),
+    );
+    await act(async () => {
+      fireEvent.change(fileInput(), { target: { files: [bad] } });
+    });
+
+    await pick("a.png");
+
+    expect(screen.queryByText(/não liberou essa foto/)).toBeNull();
+    expect(previewSrc()).toBe("blob:preview-1");
   });
 
   it("leitura que termina depois de uma escolha mais nova é descartada", async () => {
@@ -229,21 +243,6 @@ describe("ImageUploadDialog - arquivo que vai pro upload", () => {
     expect(sent.size).toBe(picked.size);
   });
 
-  it("leitura falhou: sobe o arquivo original", async () => {
-    upload.mockResolvedValue({ success: true, url: "https://r2.test/x.png" });
-    renderDialog();
-
-    const picked = new File(["x"], "avatar.png", { type: "image/png" });
-    vi.spyOn(picked, "arrayBuffer").mockRejectedValue(new Error("leitura"));
-    await act(async () => {
-      fireEvent.change(fileInput(), { target: { files: [picked] } });
-    });
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Salvar foto" }));
-    });
-
-    expect(upload).toHaveBeenCalledWith(picked);
-  });
 });
 
 describe("ImageUploadDialog - limpeza do input de arquivo", () => {
