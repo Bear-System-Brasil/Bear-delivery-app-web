@@ -46,42 +46,6 @@ interface ImageUploadDialogProps {
 }
 
 /**
- * Esperas entre as tentativas de ler o arquivo escolhido. No Chrome do Android
- * a leitura logo depois da escolha falha com frequência e passa alguns
- * instantes depois (medido no celular, LDMF-412), então tenta de novo antes de
- * desistir. Somando, ~2s de espera no pior caso.
- */
-export const READ_RETRY_DELAYS_MS = [300, 700, 1200];
-
-const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-/**
- * Lê o arquivo inteiro, tentando de novo nas esperas acima. Para no meio se
- * `isCurrent` disser que a escolha já foi substituída (outra foto, cancelar,
- * fechar). Se todas falharem, rejeita com o último erro.
- */
-async function readWithRetry(
-  file: File,
-  isCurrent: () => boolean,
-  onFail?: (error: unknown) => void,
-): Promise<ArrayBuffer> {
-  let lastError: unknown;
-  for (let attempt = 0; attempt <= READ_RETRY_DELAYS_MS.length; attempt++) {
-    if (attempt > 0) {
-      await wait(READ_RETRY_DELAYS_MS[attempt - 1]);
-      if (!isCurrent()) throw new Error("escolha substituida");
-    }
-    try {
-      return await file.arrayBuffer();
-    } catch (error) {
-      lastError = error;
-      onFail?.(error);
-    }
-  }
-  throw lastError;
-}
-
-/**
  * Abre a imagem em tamanho cheio (sem corte) e só grava no backend depois de
  * escolher "Trocar foto" e confirmar em "Salvar foto" - não salva ao escolher
  * o arquivo, diferente do comportamento antigo (LDMF-410).
@@ -181,23 +145,21 @@ export function ImageUploadDialog({
     // object URL criado direto dele às vezes falhava e a <img> mostrava o
     // ícone de imagem quebrada, embora o upload funcionasse (LDMF-412). Com
     // os bytes já em memória, o preview não depende mais dessa leitura.
+    //
+    // Sem novas tentativas: quando falha, o Chrome do Android devolve
+    // NotReadableError ("permission problems ... after a reference to a file
+    // was acquired") e a mesma escolha não volta a ser lida - 4 tentativas em
+    // ~2s falharam iguais no celular (LDMF-412).
     const seq = ++pickSeqRef.current;
     setReading(true);
     setReadDiag(null);
-    const failures: string[] = [];
-    const describe = (error: unknown) =>
-      error instanceof Error ? `${error.name}: ${error.message}` : String(error);
     let bytes: ArrayBuffer;
     try {
-      bytes = await readWithRetry(
-        file,
-        () => seq === pickSeqRef.current,
-        (error) => failures.push(describe(error)),
-      );
-    } catch {
+      bytes = await file.arrayBuffer();
+    } catch (error) {
       if (seq !== pickSeqRef.current) return;
       setReadDiag(
-        `leitura falhou ${failures.length}x, sem preview lido (${failures[failures.length - 1]})`,
+        `leitura falhou (${error instanceof Error ? `${error.name}: ${error.message}` : String(error)})`,
       );
       // Não bloqueia o Salvar: no celular o upload, que lê o arquivo depois,
       // quase sempre funciona mesmo quando esta leitura falha. O preview tenta
@@ -210,11 +172,7 @@ export function ImageUploadDialog({
     }
     // Outra escolha, cancelar ou fechar no meio da leitura: descarta esta.
     if (seq !== pickSeqRef.current) return;
-    setReadDiag(
-      failures.length
-        ? `leitura falhou ${failures.length}x e passou na ${failures.length + 1}a (${failures[failures.length - 1]})`
-        : "leitura ok na 1a",
-    );
+    setReadDiag("leitura ok");
 
     // Preview e arquivo trocam juntos, sem janela em que o pendente já vale
     // mas o preview ainda mostra a foto antiga.

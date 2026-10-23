@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { ImageUploadDialog, READ_RETRY_DELAYS_MS } from "./image-upload-dialog";
+import { ImageUploadDialog } from "./image-upload-dialog";
 
 vi.mock("sonner", () => ({
   toast: {
@@ -30,9 +30,6 @@ afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
 });
-
-// Tempo total das esperas entre tentativas de leitura, com folga.
-const ALL_RETRIES_MS = READ_RETRY_DELAYS_MS.reduce((a, b) => a + b, 0) + 100;
 
 const upload = vi.fn();
 beforeEach(() => upload.mockReset());
@@ -139,60 +136,7 @@ describe("ImageUploadDialog - leitura do arquivo antes do preview", () => {
     expect(screen.getByRole("button", { name: "Salvar foto" })).toBeEnabled();
   });
 
-  it("leitura que falha e passa numa nova tentativa monta o preview", async () => {
-    vi.useFakeTimers();
-    const { toast } = await import("sonner");
-    renderDialog();
-
-    const file = new File(["x"], "a.png", { type: "image/png" });
-    const read = vi
-      .spyOn(file, "arrayBuffer")
-      .mockRejectedValueOnce(new DOMException("x", "NotReadableError"))
-      .mockRejectedValueOnce(new DOMException("x", "NotReadableError"))
-      .mockResolvedValue(new ArrayBuffer(1));
-    fireEvent.change(fileInput(), { target: { files: [file] } });
-
-    // Ainda tentando: segue carregando, sem aviso de erro.
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(READ_RETRY_DELAYS_MS[0]);
-    });
-    expect(screen.getByRole("status")).toHaveTextContent("Carregando a imagem");
-
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(ALL_RETRIES_MS);
-    });
-
-    expect(read).toHaveBeenCalledTimes(3);
-    expect(previewSrc()).toBe("blob:preview-1");
-    expect(screen.getByRole("button", { name: "Salvar foto" })).toBeEnabled();
-    expect(toast.error).not.toHaveBeenCalled();
-  });
-
-  it("cancelar no meio das tentativas para de tentar", async () => {
-    vi.useFakeTimers();
-    renderDialog();
-
-    const file = new File(["x"], "a.png", { type: "image/png" });
-    const read = vi
-      .spyOn(file, "arrayBuffer")
-      .mockRejectedValue(new DOMException("x", "NotReadableError"));
-    await act(async () => {
-      fireEvent.change(fileInput(), { target: { files: [file] } });
-    });
-    expect(read).toHaveBeenCalledTimes(1);
-
-    // Fechar o modal no meio da espera invalida a escolha.
-    fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(ALL_RETRIES_MS);
-    });
-
-    expect(read).toHaveBeenCalledTimes(1);
-    expect(URL.createObjectURL).not.toHaveBeenCalled();
-  });
-
-  it("todas as tentativas falhando não bloqueiam o Salvar", async () => {
-    vi.useFakeTimers();
+  it("leitura que falha não bloqueia o Salvar", async () => {
     const { toast } = await import("sonner");
     renderDialog();
 
@@ -201,11 +145,8 @@ describe("ImageUploadDialog - leitura do arquivo antes do preview", () => {
     await act(async () => {
       fireEvent.change(fileInput(), { target: { files: [file] } });
     });
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(ALL_RETRIES_MS);
-    });
 
-    expect(read).toHaveBeenCalledTimes(READ_RETRY_DELAYS_MS.length + 1);
+    expect(read).toHaveBeenCalledTimes(1);
     expect(toast.error).not.toHaveBeenCalled();
     // O preview tenta o arquivo original, como antes da leitura.
     expect(URL.createObjectURL).toHaveBeenCalledWith(file);
@@ -289,7 +230,6 @@ describe("ImageUploadDialog - arquivo que vai pro upload", () => {
   });
 
   it("leitura falhou: sobe o arquivo original", async () => {
-    vi.useFakeTimers();
     upload.mockResolvedValue({ success: true, url: "https://r2.test/x.png" });
     renderDialog();
 
@@ -297,9 +237,6 @@ describe("ImageUploadDialog - arquivo que vai pro upload", () => {
     vi.spyOn(picked, "arrayBuffer").mockRejectedValue(new Error("leitura"));
     await act(async () => {
       fireEvent.change(fileInput(), { target: { files: [picked] } });
-    });
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(ALL_RETRIES_MS);
     });
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Salvar foto" }));
@@ -340,21 +277,19 @@ describe("ImageUploadDialog - limpeza do input de arquivo", () => {
 
 // DIAGNOSTICO TEMPORARIO (LDMF-412) - sai junto com o diagnóstico, antes do PR.
 describe("ImageUploadDialog - diagnóstico temporário da leitura", () => {
-  it("mostra quantas leituras falharam e o erro do navegador", async () => {
-    vi.useFakeTimers();
+  it("mostra o erro que o navegador devolveu na leitura", async () => {
     renderDialog();
 
     const file = new File(["x"], "a.png", { type: "image/png" });
-    vi.spyOn(file, "arrayBuffer")
-      .mockRejectedValueOnce(new DOMException("sem acesso", "NotReadableError"))
-      .mockResolvedValue(new ArrayBuffer(1));
-    fireEvent.change(fileInput(), { target: { files: [file] } });
+    vi.spyOn(file, "arrayBuffer").mockRejectedValue(
+      new DOMException("sem acesso", "NotReadableError"),
+    );
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(ALL_RETRIES_MS);
+      fireEvent.change(fileInput(), { target: { files: [file] } });
     });
 
     expect(screen.getByTestId("read-diag")).toHaveTextContent(
-      "leitura falhou 1x e passou na 2a (NotReadableError: sem acesso)",
+      "leitura falhou (NotReadableError: sem acesso)",
     );
   });
 });
