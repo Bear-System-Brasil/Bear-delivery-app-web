@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
   normalizeAuthUser,
+  toPersistedUser,
   useAuthStore,
   userHasCpf,
   type User,
@@ -199,5 +200,51 @@ describe("useAuthStore", () => {
   it("setHasHydrated marca a store como hidratada", () => {
     useAuthStore.getState().setHasHydrated(true);
     expect(useAuthStore.getState()._hasHydrated).toBe(true);
+  });
+});
+
+describe("toPersistedUser (LDMF-424)", () => {
+  const fullUser: User = {
+    id: "u1",
+    name: "Maria",
+    email: "maria@example.com",
+    cpf: "",
+    phone: "11999999999",
+    birthDate: "1990-01-01",
+    role: "client",
+    photoUrl: "foto.png",
+    hasCpf: true,
+  };
+
+  it("não grava e-mail, telefone nem data de nascimento", () => {
+    const persisted = toPersistedUser(fullUser);
+
+    expect(persisted).not.toHaveProperty("email");
+    expect(persisted).not.toHaveProperty("phone");
+    expect(persisted).not.toHaveProperty("birthDate");
+  });
+
+  it("mantém os campos não sensíveis", () => {
+    const persisted = toPersistedUser(fullUser);
+
+    expect(persisted).toMatchObject({
+      id: "u1",
+      name: "Maria",
+      role: "client",
+      photoUrl: "foto.png",
+      hasCpf: true,
+    });
+  });
+
+  it("não altera o objeto original", () => {
+    toPersistedUser(fullUser);
+
+    expect(fullUser.email).toBe("maria@example.com");
+    expect(fullUser.phone).toBe("11999999999");
+    expect(fullUser.birthDate).toBe("1990-01-01");
+  });
+
+  it("devolve null quando não há usuário", () => {
+    expect(toPersistedUser(null)).toBeNull();
   });
 });

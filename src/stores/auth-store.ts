@@ -27,6 +27,26 @@ export interface User {
 }
 
 /**
+ * Dado pessoal que NÃO vai pro localStorage (LDMF-424). Fica só em memória
+ * durante a sessão; no boot, o auth-provider repõe da /session. Sem isto,
+ * qualquer script na página lia e-mail, telefone e data de nascimento direto
+ * do disco, que não expira.
+ */
+const SENSITIVE_PERSIST_KEYS = ["email", "phone", "birthDate"] as const;
+
+/**
+ * Copia o usuário sem os campos pessoais que não devem ser gravados no
+ * localStorage. O usuário em memória continua completo; isto só muda o que o
+ * persist escreve no disco.
+ */
+export function toPersistedUser(user: User | null): Partial<User> | null {
+  if (!user) return null;
+  const persisted: Partial<User> = { ...user };
+  for (const key of SENSITIVE_PERSIST_KEYS) delete persisted[key];
+  return persisted;
+}
+
+/**
  * Se a conta já tem CPF. Vale o indicador do back; sem ele, só aceita o
  * número de 11 dígitos que sessões antigas ainda guardam no store.
  */
@@ -142,11 +162,24 @@ export const useAuthStore = create<AuthState>()(
       }),
       {
         name: STORAGE_KEYS.AUTH,
-        version: 1,
+        version: 2,
         partialize: (state) => ({
-          user: state.user,
+          // Nunca grava e-mail/telefone/nascimento no disco (LDMF-424).
+          user: toPersistedUser(state.user) as User | null,
           isAuthenticated: state.isAuthenticated,
         }),
+        // v1 guardava e-mail/telefone/nascimento no localStorage. Remove ao
+        // migrar pra não deixar o dado pessoal antigo parado no navegador.
+        migrate: (persisted) => {
+          const state = persisted as {
+            user?: User | null;
+            isAuthenticated?: boolean;
+          };
+          return {
+            ...state,
+            user: toPersistedUser(state.user ?? null) as User | null,
+          };
+        },
         onRehydrateStorage: () => (state) => {
           state?.setHasHydrated(true);
         },
