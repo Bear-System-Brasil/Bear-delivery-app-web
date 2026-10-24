@@ -49,10 +49,24 @@ import { type ReactNode, useState } from "react";
 type MovementType = "withdrawal" | "deposit" | "sale" | "refund";
 type DialogKind = "movement" | "close-register" | null;
 
-/** O método preferido vem do localStorage; um valor obsoleto ali não pode
- *  virar corpo de requisição, então cai pra "sem seleção". */
+/**
+ * Métodos que o caixa oferece: os 4, mesmo que o restaurante não aceite algum
+ * no app - o movimento pode ter sido feito fora dele (LDMF-391).
+ * BANK_TRANSFER fica de fora por enquanto: continua no enum e no mapa de
+ * rótulos, pra movimento antigo com ele seguir aparecendo pelo nome.
+ */
+const CASH_PAYMENT_METHODS: PaymentMethod[] = [
+  PaymentMethod.CASH,
+  PaymentMethod.CREDIT_CARD,
+  PaymentMethod.DEBIT_CARD,
+  PaymentMethod.PIX,
+];
+
+/** O método preferido vem do localStorage; um valor obsoleto ali (inclusive
+ *  um BANK_TRANSFER salvo antes) não pode virar corpo de requisição, então
+ *  cai pra "sem seleção". */
 function toPaymentMethod(value?: string): PaymentMethod | "" {
-  return Object.values(PaymentMethod).includes(value as PaymentMethod)
+  return CASH_PAYMENT_METHODS.includes(value as PaymentMethod)
     ? (value as PaymentMethod)
     : "";
 }
@@ -145,7 +159,7 @@ const MOVEMENT_TYPE_FILTERS: { value: CashMovementType | "ALL"; label: string }[
 const MOVEMENT_METHOD_FILTERS: { value: PaymentMethod | "ALL"; label: string }[] =
   [
     { value: "ALL", label: "Todos os métodos" },
-    ...Object.values(PaymentMethod).map((method) => ({
+    ...CASH_PAYMENT_METHODS.map((method) => ({
       value: method,
       label: PAYMENT_METHOD_LABELS[method],
     })),
@@ -1325,7 +1339,7 @@ export default function CashRegisterPage() {
             <option value="" disabled>
               Selecione o método
             </option>
-            {Object.values(PaymentMethod).map((m) => (
+            {CASH_PAYMENT_METHODS.map((m) => (
               <option key={m} value={m}>
                 {PAYMENT_METHOD_LABELS[m]}
               </option>

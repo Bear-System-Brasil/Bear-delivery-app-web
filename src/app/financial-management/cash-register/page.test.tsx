@@ -262,3 +262,87 @@ describe("Controle de Caixa - caixa aberto", () => {
     expect(confirmar).toBeEnabled();
   });
 });
+
+describe("Controle de Caixa - métodos de pagamento (LDMF-391)", () => {
+  const CASH_METHOD_LABELS = [
+    "Dinheiro",
+    "Cartão de Crédito",
+    "Cartão de Débito",
+    "PIX",
+  ];
+
+  beforeEach(() => {
+    h.register.data = OPEN_REGISTER;
+    h.summary.data = SUMMARY;
+  });
+
+  const optionLabels = (select: HTMLElement) =>
+    within(select)
+      .getAllByRole("option")
+      .map((o) => o.textContent);
+
+  const movementMethodSelect = (dialog: HTMLElement) =>
+    within(dialog)
+      .getByRole("option", { name: "Selecione o método" })
+      .closest("select") as HTMLElement;
+
+  it("o modal de movimento oferece os 4 métodos, sem Transferência", () => {
+    render(<CashRegisterPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Entrada" }));
+    const dialog = screen.getByRole("dialog", { name: "Registrar entrada" });
+
+    expect(optionLabels(movementMethodSelect(dialog))).toEqual([
+      "Selecione o método",
+      ...CASH_METHOD_LABELS,
+    ]);
+  });
+
+  it("o filtro de método do extrato tem os 4 métodos, sem Transferência", () => {
+    render(<CashRegisterPage />);
+    const extrato = screen
+      .getByRole("heading", { name: "Extrato de movimentos" })
+      .closest("section") as HTMLElement;
+
+    expect(
+      optionLabels(within(extrato).getByLabelText("Filtrar por método")),
+    ).toEqual(["Todos os métodos", ...CASH_METHOD_LABELS]);
+  });
+
+  it("Transferência salva como preferida não vem pré-selecionada", () => {
+    useFinancialPreferencesStore.setState({
+      defaultPaymentMethod: "BANK_TRANSFER" as never,
+    });
+    render(<CashRegisterPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Entrada" }));
+    const dialog = screen.getByRole("dialog", { name: "Registrar entrada" });
+
+    expect(movementMethodSelect(dialog)).toHaveValue("");
+  });
+
+  it("movimento antigo com Transferência continua aparecendo pelo nome", () => {
+    h.movements.data = {
+      items: [
+        {
+          id: "1",
+          type: "SALE",
+          amount: 100,
+          description: "Venda antiga",
+          paymentMethod: "BANK_TRANSFER",
+          source: "MANUAL",
+          createdAt: "2026-10-20T10:00:00.000Z",
+        },
+      ],
+      meta: { total: 1, page: 1, totalPages: 1 },
+    };
+    render(<CashRegisterPage />);
+    const extrato = screen
+      .getByRole("heading", { name: "Extrato de movimentos" })
+      .closest("section") as HTMLElement;
+
+    expect(
+      within(extrato).queryAllByText("Transferência Bancária").length,
+    ).toBeGreaterThan(0);
+  });
+});
