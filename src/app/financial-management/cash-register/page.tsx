@@ -672,8 +672,12 @@ export default function CashRegisterPage() {
 
             {/* auto-fit sem trava de breakpoint: vira 2 colunas assim que cabe
                 (~800px+ de conteúdo, inclui o desktop mode do mobile em ~980px)
-                e empilha sozinho em telas estreitas de verdade. */}
-            <div className="grid items-start gap-4 [grid-template-columns:repeat(auto-fit,minmax(360px,1fr))]">
+                e empilha sozinho em telas estreitas de verdade. O mínimo é
+                min(360px, 100%): em celular com menos de 360px de conteúdo
+                (ex.: 360px de tela - 32px de respiro), um mínimo fixo de 360px
+                empurrava Entradas/Saídas, Por forma de pagamento e Conferência
+                pra fora da tela (LDMF-427). No PC, 100% é sempre maior. */}
+            <div className="grid items-start gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(360px,100%),1fr))]">
               {/* Coluna principal */}
               <div className="flex min-w-0 flex-col gap-4">
                 {summaryLoading ? (
