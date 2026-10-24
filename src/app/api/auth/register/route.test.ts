@@ -98,6 +98,43 @@ describe("POST /api/auth/register", () => {
     expect(setCookie?.value).toBe(dummyToken);
   });
 
+  it("ignora o role do corpo e sempre envia client (LDMF-425)", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      status: 201,
+      json: () => Promise.resolve({ id: "u3", name: "Invasor" }),
+    } as Response);
+
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: () =>
+        Promise.resolve({
+          data: { token: dummyToken, user: { id: "u3", name: "Invasor" } },
+        }),
+    } as Response);
+
+    const request = new Request("http://localhost:3000/api/auth/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "Invasor",
+        email: "invasor@teste.com",
+        phone: "11999999999",
+        password: "Password1!",
+        role: "admin",
+      }),
+    });
+
+    const res = await POST(request);
+    expect(res.status).toBe(200);
+
+    const userBody = JSON.parse(
+      vi.mocked(fetch).mock.calls[0][1]?.body as string,
+    );
+    expect(userBody.role).toBe("client");
+  });
+
   it("envia cpf sanitizado quando informado", async () => {
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: true,
