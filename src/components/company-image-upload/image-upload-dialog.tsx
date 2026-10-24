@@ -158,16 +158,14 @@ export function ImageUploadDialog({
       return;
     }
 
-    // Lê o arquivo inteiro antes de montar o preview. No Chrome do Android o
-    // File escolhido aponta pro seletor do sistema e é lido aos poucos; o
-    // object URL criado direto dele às vezes falhava e a <img> mostrava o
-    // ícone de imagem quebrada, embora o upload funcionasse (LDMF-412). Com
-    // os bytes já em memória, o preview não depende mais dessa leitura.
-    //
-    // Sem novas tentativas: quando falha, o Chrome do Android devolve
-    // NotReadableError ("permission problems ... after a reference to a file
-    // was acquired") e a mesma escolha não volta a ser lida - 4 tentativas em
-    // ~2s falharam iguais no celular (LDMF-412).
+    // Lê o arquivo inteiro antes de montar o preview, pra saber na hora se ele
+    // pode ser lido. No Chrome do Android 13+, o seletor de fotos do sistema
+    // às vezes entregava um arquivo ilegível (NotReadableError): o object URL
+    // criado direto dele virava o ícone de imagem quebrada e o upload falhava
+    // igual (LDMF-412). O ACCEPT_ANDROID evita esse seletor; se ainda assim
+    // a leitura falhar, pede pra escolher de novo. Sem novas tentativas: a
+    // mesma escolha não volta a ser lida (4 tentativas em ~2s falharam iguais
+    // no celular).
     const seq = ++pickSeqRef.current;
     setReading(true);
     setReadFailed(false);
