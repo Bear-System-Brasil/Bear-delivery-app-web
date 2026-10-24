@@ -92,10 +92,6 @@ export function ImageUploadDialog({
   const [previewFailed, setPreviewFailed] = useState(false);
   // O navegador recusou ler o arquivo escolhido: só escolhendo de novo.
   const [readFailed, setReadFailed] = useState(false);
-  // DIAGNOSTICO TEMPORARIO (LDMF-412) - remover antes do PR. Mostra quantas
-  // leituras falharam e o erro que o Chrome do Android devolveu, pra medir no
-  // celular em vez de deduzir.
-  const [readDiag, setReadDiag] = useState<string | null>(null);
 
   // Decidido depois de montar, pra não divergir do HTML do servidor.
   const [accept, setAccept] = useState(ACCEPT_IMAGES);
@@ -132,7 +128,6 @@ export function ImageUploadDialog({
     pickSeqRef.current++;
     setReading(false);
     setReadFailed(false);
-    setReadDiag(null);
     replacePreview(null);
     setPendingFile(null);
   };
@@ -176,15 +171,11 @@ export function ImageUploadDialog({
     const seq = ++pickSeqRef.current;
     setReading(true);
     setReadFailed(false);
-    setReadDiag(null);
     let bytes: ArrayBuffer;
     try {
       bytes = await file.arrayBuffer();
-    } catch (error) {
+    } catch {
       if (seq !== pickSeqRef.current) return;
-      setReadDiag(
-        `leitura falhou (${error instanceof Error ? `${error.name}: ${error.message}` : String(error)})`,
-      );
       // Arquivo que o navegador não lê também não sobe: o upload falharia
       // com o mesmo erro (visto no celular). Em vez de liberar um Salvar que
       // não funciona, pede pra escolher a foto de novo - numa nova escolha o
@@ -197,7 +188,6 @@ export function ImageUploadDialog({
     }
     // Outra escolha, cancelar ou fechar no meio da leitura: descarta esta.
     if (seq !== pickSeqRef.current) return;
-    setReadDiag("leitura ok");
 
     // Preview e arquivo trocam juntos, sem janela em que o pendente já vale
     // mas o preview ainda mostra a foto antiga.
@@ -307,16 +297,6 @@ export function ImageUploadDialog({
             </span>
           )}
         </div>
-
-        {/* DIAGNOSTICO TEMPORARIO (LDMF-412) - remover antes do PR. */}
-        {readDiag && (
-          <p
-            data-testid="read-diag"
-            className="-mt-2 text-center text-[10px] text-muted-foreground"
-          >
-            diagnóstico: {readDiag} · accept={accept}
-          </p>
-        )}
 
         <input
           ref={fileInputRef}

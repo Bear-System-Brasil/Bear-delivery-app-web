@@ -274,25 +274,6 @@ describe("ImageUploadDialog - limpeza do input de arquivo", () => {
   });
 });
 
-// DIAGNOSTICO TEMPORARIO (LDMF-412) - sai junto com o diagnóstico, antes do PR.
-describe("ImageUploadDialog - diagnóstico temporário da leitura", () => {
-  it("mostra o erro que o navegador devolveu na leitura", async () => {
-    renderDialog();
-
-    const file = new File(["x"], "a.png", { type: "image/png" });
-    vi.spyOn(file, "arrayBuffer").mockRejectedValue(
-      new DOMException("sem acesso", "NotReadableError"),
-    );
-    await act(async () => {
-      fireEvent.change(fileInput(), { target: { files: [file] } });
-    });
-
-    expect(screen.getByTestId("read-diag")).toHaveTextContent(
-      "leitura falhou (NotReadableError: sem acesso) · accept=image/*",
-    );
-  });
-});
-
 describe("ImageUploadDialog - seletor de arquivo no Android", () => {
   it("no Android aceita também qualquer arquivo, pra fugir do seletor de fotos", () => {
     vi.spyOn(navigator, "userAgent", "get").mockReturnValue(
