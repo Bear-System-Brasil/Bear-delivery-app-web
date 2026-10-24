@@ -147,6 +147,68 @@ describe("POST /api/auth/register", () => {
     expect(userBody.cpf).toBe("12345678900");
   });
 
+  it("manda a data de nascimento do corpo e não inventa uma (LDMF-422)", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      status: 201,
+      json: () => Promise.resolve({ id: "u4", name: "Dono" }),
+    } as Response);
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: () =>
+        Promise.resolve({
+          data: { token: dummyToken, user: { id: "u4", name: "Dono" } },
+        }),
+    } as Response);
+
+    const request = new Request("http://localhost:3000/api/auth/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "Dono do Restaurante",
+        email: "dono@teste.com",
+        phone: "11999999999",
+        password: "Password1!",
+        birthDate: "15/03/1990",
+      }),
+    });
+
+    const res = await POST(request);
+    expect(res.status).toBe(200);
+
+    const userBody = JSON.parse(
+      vi.mocked(fetch).mock.calls[0][1]?.body as string,
+    );
+    expect(userBody.birthDate).toBe("15/03/1990");
+  });
+
+  it("não injeta data de nascimento quando o corpo não manda (LDMF-422)", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      json: () => Promise.resolve({ message: "INVALID_BIRTH_DATE" }),
+    } as Response);
+
+    const request = new Request("http://localhost:3000/api/auth/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "Sem Data",
+        email: "semdata@teste.com",
+        phone: "11999999999",
+        password: "Password1!",
+      }),
+    });
+
+    await POST(request);
+
+    const userBody = JSON.parse(
+      vi.mocked(fetch).mock.calls[0][1]?.body as string,
+    );
+    expect(userBody.birthDate).toBeUndefined();
+  });
+
   it("retorna erro e status do backend quando /user falha", async () => {
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: false,
