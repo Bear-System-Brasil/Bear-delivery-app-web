@@ -199,7 +199,7 @@ export function ProfileWrapper() {
               phone: user.phone,
             }}
             label="Alterar Foto"
-            maxSizeMB={2}
+            maxSizeMB={5}
           />
         </DataCard>
 
