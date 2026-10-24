@@ -292,3 +292,37 @@ describe("ImageUploadDialog - diagnóstico temporário da leitura", () => {
     );
   });
 });
+
+describe("ImageUploadDialog - seletor de arquivo no Android", () => {
+  it("no Android aceita também qualquer arquivo, pra fugir do seletor de fotos", () => {
+    vi.spyOn(navigator, "userAgent", "get").mockReturnValue(
+      "Mozilla/5.0 (Linux; Android 13; SM-M127F) AppleWebKit/537.36 Chrome/155.0 Mobile Safari/537.36",
+    );
+    renderDialog();
+
+    expect(fileInput()).toHaveAttribute("accept", "image/*,*/*");
+  });
+
+  it("fora do Android continua aceitando só imagens", () => {
+    vi.spyOn(navigator, "userAgent", "get").mockReturnValue(
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1",
+    );
+    renderDialog();
+
+    expect(fileInput()).toHaveAttribute("accept", "image/*");
+  });
+
+  it("no Android, arquivo que não é imagem continua barrado", async () => {
+    const { toast } = await import("sonner");
+    vi.spyOn(navigator, "userAgent", "get").mockReturnValue("Linux; Android 13");
+    renderDialog();
+
+    const pdf = new File(["x"], "doc.pdf", { type: "application/pdf" });
+    await act(async () => {
+      fireEvent.change(fileInput(), { target: { files: [pdf] } });
+    });
+
+    expect(toast.error).toHaveBeenCalledWith("Por favor, selecione uma imagem válida");
+    expect(screen.queryByRole("button", { name: "Salvar foto" })).toBeNull();
+  });
+});

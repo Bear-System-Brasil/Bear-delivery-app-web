@@ -46,6 +46,20 @@ interface ImageUploadDialogProps {
 }
 
 /**
+ * Tipos aceitos no seletor de arquivo. Com todos os tipos começando por
+ * "image/", o Chrome do Android 13+ abre o seletor de fotos do sistema, que às
+ * vezes entrega um arquivo que o Chrome não consegue ler (NotReadableError) -
+ * medido no celular (LDMF-412), em ~2 de 6 escolhas, e relatado por outros
+ * projetos. Aceitar também qualquer arquivo (ACCEPT_ANDROID) faz o Chrome
+ * abrir o seletor comum do Android
+ * (Galeria, Arquivos...), cujos arquivos ficam legíveis. Só no Android: no
+ * iPhone e no computador o seletor continua o de imagens. O que não for
+ * imagem segue barrado pela validação de tipo.
+ */
+const ACCEPT_IMAGES = "image/*";
+const ACCEPT_ANDROID = "image/*,*/*";
+
+/**
  * Abre a imagem em tamanho cheio (sem corte) e só grava no backend depois de
  * escolher "Trocar foto" e confirmar em "Salvar foto" - não salva ao escolher
  * o arquivo, diferente do comportamento antigo (LDMF-410).
@@ -82,6 +96,12 @@ export function ImageUploadDialog({
   // leituras falharam e o erro que o Chrome do Android devolveu, pra medir no
   // celular em vez de deduzir.
   const [readDiag, setReadDiag] = useState<string | null>(null);
+
+  // Decidido depois de montar, pra não divergir do HTML do servidor.
+  const [accept, setAccept] = useState(ACCEPT_IMAGES);
+  useEffect(() => {
+    if (/Android/i.test(navigator.userAgent)) setAccept(ACCEPT_ANDROID);
+  }, []);
 
   const shownUrl = pendingPreview ?? currentUrl;
   const hasImage = Boolean(shownUrl);
@@ -301,7 +321,7 @@ export function ImageUploadDialog({
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*"
+          accept={accept}
           onChange={handlePick}
           className="hidden"
         />
