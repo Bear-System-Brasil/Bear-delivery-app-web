@@ -288,7 +288,7 @@ describe("ImageUploadDialog - diagnóstico temporário da leitura", () => {
     });
 
     expect(screen.getByTestId("read-diag")).toHaveTextContent(
-      "leitura falhou (NotReadableError: sem acesso)",
+      "leitura falhou (NotReadableError: sem acesso) · accept=image/*",
     );
   });
 });

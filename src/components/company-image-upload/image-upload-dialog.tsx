@@ -314,7 +314,7 @@ export function ImageUploadDialog({
             data-testid="read-diag"
             className="-mt-2 text-center text-[10px] text-muted-foreground"
           >
-            diagnóstico: {readDiag}
+            diagnóstico: {readDiag} · accept={accept}
           </p>
         )}
 
