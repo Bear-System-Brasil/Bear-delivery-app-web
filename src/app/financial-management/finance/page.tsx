@@ -546,9 +546,7 @@ export default function FinancePage() {
                     <span className={headerCellClass}>CLIENTE</span>
                     <span className={headerCellClass}>MÉTODO</span>
                     <span className={headerCellClass}>DATA</span>
-                    <span className={cn(headerCellClass, "text-right")}>
-                      VALOR
-                    </span>
+                    <span className={headerCellClass}>VALOR</span>
                     <span className={headerCellClass}>STATUS</span>
                     <span className={headerCellClass}>AÇÃO</span>
                   </div>
@@ -588,7 +586,7 @@ export default function FinancePage() {
                         {formatDateShort(payment.date || payment.created_at)}
                       </span>
 
-                      <span className="text-right text-[13px] font-extrabold text-foreground">
+                      <span className="text-[13px] font-extrabold text-foreground">
                         {formatCurrency(payment.amount)}
                       </span>
 
