@@ -23,6 +23,7 @@ const h = vi.hoisted(() => {
     summary: {
       data: null as unknown,
       isLoading: false,
+      error: null as Error | null,
       refetch: vi.fn(),
     },
     movements: {
@@ -85,6 +86,7 @@ const initialPreferences = useFinancialPreferencesStore.getState();
 beforeEach(() => {
   h.register.data = null;
   h.summary.data = null;
+  h.summary.error = null;
   h.movements.data = {
     items: [],
     meta: { total: 0, page: 1, totalPages: 1 },
@@ -260,5 +262,75 @@ describe("Controle de Caixa - caixa aberto", () => {
       target: { value: "160" },
     });
     expect(confirmar).toBeEnabled();
+  });
+});
+
+describe("Controle de Caixa - resumo indisponível (LDMF-427)", () => {
+  // Linhas do bloco "Por forma de pagamento", lidas pela estrutura do card.
+  function paymentRows() {
+    let el: HTMLElement | null = screen.getByText("Por forma de pagamento");
+    while (el && !el.querySelector(".divide-y")) el = el.parentElement;
+    return Array.from(el!.querySelector(".divide-y")!.children) as HTMLElement[];
+  }
+
+  beforeEach(() => {
+    h.register.data = OPEN_REGISTER;
+  });
+
+  it("com resumo, mostra os 4 métodos com valor e sem aviso", () => {
+    h.summary.data = SUMMARY;
+    render(<CashRegisterPage />);
+
+    const rows = paymentRows();
+    expect(rows).toHaveLength(4);
+    expect(rows[0]).toHaveTextContent("R$ 60,00");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("com erro (403), mantém os 4 métodos em “—” e mostra a mensagem do back", () => {
+    h.summary.data = undefined;
+    h.summary.error = new Error("Operador não vinculado ao caixa aberto.");
+    render(<CashRegisterPage />);
+
+    const rows = paymentRows();
+    expect(rows.map((r) => r.textContent)).toEqual([
+      expect.stringContaining("Dinheiro"),
+      expect.stringContaining("PIX"),
+      expect.stringContaining("Cartão de Crédito"),
+      expect.stringContaining("Cartão de Débito"),
+    ]);
+    rows.forEach((r) => expect(r).not.toHaveTextContent("R$"));
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Operador não vinculado ao caixa aberto.",
+    );
+  });
+
+  it("sem resumo (404), não mostra zero falso em Entradas nem no esperado", () => {
+    h.summary.data = null;
+    render(<CashRegisterPage />);
+
+    expect(paymentRows()).toHaveLength(4);
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+    // Entradas/Saídas e esperado na gaveta: nada de R$ 0,00 inventado.
+    expect(screen.queryByText("R$ 0,00")).not.toBeInTheDocument();
+    // Só o fundo de troco (dado do caixa, não do resumo) continua com valor.
+    expect(screen.getAllByText("R$ 100,00")).toHaveLength(1);
+  });
+
+  it("no fechamento, não calcula sobra nem falta sem o resumo", () => {
+    h.summary.data = undefined;
+    h.summary.error = new Error("falhou");
+    render(<CashRegisterPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Fechar caixa" }));
+    const dialog = screen.getByRole("dialog");
+    fireEvent.change(within(dialog).getByPlaceholderText("0,00"), {
+      target: { value: "50" },
+    });
+
+    expect(dialog).toHaveTextContent(
+      "Sem o resumo do caixa não dá pra calcular a diferença.",
+    );
+    expect(dialog).not.toHaveTextContent(/Sobra de|Falta de/);
   });
 });
