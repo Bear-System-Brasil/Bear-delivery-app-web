@@ -114,7 +114,7 @@ function SectionCard({
             diferente do desktop. */}
         {actions && <div className="ml-auto shrink-0">{actions}</div>}
       </div>
-      {children !== undefined && <div className="p-4">{children}</div>}
+      {children !== undefined && <div className="@container p-4">{children}</div>}
     </section>
   );
 }
@@ -619,342 +619,346 @@ function CompanyProfileContent() {
               )}
             </SectionCard>
 
-            {/* Horário de Funcionamento */}
-            <SectionCard
-              icon={Clock}
-              title="Horário de Funcionamento"
-              subtitle="Dias e horários em que a loja aceita pedidos"
-              className="mb-4"
-              actions={
-                <div className="flex gap-2">
-                  {hasHoursChanges && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={discardHoursChanges}
-                      disabled={isSavingHours}
-                      className="h-8 rounded-md px-3 text-xs font-semibold"
-                    >
-                      Descartar
-                    </Button>
-                  )}
-                  <Button
-                    size="sm"
-                    variant={"secondary"}
-                    onClick={handleSaveHours}
-                    disabled={isSavingHours || isLoadingHours}
-                    className="h-8 rounded-md px-3.5 text-xs font-semibold"
-                  >
-                    <div className="flex gap-2">
-                      <Save className="h-3.5 w-3.5" />
-                      {isSavingHours ? "Salvando..." : "Salvar"}
-                    </div>
-                  </Button>
-                </div>
-              }
-            >
-              {linkedToCashRegister && (
-                <SectionNotice>
-                  A loja está seguindo o caixa: quem define Aberto/Fechado
-                  agora é o caixa aberto, não a grade abaixo. Os horários
-                  continuam valendo quando essa opção for desligada.
-                </SectionNotice>
-              )}
-
-              {/* O aviso de falha fica acima da grade, não no lugar dela: sem
-                  os sete dias na tela o dono não teria o que preencher. Como
-                  o PUT é upsert, salvar depois de um GET que falhou não apaga
-                  o que estiver no banco - no pior caso reescreve o mesmo dia. */}
-              {isHoursError && (
-                <SectionNotice
-                  tone="warning"
-                  action={
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => refetchHours()}
-                      className="h-7 shrink-0 rounded-md px-3 text-[11px] font-semibold"
-                    >
-                      Tentar de novo
-                    </Button>
-                  }
-                >
-                  Não foi possível carregar o horário salvo
-                  {hoursError ? `: ${hoursError}` : "."} Dá para preencher e
-                  salvar mesmo assim: os dias que você enviar são gravados, e
-                  os demais continuam como estão no servidor.
-                </SectionNotice>
-              )}
-
-              {persistedDays.length > 0 && (
-                <SectionNotice>
-                  Para fechar um dia já cadastrado, fale com o suporte: a rota
-                  de horários ainda não apaga dia, só cria e atualiza.
-                </SectionNotice>
-              )}
-
-              {isLoadingHours ? (
-                <div className="space-y-1.5">
-                  {[0, 1, 2, 3, 4, 5, 6].map((row) => (
-                    <Skeleton key={row} className="h-11 rounded-md" />
-                  ))}
-                </div>
-              ) : (
-                <OpeningHoursCopy hours={openingHours} onCopy={copyHours}>
-                  <div className="divide-y divide-border overflow-hidden rounded-md border border-border">
-                    {openingHours.map((day) => (
-                      <div
-                        key={day.day}
-                        className="flex flex-wrap items-center gap-x-2.5 gap-y-2 px-3 py-2 sm:flex-nowrap"
+            {/* Horário e Formas de Pagamento lado a lado no PC: com o
+                horário ocupando a largura toda, os campos esticavam e
+                sobrava um vão no meio da linha (LDMF-351). */}
+            <div className="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] lg:items-start">
+              {/* Horário de Funcionamento */}
+              <SectionCard
+                icon={Clock}
+                title="Horário de Funcionamento"
+                subtitle="Dias e horários em que a loja aceita pedidos"
+                actions={
+                  <div className="flex gap-2">
+                    {hasHoursChanges && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={discardHoursChanges}
+                        disabled={isSavingHours}
+                        className="h-8 rounded-md px-3 text-xs font-semibold"
                       >
-                        {/* Trava só o que já existe no servidor: o PUT é upsert
-                            e não apaga, então desmarcar um dia salvo não teria
-                            efeito e o dono acharia que fechou. Dia que ele
-                            acabou de marcar aqui ainda não existe lá -
-                            desmarcar é só não criar, e isso pode. */}
-                        <label
-                          className={cn(
-                            "flex w-[100px] shrink-0 items-center gap-2",
-                            persistedDays.includes(day.day)
-                              ? "cursor-default"
-                              : "cursor-pointer",
-                          )}
-                          title={
-                            persistedDays.includes(day.day)
-                              ? "Fechar um dia já cadastrado depende de uma rota que o backend ainda não tem"
-                              : undefined
-                          }
+                        Descartar
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant={"secondary"}
+                      onClick={handleSaveHours}
+                      disabled={isSavingHours || isLoadingHours}
+                      className="h-8 rounded-md px-3.5 text-xs font-semibold"
+                    >
+                      <div className="flex gap-2">
+                        <Save className="h-3.5 w-3.5" />
+                        {isSavingHours ? "Salvando..." : "Salvar"}
+                      </div>
+                    </Button>
+                  </div>
+                }
+              >
+                {linkedToCashRegister && (
+                  <SectionNotice>
+                    A loja está seguindo o caixa: quem define Aberto/Fechado
+                    agora é o caixa aberto, não a grade abaixo. Os horários
+                    continuam valendo quando essa opção for desligada.
+                  </SectionNotice>
+                )}
+
+                {/* O aviso de falha fica acima da grade, não no lugar dela: sem
+                    os sete dias na tela o dono não teria o que preencher. Como
+                    o PUT é upsert, salvar depois de um GET que falhou não apaga
+                    o que estiver no banco - no pior caso reescreve o mesmo dia. */}
+                {isHoursError && (
+                  <SectionNotice
+                    tone="warning"
+                    action={
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => refetchHours()}
+                        className="h-7 shrink-0 rounded-md px-3 text-[11px] font-semibold"
+                      >
+                        Tentar de novo
+                      </Button>
+                    }
+                  >
+                    Não foi possível carregar o horário salvo
+                    {hoursError ? `: ${hoursError}` : "."} Dá para preencher e
+                    salvar mesmo assim: os dias que você enviar são gravados, e
+                    os demais continuam como estão no servidor.
+                  </SectionNotice>
+                )}
+
+                {persistedDays.length > 0 && (
+                  <SectionNotice>
+                    Para fechar um dia já cadastrado, fale com o suporte: a rota
+                    de horários ainda não apaga dia, só cria e atualiza.
+                  </SectionNotice>
+                )}
+
+                {isLoadingHours ? (
+                  <div className="space-y-1.5">
+                    {[0, 1, 2, 3, 4, 5, 6].map((row) => (
+                      <Skeleton key={row} className="h-11 rounded-md" />
+                    ))}
+                  </div>
+                ) : (
+                  <OpeningHoursCopy hours={openingHours} onCopy={copyHours}>
+                    <div className="divide-y divide-border overflow-hidden rounded-md border border-border">
+                      {openingHours.map((day) => (
+                        <div
+                          key={day.day}
+                          className="flex flex-wrap items-center gap-x-2.5 gap-y-2 px-3 py-2 @md:flex-nowrap"
                         >
-                          <Checkbox
-                            checked={day.isOpen}
-                            disabled={persistedDays.includes(day.day)}
-                            onCheckedChange={(checked) =>
-                              updateDayHours(day.day, {
-                                isOpen: checked === true,
-                              })
-                            }
-                            className="h-4 w-4 border-border data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
-                          />
-                          <span
+                          {/* Trava só o que já existe no servidor: o PUT é upsert
+                              e não apaga, então desmarcar um dia salvo não teria
+                              efeito e o dono acharia que fechou. Dia que ele
+                              acabou de marcar aqui ainda não existe lá -
+                              desmarcar é só não criar, e isso pode. */}
+                          <label
                             className={cn(
-                              "text-[13px] font-semibold",
-                              day.isOpen ? "text-foreground" : "text-muted-foreground",
+                              "flex w-[100px] shrink-0 items-center gap-2",
+                              persistedDays.includes(day.day)
+                                ? "cursor-default"
+                                : "cursor-pointer",
                             )}
+                            title={
+                              persistedDays.includes(day.day)
+                                ? "Fechar um dia já cadastrado depende de uma rota que o backend ainda não tem"
+                                : undefined
+                            }
                           >
-                            {day.label}
-                          </span>
-                        </label>
+                            <Checkbox
+                              checked={day.isOpen}
+                              disabled={persistedDays.includes(day.day)}
+                              onCheckedChange={(checked) =>
+                                updateDayHours(day.day, {
+                                  isOpen: checked === true,
+                                })
+                              }
+                              className="h-4 w-4 border-border data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
+                            />
+                            <span
+                              className={cn(
+                                "text-[13px] font-semibold",
+                                day.isOpen ? "text-foreground" : "text-muted-foreground",
+                              )}
+                            >
+                              {day.label}
+                            </span>
+                          </label>
   
-                        {day.isOpen ? (
-                          // No celular os campos descem para uma linha
-                          // inteira: ao lado do dia, o intervalo cortava a
-                          // hora (LDMF-351).
-                          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-1 lg:flex-row lg:items-center">
-                            <div className="flex flex-1 items-center gap-2">
-                              <div className="relative flex-1">
-                                <Clock className="pointer-events-none absolute left-[9px] top-1/2 h-[13px] w-[13px] -translate-y-1/2 text-muted-foreground" />
-                                <TimeInput
-                                  aria-label={`Abertura de ${day.label}`}
-                                  value={day.openTime}
-                                  onChange={(value) =>
-                                    updateDayHours(day.day, {
-                                      openTime: value,
-                                    })
-                                  }
-                                  className="h-8 rounded-md border-border bg-background pl-7 pr-2 text-[13px]"
-                                />
-                              </div>
-                              <span className="shrink-0 text-[11.5px] text-muted-foreground">
-                                até
-                              </span>
-                              <div className="relative flex-1">
-                                <Clock className="pointer-events-none absolute left-[9px] top-1/2 h-[13px] w-[13px] -translate-y-1/2 text-muted-foreground" />
-                                <TimeInput
-                                  aria-label={`Fechamento de ${day.label}`}
-                                  value={day.closeTime}
-                                  invalid={isMidnightClose(day.closeTime)}
-                                  onChange={(value) =>
-                                    updateDayHours(day.day, {
-                                      closeTime: value,
-                                    })
-                                  }
-                                  className="h-8 rounded-md border-border bg-background pl-7 pr-2 text-[13px]"
-                                />
-                              </div>
-                            </div>
-  
-                            {/* Intervalo é opcional e nunca fica vazio
-                                pela metade: liga no "+ intervalo" e tira no
-                                "×", que limpa as duas pontas. */}
-                            {day.hasBreak || day.breakStart || day.breakEnd ? (
+                          {day.isOpen ? (
+                            // Card estreito (celular, ou meia tela no PC): os
+                            // campos descem para uma linha inteira, senão o
+                            // intervalo cortava a hora. As quebras seguem a
+                            // largura do card, não a da tela (LDMF-351).
+                            <div className="flex w-full flex-col gap-2 @md:w-auto @md:flex-1 @3xl:flex-row @3xl:items-center">
                               <div className="flex flex-1 items-center gap-2">
-                                <span className="shrink-0 text-[11.5px] text-muted-foreground">
-                                  intervalo
-                                </span>
-                                <TimeInput
-                                  aria-label={`Início do intervalo de ${day.label}`}
-                                  value={day.breakStart || ""}
-                                  onChange={(value) =>
-                                    updateDayHours(day.day, {
-                                      breakStart: value,
-                                    })
-                                  }
-                                  className="h-8 min-w-[64px] flex-1 rounded-md border-border bg-background px-2 text-[13px]"
-                                />
+                                <div className="relative flex-1">
+                                  <Clock className="pointer-events-none absolute left-[9px] top-1/2 h-[13px] w-[13px] -translate-y-1/2 text-muted-foreground" />
+                                  <TimeInput
+                                    aria-label={`Abertura de ${day.label}`}
+                                    value={day.openTime}
+                                    onChange={(value) =>
+                                      updateDayHours(day.day, {
+                                        openTime: value,
+                                      })
+                                    }
+                                    className="h-8 rounded-md border-border bg-background pl-7 pr-2 text-[13px]"
+                                  />
+                                </div>
                                 <span className="shrink-0 text-[11.5px] text-muted-foreground">
                                   até
                                 </span>
-                                <TimeInput
-                                  aria-label={`Fim do intervalo de ${day.label}`}
-                                  value={day.breakEnd || ""}
-                                  onChange={(value) =>
-                                    updateDayHours(day.day, {
-                                      breakEnd: value,
-                                    })
-                                  }
-                                  className="h-8 min-w-[64px] flex-1 rounded-md border-border bg-background px-2 text-[13px]"
-                                />
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  aria-label={`Tirar intervalo de ${day.label}`}
-                                  onClick={() =>
-                                    updateDayHours(day.day, {
-                                      hasBreak: false,
-                                      breakStart: "",
-                                      breakEnd: "",
-                                    })
-                                  }
-                                  className="h-8 w-8 shrink-0 rounded-md text-muted-foreground"
-                                >
-                                  <X className="h-3.5 w-3.5" />
-                                </Button>
+                                <div className="relative flex-1">
+                                  <Clock className="pointer-events-none absolute left-[9px] top-1/2 h-[13px] w-[13px] -translate-y-1/2 text-muted-foreground" />
+                                  <TimeInput
+                                    aria-label={`Fechamento de ${day.label}`}
+                                    value={day.closeTime}
+                                    invalid={isMidnightClose(day.closeTime)}
+                                    onChange={(value) =>
+                                      updateDayHours(day.day, {
+                                        closeTime: value,
+                                      })
+                                    }
+                                    className="h-8 rounded-md border-border bg-background pl-7 pr-2 text-[13px]"
+                                  />
+                                </div>
                               </div>
-                            ) : (
-                              <div className="flex flex-1 items-center">
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  aria-label={`Adicionar intervalo em ${day.label}`}
-                                  onClick={() =>
-                                    updateDayHours(day.day, { hasBreak: true })
-                                  }
-                                  className="h-8 rounded-md px-2 text-[11.5px] font-semibold text-muted-foreground"
-                                >
-                                  <span className="flex items-center gap-1">
-                                    <Plus className="h-3.5 w-3.5" />
+  
+                              {/* Intervalo é opcional e nunca fica vazio
+                                  pela metade: liga no "+ intervalo" e tira no
+                                  "×", que limpa as duas pontas. */}
+                              {day.hasBreak || day.breakStart || day.breakEnd ? (
+                                <div className="flex flex-1 items-center gap-2">
+                                  <span className="shrink-0 text-[11.5px] text-muted-foreground">
                                     intervalo
                                   </span>
-                                </Button>
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="flex-1 text-[12.5px] text-muted-foreground">
-                            Fechado
-                          </span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </OpeningHoursCopy>
-              )}
-            </SectionCard>
-
-            {/* Formas de pagamento aceitas (LDMF-251) */}
-            <SectionCard
-              icon={CreditCard}
-              title="Formas de Pagamento"
-              subtitle="O checkout só oferece ao cliente as formas marcadas"
-              className="mb-4"
-              actions={
-                <div className="flex gap-2">
-                  {hasPaymentMethodsChanges && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={discardPaymentMethodsChanges}
-                      disabled={isSavingPaymentMethods}
-                      className="h-8 rounded-md px-3 text-xs font-semibold"
-                    >
-                      Descartar
-                    </Button>
-                  )}
-                  <Button
-                    size="sm"
-                    variant={"secondary"}
-                    onClick={handleSavePaymentMethods}
-                    disabled={
-                      isSavingPaymentMethods ||
-                      isLoadingPaymentMethods ||
-                      isPaymentMethodsError ||
-                      !hasPaymentMethodsChanges
-                    }
-                    className="h-8 rounded-md px-3.5 text-xs font-semibold"
-                  >
-                    <div className="flex gap-2">
-                      <Save className="h-3.5 w-3.5" />
-                      {isSavingPaymentMethods ? "Salvando..." : "Salvar"}
+                                  <TimeInput
+                                    aria-label={`Início do intervalo de ${day.label}`}
+                                    value={day.breakStart || ""}
+                                    onChange={(value) =>
+                                      updateDayHours(day.day, {
+                                        breakStart: value,
+                                      })
+                                    }
+                                    className="h-8 min-w-[64px] flex-1 rounded-md border-border bg-background px-2 text-[13px]"
+                                  />
+                                  <span className="shrink-0 text-[11.5px] text-muted-foreground">
+                                    até
+                                  </span>
+                                  <TimeInput
+                                    aria-label={`Fim do intervalo de ${day.label}`}
+                                    value={day.breakEnd || ""}
+                                    onChange={(value) =>
+                                      updateDayHours(day.day, {
+                                        breakEnd: value,
+                                      })
+                                    }
+                                    className="h-8 min-w-[64px] flex-1 rounded-md border-border bg-background px-2 text-[13px]"
+                                  />
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    aria-label={`Tirar intervalo de ${day.label}`}
+                                    onClick={() =>
+                                      updateDayHours(day.day, {
+                                        hasBreak: false,
+                                        breakStart: "",
+                                        breakEnd: "",
+                                      })
+                                    }
+                                    className="h-8 w-8 shrink-0 rounded-md text-muted-foreground"
+                                  >
+                                    <X className="h-3.5 w-3.5" />
+                                  </Button>
+                                </div>
+                              ) : (
+                                <div className="flex flex-1 items-center">
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    aria-label={`Adicionar intervalo em ${day.label}`}
+                                    onClick={() =>
+                                      updateDayHours(day.day, { hasBreak: true })
+                                    }
+                                    className="h-8 rounded-md px-2 text-[11.5px] font-semibold text-muted-foreground"
+                                  >
+                                    <span className="flex items-center gap-1">
+                                      <Plus className="h-3.5 w-3.5" />
+                                      intervalo
+                                    </span>
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="flex-1 text-[12.5px] text-muted-foreground">
+                              Fechado
+                            </span>
+                          )}
+                        </div>
+                      ))}
                     </div>
-                  </Button>
-                </div>
-              }
-            >
-              {/* Sem a lista gravada a tela mostraria o padrão (todas), e
-                  salvar por cima apagaria a configuração real: trava até
-                  carregar. */}
-              {isPaymentMethodsError ? (
-                <SectionNotice
-                  tone="warning"
-                  action={
+                  </OpeningHoursCopy>
+                )}
+              </SectionCard>
+
+              {/* Formas de pagamento aceitas (LDMF-251) */}
+              <SectionCard
+                icon={CreditCard}
+                title="Formas de Pagamento"
+                subtitle="O checkout só oferece ao cliente as formas marcadas"
+                actions={
+                  <div className="flex gap-2">
+                    {hasPaymentMethodsChanges && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={discardPaymentMethodsChanges}
+                        disabled={isSavingPaymentMethods}
+                        className="h-8 rounded-md px-3 text-xs font-semibold"
+                      >
+                        Descartar
+                      </Button>
+                    )}
                     <Button
                       size="sm"
-                      variant="secondary"
-                      onClick={() => refetchPaymentMethods()}
-                      className="h-7 shrink-0 rounded-md px-3 text-[11px] font-semibold"
+                      variant={"secondary"}
+                      onClick={handleSavePaymentMethods}
+                      disabled={
+                        isSavingPaymentMethods ||
+                        isLoadingPaymentMethods ||
+                        isPaymentMethodsError ||
+                        !hasPaymentMethodsChanges
+                      }
+                      className="h-8 rounded-md px-3.5 text-xs font-semibold"
                     >
-                      Tentar de novo
+                      <div className="flex gap-2">
+                        <Save className="h-3.5 w-3.5" />
+                        {isSavingPaymentMethods ? "Salvando..." : "Salvar"}
+                      </div>
                     </Button>
-                  }
-                >
-                  Não foi possível carregar as formas de pagamento.
-                </SectionNotice>
-              ) : isLoadingPaymentMethods ? (
-                <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-                  {ACCEPTED_PAYMENT_METHODS.map((method) => (
-                    <Skeleton key={method} className="h-10 rounded-md" />
-                  ))}
-                </div>
-              ) : (
-                <>
-                  <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-                    {ACCEPTED_PAYMENT_METHODS.map((method) => (
-                      <label
-                        key={method}
-                        className="flex cursor-pointer items-center gap-2.5 rounded-md border border-border px-3 py-2.5 transition-colors hover:bg-muted/60"
+                  </div>
+                }
+              >
+                {/* Sem a lista gravada a tela mostraria o padrão (todas), e
+                    salvar por cima apagaria a configuração real: trava até
+                    carregar. */}
+                {isPaymentMethodsError ? (
+                  <SectionNotice
+                    tone="warning"
+                    action={
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => refetchPaymentMethods()}
+                        className="h-7 shrink-0 rounded-md px-3 text-[11px] font-semibold"
                       >
-                        <Checkbox
-                          checked={acceptedPaymentMethods.includes(method)}
-                          disabled={isSavingPaymentMethods}
-                          onCheckedChange={() => togglePaymentMethod(method)}
-                          className="h-4 w-4 border-border data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
-                        />
-                        <span className="text-[13px] font-medium text-foreground">
-                          {ACCEPTED_PAYMENT_METHOD_LABELS[method]}
-                        </span>
-                      </label>
+                        Tentar de novo
+                      </Button>
+                    }
+                  >
+                    Não foi possível carregar as formas de pagamento.
+                  </SectionNotice>
+                ) : isLoadingPaymentMethods ? (
+                  <div className="grid grid-cols-1 gap-1.5 @sm:grid-cols-2">
+                    {ACCEPTED_PAYMENT_METHODS.map((method) => (
+                      <Skeleton key={method} className="h-10 rounded-md" />
                     ))}
                   </div>
-                  {acceptedPaymentMethods.length === 0 && (
-                    <p className="mt-2 text-xs font-medium text-red-600 dark:text-red-400">
-                      Marque pelo menos uma forma de pagamento.
-                    </p>
-                  )}
-                </>
-              )}
-            </SectionCard>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-1 gap-1.5 @sm:grid-cols-2">
+                      {ACCEPTED_PAYMENT_METHODS.map((method) => (
+                        <label
+                          key={method}
+                          className="flex cursor-pointer items-center gap-2.5 rounded-md border border-border px-3 py-2.5 transition-colors hover:bg-muted/60"
+                        >
+                          <Checkbox
+                            checked={acceptedPaymentMethods.includes(method)}
+                            disabled={isSavingPaymentMethods}
+                            onCheckedChange={() => togglePaymentMethod(method)}
+                            className="h-4 w-4 border-border data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
+                          />
+                          <span className="text-[13px] font-medium text-foreground">
+                            {ACCEPTED_PAYMENT_METHOD_LABELS[method]}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                    {acceptedPaymentMethods.length === 0 && (
+                      <p className="mt-2 text-xs font-medium text-red-600 dark:text-red-400">
+                        Marque pelo menos uma forma de pagamento.
+                      </p>
+                    )}
+                  </>
+                )}
+              </SectionCard>
+            </div>
 
             {/* Endereço da Empresa */}
             <SectionCard
