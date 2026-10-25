@@ -550,9 +550,7 @@ export default function FinancePage() {
                       VALOR
                     </span>
                     <span className={headerCellClass}>STATUS</span>
-                    <span className={cn(headerCellClass, "text-right")}>
-                      AÇÃO
-                    </span>
+                    <span className={headerCellClass}>AÇÃO</span>
                   </div>
 
                   {filteredPayments.map((payment) => (
@@ -603,7 +601,7 @@ export default function FinancePage() {
                         {getPaymentStatusLabel(payment.status)}
                       </span>
 
-                      <div className="flex justify-end gap-1.5">
+                      <div className="flex gap-1.5">
                         {isPending(payment) && (
                           <>
                             <RowActionButton
