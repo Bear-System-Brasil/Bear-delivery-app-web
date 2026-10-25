@@ -314,6 +314,19 @@ describe("Perfil da Empresa - layout novo", () => {
     h.payments.hasChanges = false;
   });
 
+  it("horário é digitado em 24h, sem o seletor nativo de relógio (LDMF-351)", () => {
+    render(<CompanyProfilePage />);
+    const section = sectionOf("Horário de Funcionamento");
+
+    const open = within(section).getByRole("textbox", { name: "Abertura de Segunda" });
+    expect(open).toHaveValue("11:00");
+    expect(open).toHaveAttribute("inputmode", "numeric");
+    expect(section.querySelector('input[type="time"]')).toBeNull();
+
+    fireEvent.change(open, { target: { value: "1" } });
+    expect(h.hours.updateDay).toHaveBeenCalledWith(0, { openTime: "10:00" });
+  });
+
   it("Alterar Senha fica no cabeçalho da seção e abre o formulário", () => {
     render(<CompanyProfilePage />);
     fireEvent.click(

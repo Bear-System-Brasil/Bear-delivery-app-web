@@ -3,6 +3,7 @@ export * from './auth-helpers'
 export * from './formatter'
 // export * from './permissions' // Commented to avoid conflict with auth-helpers (isClient, isRestaurantStaff)
 export * from './role-helpers'
+export * from './time-input'
 
 // Date utilities
 import dayjs from 'dayjs'

@@ -4,6 +4,7 @@ import { AdminPageLayout } from "@/components/admin-page-layout";
 import { CompanyCoverUpload } from "@/components/company-cover-upload";
 import { CompanyLogoUpload } from "@/components/company-logo-upload";
 import ProtectedRoute from "@/components/protected-route";
+import { TimeInput } from "@/components/time-input";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -745,13 +746,12 @@ function CompanyProfileContent() {
                           <div className="flex flex-1 items-center gap-2">
                             <div className="relative flex-1">
                               <Clock className="pointer-events-none absolute left-[9px] top-1/2 h-[13px] w-[13px] -translate-y-1/2 text-muted-foreground" />
-                              <Input
-                                type="time"
+                              <TimeInput
                                 aria-label={`Abertura de ${day.label}`}
                                 value={day.openTime}
-                                onChange={(e) =>
+                                onChange={(value) =>
                                   updateDayHours(day.day, {
-                                    openTime: e.target.value,
+                                    openTime: value,
                                   })
                                 }
                                 className="h-8 rounded-md border-border bg-background pl-7 pr-2 text-[13px]"
@@ -762,13 +762,12 @@ function CompanyProfileContent() {
                             </span>
                             <div className="relative flex-1">
                               <Clock className="pointer-events-none absolute left-[9px] top-1/2 h-[13px] w-[13px] -translate-y-1/2 text-muted-foreground" />
-                              <Input
-                                type="time"
+                              <TimeInput
                                 aria-label={`Fechamento de ${day.label}`}
                                 value={day.closeTime}
-                                onChange={(e) =>
+                                onChange={(value) =>
                                   updateDayHours(day.day, {
-                                    closeTime: e.target.value,
+                                    closeTime: value,
                                   })
                                 }
                                 className="h-8 rounded-md border-border bg-background pl-7 pr-2 text-[13px]"
@@ -780,13 +779,12 @@ function CompanyProfileContent() {
                             <span className="shrink-0 text-[11.5px] text-muted-foreground">
                               intervalo
                             </span>
-                            <Input
-                              type="time"
+                            <TimeInput
                               aria-label={`Início do intervalo de ${day.label}`}
                               value={day.breakStart || ""}
-                              onChange={(e) =>
+                              onChange={(value) =>
                                 updateDayHours(day.day, {
-                                  breakStart: e.target.value,
+                                  breakStart: value,
                                 })
                               }
                               className="h-8 flex-1 rounded-md border-border bg-background px-2 text-[13px]"
@@ -794,13 +792,12 @@ function CompanyProfileContent() {
                             <span className="shrink-0 text-[11.5px] text-muted-foreground">
                               até
                             </span>
-                            <Input
-                              type="time"
+                            <TimeInput
                               aria-label={`Fim do intervalo de ${day.label}`}
                               value={day.breakEnd || ""}
-                              onChange={(e) =>
+                              onChange={(value) =>
                                 updateDayHours(day.day, {
-                                  breakEnd: e.target.value,
+                                  breakEnd: value,
                                 })
                               }
                               className="h-8 flex-1 rounded-md border-border bg-background px-2 text-[13px]"
