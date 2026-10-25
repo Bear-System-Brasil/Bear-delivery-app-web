@@ -78,18 +78,26 @@ describe("TimeInput (LDMF-351)", () => {
     expect(getInput().value).toBe("18:00");
   });
 
-  it("apagar logo depois do foco deixa vazio, nunca 00:00", async () => {
+  it("apagar logo depois do foco zera em 00:00, nunca deixa vazio", async () => {
     const onChange = vi.fn();
     render(<Wrapper initial="15:00" onChange={onChange} />);
     await typeInField("{Backspace}");
-    expect(getInput().value).toBe("");
-    expect(onChange).toHaveBeenLastCalledWith("");
+    expect(getInput().value).toBe("00:00");
+    expect(onChange).toHaveBeenLastCalledWith("00:00");
   });
 
-  it("apagar no meio da digitação volta um dígito", async () => {
+  it("apagar no meio da digitação volta um dígito, até 00:00", async () => {
     render(<Wrapper />);
     await typeInField("123{Backspace}");
     expect(getInput().value).toBe("12:00");
+    await userEvent.keyboard("{Backspace}{Backspace}{Backspace}");
+    expect(getInput().value).toBe("00:00");
+  });
+
+  it("sem nada digitado mostra o campo vazio", () => {
+    render(<Wrapper />);
+    expect(getInput().value).toBe("");
+    expect(getInput()).toHaveAttribute("placeholder", "--:--");
   });
 
   it("mostra 9:00 do servidor como 09:00", () => {

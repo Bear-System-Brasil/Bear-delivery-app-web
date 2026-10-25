@@ -34,7 +34,12 @@ type Props = {
  * de ponteiros e, com o aparelho em inglês, mostra AM/PM. Aqui é texto com
  * teclado numérico: cada vez que o campo ganha foco a digitação recomeça e
  * os dígitos vão substituindo o "HH:MM" da esquerda para a direita
- * (typeTimeDigit). Apagar tudo deixa o campo vazio, nunca 00:00.
+ * (typeTimeDigit).
+ *
+ * Apagar volta os dígitos para zero e nunca deixa o campo vazio: quem tira
+ * o horário é o check do dia, e o intervalo tem o seu "×". É exceção à regra
+ * "campo apagado é vazio" do CLAUDE.md, autorizada na conversa do LDMF-351.
+ * O campo só aparece vazio ("--:--") enquanto nada foi digitado nele.
  */
 export function TimeInput({
   value,
@@ -63,7 +68,7 @@ export function TimeInput({
 
   const emit = (typed: string) => {
     typedRef.current = typed;
-    onChange(typed ? timeFromTypedDigits(typed) : "");
+    onChange(timeFromTypedDigits(typed));
   };
 
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -77,9 +82,9 @@ export function TimeInput({
       : next.length < display.length && next.length !== 1;
 
     if (isDeletion) {
-      // Apagar logo depois do foco (ou apagar tudo) limpa o campo; no meio
-      // da digitação volta um dígito.
-      emit(!next || !typedRef.current ? "" : typedRef.current.slice(0, -1));
+      // No meio da digitação volta um dígito; logo depois do foco não há
+      // dígito digitado, então zera: 00:00.
+      emit(typedRef.current.slice(0, -1));
       return;
     }
 
