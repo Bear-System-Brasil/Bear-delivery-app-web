@@ -705,7 +705,7 @@ function CompanyProfileContent() {
                     {openingHours.map((day) => (
                       <div
                         key={day.day}
-                        className="flex flex-wrap items-center gap-2.5 px-3 py-2 sm:flex-nowrap"
+                        className="flex flex-wrap items-center gap-x-2.5 gap-y-2 px-3 py-2 sm:flex-nowrap"
                       >
                         {/* Trava só o que já existe no servidor: o PUT é upsert
                             e não apaga, então desmarcar um dia salvo não teria
@@ -746,7 +746,10 @@ function CompanyProfileContent() {
                         </label>
   
                         {day.isOpen ? (
-                          <div className="flex flex-1 flex-col gap-2 lg:flex-row lg:items-center">
+                          // No celular os campos descem para uma linha
+                          // inteira: ao lado do dia, o intervalo cortava a
+                          // hora (LDMF-351).
+                          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-1 lg:flex-row lg:items-center">
                             <div className="flex flex-1 items-center gap-2">
                               <div className="relative flex-1">
                                 <Clock className="pointer-events-none absolute left-[9px] top-1/2 h-[13px] w-[13px] -translate-y-1/2 text-muted-foreground" />
@@ -796,7 +799,7 @@ function CompanyProfileContent() {
                                       breakStart: value,
                                     })
                                   }
-                                  className="h-8 flex-1 rounded-md border-border bg-background px-2 text-[13px]"
+                                  className="h-8 min-w-[64px] flex-1 rounded-md border-border bg-background px-2 text-[13px]"
                                 />
                                 <span className="shrink-0 text-[11.5px] text-muted-foreground">
                                   até
@@ -809,7 +812,7 @@ function CompanyProfileContent() {
                                       breakEnd: value,
                                     })
                                   }
-                                  className="h-8 flex-1 rounded-md border-border bg-background px-2 text-[13px]"
+                                  className="h-8 min-w-[64px] flex-1 rounded-md border-border bg-background px-2 text-[13px]"
                                 />
                                 <Button
                                   type="button"
