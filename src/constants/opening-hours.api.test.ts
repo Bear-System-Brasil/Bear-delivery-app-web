@@ -191,6 +191,15 @@ describe("findOpeningHoursError", () => {
     );
   });
 
+  it("barra fechamento às 00:00 e indica 23:59 (LDMF-351)", () => {
+    expect(findOpeningHoursError([dia({ closeTime: "00:00" })])).toContain(
+      "23:59",
+    );
+    expect(findOpeningHoursError([dia({ closeTime: "23:59" })])).toBeNull();
+    // Abrir às 00:00 continua valendo.
+    expect(findOpeningHoursError([dia({ openTime: "00:00" })])).toBeNull();
+  });
+
   it("acusa intervalo pela metade", () => {
     expect(findOpeningHoursError([dia({ breakStart: "14:00" })])).toContain(
       "intervalo",

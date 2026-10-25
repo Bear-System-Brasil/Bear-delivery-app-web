@@ -168,6 +168,14 @@ export function getPersistedDays(serverHours: DayHours[] | undefined): DayKey[] 
 }
 
 /**
+ * 00:00 no fechamento não vale: o back lê 00:00 como abertura do dia, então
+ * fechar à meia-noite é 23:59 (LDMF-351).
+ */
+export function isMidnightClose(closeTime: string): boolean {
+  return /^0?0:00$/.test(closeTime);
+}
+
+/**
  * Primeiro problema que impediria o save, ou `null` se estiver tudo certo.
  *
  * Sem isso o dia incompleto seria descartado em silêncio por
@@ -185,6 +193,10 @@ export function findOpeningHoursError(hours: DayHours[]): string | null {
 
     if (!day.openTime || !day.closeTime) {
       return `Informe abertura e fechamento de ${day.label}.`;
+    }
+
+    if (isMidnightClose(day.closeTime)) {
+      return `${day.label} não pode fechar às 00:00. Para fechar à meia-noite, use 23:59.`;
     }
 
     if (Boolean(day.breakStart) !== Boolean(day.breakEnd)) {

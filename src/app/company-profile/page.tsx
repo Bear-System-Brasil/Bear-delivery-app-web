@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { isMidnightClose } from "@/constants/opening-hours";
 import {
   MAX_SPECIALTIES,
   useCompanyAcceptedPaymentMethods,
@@ -765,6 +766,7 @@ function CompanyProfileContent() {
                               <TimeInput
                                 aria-label={`Fechamento de ${day.label}`}
                                 value={day.closeTime}
+                                invalid={isMidnightClose(day.closeTime)}
                                 onChange={(value) =>
                                   updateDayHours(day.day, {
                                     closeTime: value,
