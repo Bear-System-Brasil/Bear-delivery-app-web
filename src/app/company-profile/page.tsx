@@ -780,34 +780,73 @@ function CompanyProfileContent() {
                               </div>
                             </div>
   
-                            <div className="flex flex-1 items-center gap-2">
-                              <span className="shrink-0 text-[11.5px] text-muted-foreground">
-                                intervalo
-                              </span>
-                              <TimeInput
-                                aria-label={`Início do intervalo de ${day.label}`}
-                                value={day.breakStart || ""}
-                                onChange={(value) =>
-                                  updateDayHours(day.day, {
-                                    breakStart: value,
-                                  })
-                                }
-                                className="h-8 flex-1 rounded-md border-border bg-background px-2 text-[13px]"
-                              />
-                              <span className="shrink-0 text-[11.5px] text-muted-foreground">
-                                até
-                              </span>
-                              <TimeInput
-                                aria-label={`Fim do intervalo de ${day.label}`}
-                                value={day.breakEnd || ""}
-                                onChange={(value) =>
-                                  updateDayHours(day.day, {
-                                    breakEnd: value,
-                                  })
-                                }
-                                className="h-8 flex-1 rounded-md border-border bg-background px-2 text-[13px]"
-                              />
-                            </div>
+                            {/* Intervalo é opcional e nunca fica vazio
+                                pela metade: liga no "+ intervalo" e tira no
+                                "×", que limpa as duas pontas. */}
+                            {day.hasBreak || day.breakStart || day.breakEnd ? (
+                              <div className="flex flex-1 items-center gap-2">
+                                <span className="shrink-0 text-[11.5px] text-muted-foreground">
+                                  intervalo
+                                </span>
+                                <TimeInput
+                                  aria-label={`Início do intervalo de ${day.label}`}
+                                  value={day.breakStart || ""}
+                                  onChange={(value) =>
+                                    updateDayHours(day.day, {
+                                      breakStart: value,
+                                    })
+                                  }
+                                  className="h-8 flex-1 rounded-md border-border bg-background px-2 text-[13px]"
+                                />
+                                <span className="shrink-0 text-[11.5px] text-muted-foreground">
+                                  até
+                                </span>
+                                <TimeInput
+                                  aria-label={`Fim do intervalo de ${day.label}`}
+                                  value={day.breakEnd || ""}
+                                  onChange={(value) =>
+                                    updateDayHours(day.day, {
+                                      breakEnd: value,
+                                    })
+                                  }
+                                  className="h-8 flex-1 rounded-md border-border bg-background px-2 text-[13px]"
+                                />
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  aria-label={`Tirar intervalo de ${day.label}`}
+                                  onClick={() =>
+                                    updateDayHours(day.day, {
+                                      hasBreak: false,
+                                      breakStart: "",
+                                      breakEnd: "",
+                                    })
+                                  }
+                                  className="h-8 w-8 shrink-0 rounded-md text-muted-foreground"
+                                >
+                                  <X className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
+                            ) : (
+                              <div className="flex flex-1 items-center">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  aria-label={`Adicionar intervalo em ${day.label}`}
+                                  onClick={() =>
+                                    updateDayHours(day.day, { hasBreak: true })
+                                  }
+                                  className="h-8 rounded-md px-2 text-[11.5px] font-semibold text-muted-foreground"
+                                >
+                                  <span className="flex items-center gap-1">
+                                    <Plus className="h-3.5 w-3.5" />
+                                    intervalo
+                                  </span>
+                                </Button>
+                              </div>
+                            )}
                           </div>
                         ) : (
                           <span className="flex-1 text-[12.5px] text-muted-foreground">

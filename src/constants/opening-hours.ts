@@ -16,6 +16,11 @@ export interface DayHours {
   /** Intervalo (almoço), opcional. Vazio quando não há. */
   breakStart?: string;
   breakEnd?: string;
+  /**
+   * Intervalo ligado na tela ("+ intervalo"), mesmo antes de preencher.
+   * Só da tela: não vai para o back.
+   */
+  hasBreak?: boolean;
 }
 
 /** Ordem da semana como aparece na tela (segunda a domingo). */
@@ -127,6 +132,7 @@ export function toDayHours(raw: unknown): DayHours[] {
       closeTime,
       breakStart: hasBreak ? breakStart : "",
       breakEnd: hasBreak ? breakEnd : "",
+      hasBreak,
     });
   }
 
@@ -199,7 +205,11 @@ export function findOpeningHoursError(hours: DayHours[]): string | null {
       return `${day.label} não pode fechar às 00:00. Para fechar à meia-noite, use 23:59.`;
     }
 
-    if (Boolean(day.breakStart) !== Boolean(day.breakEnd)) {
+    // Ligar o intervalo e não preencher também barra: tirar é no "×".
+    if (
+      (day.hasBreak || day.breakStart || day.breakEnd) &&
+      !(day.breakStart && day.breakEnd)
+    ) {
       return `O intervalo de ${day.label} precisa de início e fim.`;
     }
   }
@@ -254,6 +264,7 @@ export function copyDayHours(
           closeTime: from.closeTime,
           breakStart: from.breakStart ?? "",
           breakEnd: from.breakEnd ?? "",
+          hasBreak: Boolean(from.breakStart && from.breakEnd),
         }
       : day,
   );

@@ -328,6 +328,39 @@ describe("Perfil da Empresa - layout novo", () => {
     expect(h.hours.updateDay).toHaveBeenCalledWith(0, { openTime: "10:00" });
   });
 
+  it("intervalo liga no + intervalo e sai no × (LDMF-351)", () => {
+    render(<CompanyProfilePage />);
+    const section = sectionOf("Horário de Funcionamento");
+
+    expect(
+      within(section).queryByRole("textbox", { name: "Início do intervalo de Segunda" }),
+    ).toBeNull();
+    fireEvent.click(
+      within(section).getByRole("button", { name: "Adicionar intervalo em Segunda" }),
+    );
+    expect(h.hours.updateDay).toHaveBeenCalledWith(0, { hasBreak: true });
+  });
+
+  it("× tira o intervalo limpando as duas pontas", () => {
+    const original = h.hours.hours;
+    h.hours.hours = [{ ...original[0], breakStart: "15:00", breakEnd: "16:00" }];
+    render(<CompanyProfilePage />);
+    const section = sectionOf("Horário de Funcionamento");
+
+    expect(
+      within(section).getByRole("textbox", { name: "Início do intervalo de Segunda" }),
+    ).toHaveValue("15:00");
+    fireEvent.click(
+      within(section).getByRole("button", { name: "Tirar intervalo de Segunda" }),
+    );
+    expect(h.hours.updateDay).toHaveBeenCalledWith(0, {
+      hasBreak: false,
+      breakStart: "",
+      breakEnd: "",
+    });
+    h.hours.hours = original;
+  });
+
   it("Alterar Senha fica no cabeçalho da seção e abre o formulário", () => {
     render(<CompanyProfilePage />);
     fireEvent.click(

@@ -203,6 +203,17 @@ describe("findOpeningHoursError", () => {
     expect(findOpeningHoursError([dia({ openTime: "00:00" })])).toBeNull();
   });
 
+  it("acusa intervalo ligado e não preenchido (LDMF-351)", () => {
+    expect(findOpeningHoursError([dia({ hasBreak: true })])).toContain(
+      "intervalo",
+    );
+    expect(
+      findOpeningHoursError([
+        dia({ hasBreak: true, breakStart: "15:00", breakEnd: "16:00" }),
+      ]),
+    ).toBeNull();
+  });
+
   it("acusa intervalo pela metade", () => {
     expect(findOpeningHoursError([dia({ breakStart: "14:00" })])).toContain(
       "intervalo",
