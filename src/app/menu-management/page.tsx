@@ -456,35 +456,10 @@ function MenuManagementContent() {
       title="Cardápio"
       icon={UtensilsCrossed}
       mainClassName="px-4 pb-20 pt-5 sm:px-6 md:pb-10 lg:pl-[252px] lg:pr-8 lg:pt-[26px]"
-      actions={
-        <>
-          <Button
-            asChild
-            variant="outline"
-            className="h-[34px] flex-1 cursor-pointer rounded-[9px] border-border bg-card px-3 text-[12.5px] font-bold text-foreground shadow-none transition-colors hover:border-brand-200 dark:hover:border-brand-800 hover:bg-card hover:text-brand-500 sm:flex-none"
-          >
-            <Link href="/company-profile">
-              <Building2 className="h-4 w-4" />
-              Perfil
-            </Link>
-          </Button>
-
-          <Button
-            onClick={() => {
-              resetImageState();
-              handleOpenCreateModal();
-            }}
-            className="h-[34px] flex-1 cursor-pointer rounded-[9px] bg-brand-500 px-4 text-[12.5px] font-extrabold text-white shadow-[0_4px_12px_var(--tw-shadow-color)] shadow-brand-500/25 transition-colors hover:bg-brand-600 sm:flex-none"
-          >
-            <Plus className="h-4 w-4" />
-            Adicionar Prato
-          </Button>
-        </>
-      }
     >
       <div className="mx-auto max-w-[1180px]">
-        <div className="mb-3 max-w-[420px]">
-          <div className="relative">
+        <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="relative w-full sm:max-w-[420px]">
             <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Buscar pratos..."
@@ -492,6 +467,31 @@ function MenuManagementContent() {
               onChange={(e) => setSearchQuery(e.target.value)}
               className="h-[38px] rounded-[10px] border-border bg-card pl-9 text-[12.5px] font-medium text-foreground shadow-none transition-colors placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-brand-500"
             />
+          </div>
+
+          {/* Desceram do header (LDMF-393): lá fica só o botão único. */}
+          <div className="flex items-center gap-2">
+            <Button
+              asChild
+              variant="outline"
+              className="h-[34px] flex-1 cursor-pointer rounded-[9px] border-border bg-card px-3 text-[12.5px] font-bold text-foreground shadow-none transition-colors hover:border-brand-200 dark:hover:border-brand-800 hover:bg-card hover:text-brand-500 sm:flex-none"
+            >
+              <Link href="/company-profile">
+                <Building2 className="h-4 w-4" />
+                Perfil
+              </Link>
+            </Button>
+
+            <Button
+              onClick={() => {
+                resetImageState();
+                handleOpenCreateModal();
+              }}
+              className="h-[34px] flex-1 cursor-pointer rounded-[9px] bg-brand-500 px-4 text-[12.5px] font-extrabold text-white shadow-[0_4px_12px_var(--tw-shadow-color)] shadow-brand-500/25 transition-colors hover:bg-brand-600 sm:flex-none"
+            >
+              <Plus className="h-4 w-4" />
+              Adicionar Prato
+            </Button>
           </div>
         </div>
 
