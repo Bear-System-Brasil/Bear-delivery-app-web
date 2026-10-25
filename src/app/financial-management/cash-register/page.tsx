@@ -354,7 +354,6 @@ export default function CashRegisterPage() {
   const {
     data: summary,
     isLoading: summaryLoading,
-    error: summaryError,
     refetch: refetchSummary,
   } = useCashMovementSummary();
 
@@ -576,6 +575,14 @@ export default function CashRegisterPage() {
   // são desconhecidos, não zero. Mostrar R$ 0,00 fazia o esperado na gaveta
   // virar só o fundo de troco e inventava sobra/falta no fechamento.
   const summaryUnavailable = !summaryLoading && !summary;
+  // Caixa de outro operador: o back recusa o resumo (403 "Operador não
+  // vinculado ao caixa aberto."). Dá pra explicar o motivo sem ler a mensagem
+  // do back, comparando quem abriu com quem está logado.
+  const summaryFromOtherOperator =
+    summaryUnavailable &&
+    !!register?.operatorId &&
+    !!user?.id &&
+    register.operatorId !== user.id;
   const summaryValue = (value: number) =>
     summaryUnavailable ? "—" : formatCurrency(value);
 
@@ -699,18 +706,29 @@ export default function CashRegisterPage() {
                 className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-[13px] text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
               >
                 <Info className="mt-0.5 h-4 w-4 shrink-0" />
-                <div>
-                  <div className="font-semibold">
-                    Não foi possível carregar o resumo do caixa
+                {summaryFromOtherOperator ? (
+                  <div>
+                    <div className="font-semibold">
+                      Este caixa foi aberto por {registerOperatorName}
+                    </div>
+                    <div className="mt-0.5 text-xs">
+                      Os totais e a conferência de fechamento só aparecem para
+                      quem abriu o caixa. O extrato de movimentos abaixo
+                      continua disponível.
+                    </div>
                   </div>
-                  <div className="mt-0.5 text-xs">
-                    {summaryError?.message
-                      ? `${summaryError.message} `
-                      : ""}
-                    Os totais e o esperado na gaveta ficam em “—” até o resumo
-                    carregar. Use Atualizar para tentar de novo.
+                ) : (
+                  <div>
+                    <div className="font-semibold">
+                      Não foi possível carregar os totais do caixa
+                    </div>
+                    <div className="mt-0.5 text-xs">
+                      Entradas, saídas, formas de pagamento e o esperado na
+                      gaveta ficam em “—” até carregar. Toque em Atualizar para
+                      tentar de novo.
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             )}
 

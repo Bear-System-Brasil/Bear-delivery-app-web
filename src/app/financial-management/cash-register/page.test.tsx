@@ -82,6 +82,7 @@ const SUMMARY = {
 };
 
 const initialPreferences = useFinancialPreferencesStore.getState();
+const initialAuthState = useAuthStore.getState();
 
 beforeEach(() => {
   h.register.data = null;
@@ -301,8 +302,26 @@ describe("Controle de Caixa - resumo indisponível (LDMF-427)", () => {
     ]);
     rows.forEach((r) => expect(r).not.toHaveTextContent("R$"));
     expect(screen.getByRole("alert")).toHaveTextContent(
-      "Operador não vinculado ao caixa aberto.",
+      "Não foi possível carregar os totais do caixa",
     );
+  });
+
+  it("caixa de outro operador: explica quem abriu, sem a mensagem técnica do back", () => {
+    useAuthStore.setState({ user: { id: "dono", name: "Dono" } as never });
+    h.register.data = {
+      ...OPEN_REGISTER,
+      operatorId: "op1",
+      operator: { id: "op1", name: "Fogo e braza" },
+    };
+    h.summary.data = undefined;
+    h.summary.error = new Error("Operador não vinculado ao caixa aberto.");
+    render(<CashRegisterPage />);
+
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("Este caixa foi aberto por Fogo e braza");
+    expect(alert).not.toHaveTextContent("não vinculado");
+    expect(paymentRows()).toHaveLength(4);
+    useAuthStore.setState(initialAuthState, true);
   });
 
   it("sem resumo (404), não mostra zero falso em Entradas nem no esperado", () => {
