@@ -174,7 +174,10 @@ describe("Perfil da Empresa - layout novo", () => {
       ["Segurança", "Alterar sua senha de acesso"],
     ]) {
       const section = sectionOf(title);
-      expect(within(section).getByText(`· ${subtitle}`)).toBeInTheDocument();
+      // Card estreito mostra o subtítulo embaixo do título, sem o "·".
+      expect(
+        within(section).getByText(new RegExp(`^(· )?${subtitle}$`)),
+      ).toBeInTheDocument();
     }
   });
 
@@ -182,7 +185,7 @@ describe("Perfil da Empresa - layout novo", () => {
     render(<CompanyProfilePage />);
     const section = sectionOf("Tipo de restaurante");
 
-    expect(within(section).getByText("· até 3 — o que o cliente vê no app"));
+    expect(within(section).getByText("até 3 — o que o cliente vê no app"));
     expect(within(section).getAllByRole("combobox")).toHaveLength(3);
     // O tipo já escolhido aparece no 1º campo e como etiqueta no resumo.
     expect(within(section).getByRole("combobox", { name: "1º tipo" }))

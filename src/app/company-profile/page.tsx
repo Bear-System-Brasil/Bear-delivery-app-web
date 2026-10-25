@@ -81,11 +81,17 @@ function SectionCard({
   actions,
   children,
   className,
+  subtitleBelow = false,
 }: {
   icon: LucideIcon;
   title: string;
   subtitle: string;
   actions?: ReactNode;
+  /**
+   * Subtítulo numa linha própria, embaixo do título. Para card estreito:
+   * ao lado do título ele quebrava e empurrava o Salvar para baixo.
+   */
+  subtitleBelow?: boolean;
   children?: ReactNode;
   className?: string;
 }) {
@@ -102,13 +108,25 @@ function SectionCard({
           children !== undefined && "border-b border-border",
         )}
       >
-        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
-          <Icon className="h-4 w-4 shrink-0 text-brand-500" />
-          <h2 className="text-[13.5px] font-semibold text-foreground">
-            {title}
-          </h2>
-          <span className="text-xs text-muted-foreground">· {subtitle}</span>
-        </div>
+        {subtitleBelow ? (
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <Icon className="h-4 w-4 shrink-0 text-brand-500" />
+              <h2 className="text-[13.5px] font-semibold text-foreground">
+                {title}
+              </h2>
+            </div>
+            <p className="mt-0.5 text-xs text-muted-foreground">{subtitle}</p>
+          </div>
+        ) : (
+          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
+            <Icon className="h-4 w-4 shrink-0 text-brand-500" />
+            <h2 className="text-[13.5px] font-semibold text-foreground">
+              {title}
+            </h2>
+            <span className="text-xs text-muted-foreground">· {subtitle}</span>
+          </div>
+        )}
         {/* ml-auto segura as ações à direita mesmo quando elas quebram pra
             uma linha só delas no mobile — sem isso "Salvar" caía à esquerda,
             diferente do desktop. */}
@@ -513,121 +531,126 @@ function CompanyProfileContent() {
               )}
             </SectionCard>
 
-            {/* Tipo de restaurante (até 3) — LDMF-395. Saiu das Informações
-                e virou seção própria. Salva no botão, como as outras. */}
-            <SectionCard
-              icon={UtensilsCrossed}
-              title="Tipo de restaurante"
-              subtitle={`até ${MAX_SPECIALTIES} — o que o cliente vê no app`}
-              className="mb-4"
-              actions={
-                availableSpecialties.length === 0 ? undefined : (
-                  <div className="flex gap-2">
-                    {hasSpecialtyChanges && (
+            {/* No PC, Horário na coluna da esquerda e, à direita, Tipo de
+                restaurante e Formas de Pagamento. Com o horário na largura
+                toda os campos esticavam e sobrava um vão no meio da linha.
+                No celular a ordem continua a do código: Tipo, Horário,
+                Pagamento (LDMF-351). */}
+            <div className="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] lg:grid-rows-[auto_1fr] lg:items-start">
+              {/* Tipo de restaurante (até 3) — LDMF-395. Saiu das Informações
+                  e virou seção própria. Salva no botão, como as outras. */}
+              <SectionCard
+                icon={UtensilsCrossed}
+                title="Tipo de restaurante"
+                subtitle={`até ${MAX_SPECIALTIES} — o que o cliente vê no app`}
+                subtitleBelow
+                className="lg:col-start-2 lg:row-start-1"
+                actions={
+                  availableSpecialties.length === 0 ? undefined : (
+                    <div className="flex gap-2">
+                      {hasSpecialtyChanges && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={discardSpecialtyChanges}
+                          disabled={isSavingSpecialty}
+                          className="h-8 rounded-md px-3 text-xs font-semibold"
+                        >
+                          Descartar
+                        </Button>
+                      )}
                       <Button
                         size="sm"
-                        variant="ghost"
-                        onClick={discardSpecialtyChanges}
-                        disabled={isSavingSpecialty}
-                        className="h-8 rounded-md px-3 text-xs font-semibold"
+                        variant="secondary"
+                        onClick={handleSaveSpecialties}
+                        disabled={isSavingSpecialty || !hasSpecialtyChanges}
+                        className="h-8 rounded-md px-3.5 text-xs font-semibold"
                       >
-                        Descartar
-                      </Button>
-                    )}
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={handleSaveSpecialties}
-                      disabled={isSavingSpecialty || !hasSpecialtyChanges}
-                      className="h-8 rounded-md px-3.5 text-xs font-semibold"
-                    >
-                      <div className="flex gap-2">
-                        <Save className="h-3.5 w-3.5" />
-                        {isSavingSpecialty ? "Salvando..." : "Salvar"}
-                      </div>
-                    </Button>
-                  </div>
-                )
-              }
-            >
-              {isLoadingProfile ? (
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                  {[0, 1, 2].map((i) => (
-                    <Skeleton key={i} className="h-9 w-full rounded-md" />
-                  ))}
-                </div>
-              ) : availableSpecialties.length === 0 ? (
-                <SectionNotice tone="warning">
-                  Nenhum tipo de restaurante cadastrado no sistema ainda.
-                </SectionNotice>
-              ) : (
-                <>
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                    {[0, 1, 2].map((slot) => {
-                      const currentId = specialtyDraft[slot] ?? "";
-                      // Esconde dos outros campos o que já está escolhido no
-                      // rascunho, pra não repetir a mesma especialidade.
-                      const takenByOthers = specialtyDraft.filter(
-                        (id, j) => j !== slot && id,
-                      );
-                      const options = availableSpecialties.filter(
-                        (s) => !takenByOthers.includes(s.id),
-                      );
-                      return (
-                        <div key={slot}>
-                          <Label className="mb-1.5 block text-xs font-semibold text-foreground">
-                            {slot + 1}º tipo
-                          </Label>
-                          <Select
-                            value={currentId}
-                            onValueChange={(value) =>
-                              setSpecialtySlot(
-                                slot,
-                                value === NONE_SPECIALTY ? "" : value,
-                              )
-                            }
-                            disabled={isSavingSpecialty}
-                          >
-                            <SelectTrigger
-                              aria-label={`${slot + 1}º tipo`}
-                              className="h-9 rounded-md border-border bg-background text-[13px] font-medium"
-                            >
-                              <SelectValue placeholder="Opcional" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {currentId && (
-                                <SelectItem value={NONE_SPECIALTY}>
-                                  — Remover —
-                                </SelectItem>
-                              )}
-                              {options.map((item) => (
-                                <SelectItem key={item.id} value={item.id}>
-                                  {item.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                        <div className="flex gap-2">
+                          <Save className="h-3.5 w-3.5" />
+                          {isSavingSpecialty ? "Salvando..." : "Salvar"}
                         </div>
-                      );
-                    })}
+                      </Button>
+                    </div>
+                  )
+                }
+              >
+                {isLoadingProfile ? (
+                  <div className="grid grid-cols-1 gap-3 @lg:grid-cols-3">
+                    {[0, 1, 2].map((i) => (
+                      <Skeleton key={i} className="h-9 w-full rounded-md" />
+                    ))}
                   </div>
-                  <p className="mt-2.5 text-[11.5px] text-muted-foreground">
-                    Escolha os tipos e clique em Salvar. Até {MAX_SPECIALTIES}{" "}
-                    tipos.
-                  </p>
-                </>
-              )}
-            </SectionCard>
+                ) : availableSpecialties.length === 0 ? (
+                  <SectionNotice tone="warning">
+                    Nenhum tipo de restaurante cadastrado no sistema ainda.
+                  </SectionNotice>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-1 gap-3 @lg:grid-cols-3">
+                      {[0, 1, 2].map((slot) => {
+                        const currentId = specialtyDraft[slot] ?? "";
+                        // Esconde dos outros campos o que já está escolhido no
+                        // rascunho, pra não repetir a mesma especialidade.
+                        const takenByOthers = specialtyDraft.filter(
+                          (id, j) => j !== slot && id,
+                        );
+                        const options = availableSpecialties.filter(
+                          (s) => !takenByOthers.includes(s.id),
+                        );
+                        return (
+                          <div key={slot}>
+                            <Label className="mb-1.5 block text-xs font-semibold text-foreground">
+                              {slot + 1}º tipo
+                            </Label>
+                            <Select
+                              value={currentId}
+                              onValueChange={(value) =>
+                                setSpecialtySlot(
+                                  slot,
+                                  value === NONE_SPECIALTY ? "" : value,
+                                )
+                              }
+                              disabled={isSavingSpecialty}
+                            >
+                              <SelectTrigger
+                                aria-label={`${slot + 1}º tipo`}
+                                className="h-9 rounded-md border-border bg-background text-[13px] font-medium"
+                              >
+                                <SelectValue placeholder="Opcional" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {currentId && (
+                                  <SelectItem value={NONE_SPECIALTY}>
+                                    — Remover —
+                                  </SelectItem>
+                                )}
+                                {options.map((item) => (
+                                  <SelectItem key={item.id} value={item.id}>
+                                    {item.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <p className="mt-2.5 text-[11.5px] text-muted-foreground">
+                      Escolha os tipos e clique em Salvar. Até {MAX_SPECIALTIES}{" "}
+                      tipos.
+                    </p>
+                  </>
+                )}
+              </SectionCard>
 
-            {/* Horário e Formas de Pagamento lado a lado no PC: com o
-                horário ocupando a largura toda, os campos esticavam e
-                sobrava um vão no meio da linha (LDMF-351). */}
-            <div className="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] lg:items-start">
               {/* Horário de Funcionamento */}
               <SectionCard
                 icon={Clock}
                 title="Horário de Funcionamento"
                 subtitle="Dias e horários em que a loja aceita pedidos"
+                subtitleBelow
+                className="lg:col-start-1 lg:row-span-2 lg:row-start-1"
                 actions={
                   <div className="flex gap-2">
                     {hasHoursChanges && (
@@ -872,6 +895,8 @@ function CompanyProfileContent() {
                 icon={CreditCard}
                 title="Formas de Pagamento"
                 subtitle="O checkout só oferece ao cliente as formas marcadas"
+                subtitleBelow
+                className="lg:col-start-2 lg:row-start-2"
                 actions={
                   <div className="flex gap-2">
                     {hasPaymentMethodsChanges && (
