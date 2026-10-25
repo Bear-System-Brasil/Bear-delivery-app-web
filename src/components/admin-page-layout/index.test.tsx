@@ -149,4 +149,18 @@ describe("AdminPageLayout - header padronizado (LDMF-392)", () => {
       ),
     ).toBeInTheDocument();
   });
+
+  it("com fillViewport, o main ocupa o que sobra abaixo do header", () => {
+    render(
+      <AdminPageLayout title="Cozinha" icon={Settings} fillViewport>
+        conteúdo
+      </AdminPageLayout>,
+    );
+
+    // A Cozinha descontava 52px fixos e o header real tem 61/65px: a página
+    // rolava. Agora o main é flex e encolhe (min-h-0) no espaço que sobra.
+    const main = screen.getByRole("main");
+    expect(main).toHaveClass("flex", "min-h-0", "flex-col");
+    expect(main.parentElement).toHaveClass("h-dvh", "overflow-hidden");
+  });
 });

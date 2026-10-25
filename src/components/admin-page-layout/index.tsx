@@ -38,6 +38,12 @@ interface AdminPageLayoutProps {
   help?: ReactNode;
   children: ReactNode;
   mainClassName?: string;
+  /**
+   * Trava a página na altura da janela: o main ocupa o que sobra abaixo do
+   * header, seja qual for a altura dele. Pra telas que rolam só por dentro
+   * (Cozinha), em vez de descontar uma altura fixa de header.
+   */
+  fillViewport?: boolean;
 }
 
 const headerButtonClass =
@@ -51,6 +57,7 @@ export function AdminPageLayout({
   help,
   children,
   mainClassName,
+  fillViewport = false,
 }: AdminPageLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -62,7 +69,14 @@ export function AdminPageLayout({
     <>
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      <div className="flex min-h-screen flex-col bg-muted text-foreground">
+      <div
+        className={cn(
+          "flex flex-col bg-muted text-foreground",
+          fillViewport
+            ? "h-dvh overflow-hidden print:h-auto print:overflow-visible"
+            : "min-h-screen",
+        )}
+      >
         <header className="sticky top-0 z-10 border-b bg-card print:hidden lg:pl-64">
           {/* Uma linha só em todas as larguras: o botão da tela vira só
               ícone no mobile, pra não empurrar o sino pra baixo. */}
@@ -127,7 +141,13 @@ export function AdminPageLayout({
           </div>
         </header>
 
-        <main className={cn("flex-1 pb-20 md:pb-10 lg:pl-64", mainClassName)}>
+        <main
+          className={cn(
+            "flex-1 pb-20 md:pb-10 lg:pl-64",
+            fillViewport && "flex min-h-0 flex-col",
+            mainClassName,
+          )}
+        >
           {children}
         </main>
       </div>
