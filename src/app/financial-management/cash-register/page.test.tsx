@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { useFinancialPreferencesStore } from "@/stores";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { useAuthStore, useFinancialPreferencesStore } from "@/stores";
 import CashRegisterPage from "./page";
 
 /**
@@ -332,5 +332,40 @@ describe("Controle de Caixa - resumo indisponível (LDMF-427)", () => {
       "Sem o resumo do caixa não dá pra calcular a diferença.",
     );
     expect(dialog).not.toHaveTextContent(/Sobra de|Falta de/);
+  });
+});
+
+describe("Controle de Caixa - operador da faixa (LDMF-427)", () => {
+  const initialAuth = useAuthStore.getState();
+  afterEach(() => useAuthStore.setState(initialAuth, true));
+
+  function operatorText() {
+    return screen.getByText("Operador").parentElement!.textContent;
+  }
+
+  it("mostra quem abriu o caixa, não o usuário logado", () => {
+    useAuthStore.setState({ user: { id: "dono", name: "Dono Logado" } as never });
+    h.register.data = {
+      ...OPEN_REGISTER,
+      operatorId: "op1",
+      operator: { id: "op1", name: "Operador do Turno" },
+    };
+    render(<CashRegisterPage />);
+
+    expect(operatorText()).toContain("Operador do Turno");
+    expect(operatorText()).not.toContain("Dono Logado");
+  });
+
+  it("sem operator na resposta, usa o logado só se foi ele quem abriu", () => {
+    useAuthStore.setState({ user: { id: "op1", name: "Operador Logado" } as never });
+    h.register.data = { ...OPEN_REGISTER, operatorId: "op1" };
+    const { unmount } = render(<CashRegisterPage />);
+    expect(operatorText()).toContain("Operador Logado");
+    unmount();
+
+    h.register.data = { ...OPEN_REGISTER, operatorId: "outro" };
+    render(<CashRegisterPage />);
+    expect(operatorText()).not.toContain("Operador Logado");
+    expect(operatorText()).toContain("—");
   });
 });

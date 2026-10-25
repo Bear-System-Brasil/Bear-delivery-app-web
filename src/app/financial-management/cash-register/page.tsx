@@ -560,6 +560,15 @@ export default function CashRegisterPage() {
   //
   // Não usar `availableBalance`: ele soma todos os métodos (cartão e pix
   // entram nele), então inflava a gaveta com dinheiro que não está nela.
+  // Operador é quem abriu o caixa, não quem está logado: o dono vendo o caixa
+  // de outro operador via o próprio nome na faixa. Sem `operator` na resposta,
+  // o usuário logado só serve se for ele mesmo quem abriu.
+  const registerOperatorName =
+    register?.operator?.name ||
+    (register?.operatorId && register.operatorId === user?.id
+      ? user?.name
+      : undefined) ||
+    "—";
   const registerOpeningBalance = register?.openingBalance ?? 0;
   const netCash = summary?.totalCash ?? 0;
   const expectedInDrawer = registerOpeningBalance + netCash;
@@ -643,7 +652,7 @@ export default function CashRegisterPage() {
                 <span className="whitespace-nowrap">
                   <span className="text-muted-foreground">Operador </span>
                   <span className="font-semibold text-foreground">
-                    {user?.name || "—"}
+                    {registerOperatorName}
                   </span>
                 </span>
                 <span className="whitespace-nowrap">
