@@ -165,6 +165,14 @@ function MenuManagementContent() {
     }));
   }, [products]);
 
+  // Contadores da lista exibida (respeitam busca e categoria selecionada),
+  // no mesmo padrao das outras telas do design novo.
+  const dishCount = filteredDishes.length;
+  const availableCount = useMemo(
+    () => filteredDishes.filter((dish) => dish.available !== false).length,
+    [filteredDishes],
+  );
+
   const allCategories = useMemo(() => {
     return [{ id: "all", name: "Todas" }, ...categories];
   }, [categories]);
@@ -483,8 +491,12 @@ function MenuManagementContent() {
       }
     >
       <div className="mx-auto max-w-[1180px]">
-        <div className="mb-3 max-w-[420px]">
-          <div className="relative">
+        <p className="mb-3 text-[12.5px] font-medium text-muted-foreground">
+          Pratos e itens que o cliente vê no app
+        </p>
+
+        <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="relative w-full max-w-[420px]">
             <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Buscar pratos..."
@@ -492,6 +504,16 @@ function MenuManagementContent() {
               onChange={(e) => setSearchQuery(e.target.value)}
               className="h-[38px] rounded-[10px] border-border bg-card pl-9 text-[12.5px] font-medium text-foreground shadow-none transition-colors placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-brand-500"
             />
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="rounded-xl border border-border bg-card px-2.5 py-1 text-[11.5px] font-bold text-foreground">
+              {dishCount} {dishCount === 1 ? "prato" : "pratos"}
+            </span>
+            <span className="rounded-xl bg-muted px-2.5 py-1 text-[11.5px] font-bold text-muted-foreground">
+              {availableCount}{" "}
+              {availableCount === 1 ? "disponível" : "disponíveis"}
+            </span>
           </div>
         </div>
 
