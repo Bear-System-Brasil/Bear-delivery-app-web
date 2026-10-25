@@ -21,8 +21,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useCategoryManagement } from "@/hooks";
+import { cn } from "@/lib/utils";
 import {
   CalendarDays,
   Edit,
@@ -38,6 +40,58 @@ import { useMemo } from "react";
 
 function formatDate(date: string) {
   return new Date(date).toLocaleDateString("pt-BR");
+}
+
+/**
+ * Status real da categoria no app (LDMF-442): o switch esconde/exibe a
+ * categoria marcando todos os produtos dela como (in)disponíveis. Categoria
+ * sem item não tem o que esconder, então só mostra "Sem itens".
+ */
+function CategoryStatusToggle({
+  count,
+  active,
+  toggling,
+  name,
+  onToggle,
+}: {
+  count: number;
+  active: boolean;
+  toggling: boolean;
+  name: string;
+  onToggle: () => void;
+}) {
+  if (count === 0) {
+    return (
+      <span className="inline-flex rounded-[6px] bg-muted px-2 py-0.5 text-[10.5px] font-bold text-muted-foreground">
+        Sem itens
+      </span>
+    );
+  }
+
+  return (
+    <label
+      title={
+        active
+          ? "Esconder categoria do app (deixa os itens indisponíveis)"
+          : "Exibir categoria no app"
+      }
+      className={cn(
+        "inline-flex cursor-pointer items-center gap-1.5 text-[11px] font-bold",
+        active
+          ? "text-emerald-700 dark:text-emerald-400"
+          : "text-muted-foreground",
+        toggling && "cursor-wait opacity-70",
+      )}
+    >
+      <Switch
+        checked={active}
+        onCheckedChange={onToggle}
+        disabled={toggling}
+        aria-label={`${active ? "Esconder" : "Exibir"} categoria ${name} no app`}
+      />
+      {toggling ? "Salvando..." : active ? "Ativa" : "Oculta"}
+    </label>
+  );
 }
 
 function CategoryManagementContent() {
@@ -62,11 +116,27 @@ function CategoryManagementContent() {
     updateFormField,
     isSaving,
     isDeleting,
+    categoryStatusMap,
+    hasCategoryProductData,
+    togglingCategoryId,
+    handleToggleCategoryActive,
   } = useCategoryManagement();
 
-  const previewCategories = useMemo(
-    () => allCategories.slice(0, 10),
-    [allCategories],
+  // A prévia espelha o que o cliente vê: só as categorias ativas (com item
+  // disponível). Enquanto os produtos não chegam, mostra todas pra não piscar
+  // vazio.
+  const previewCategories = useMemo(() => {
+    if (!hasCategoryProductData) return allCategories.slice(0, 10);
+    return allCategories
+      .filter((category) => categoryStatusMap[category.id]?.active)
+      .slice(0, 10);
+  }, [allCategories, categoryStatusMap, hasCategoryProductData]);
+
+  const activeCount = useMemo(
+    () =>
+      allCategories.filter((category) => categoryStatusMap[category.id]?.active)
+        .length,
+    [allCategories, categoryStatusMap],
   );
 
   return (
@@ -100,6 +170,11 @@ function CategoryManagementContent() {
             <span className="rounded-xl border border-border bg-card px-2.5 py-1 text-[11.5px] font-bold text-foreground">
               {allCategories.length} categorias
             </span>
+            {hasCategoryProductData && (
+              <span className="rounded-xl bg-emerald-50 px-2.5 py-1 text-[11.5px] font-bold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
+                {activeCount} ativas
+              </span>
+            )}
             <span className="rounded-xl border border-border bg-card px-2.5 py-1 text-[11.5px] font-bold text-foreground">
               {filteredCategories.length} exibidas
             </span>
@@ -167,9 +242,17 @@ function CategoryManagementContent() {
                       <span className="text-[11px] font-extrabold text-muted-foreground">
                         #{String(index + 1).padStart(2, "0")}
                       </span>
-                      <span className="rounded-[6px] bg-muted px-2 py-0.5 text-[10.5px] font-bold text-muted-foreground md:hidden">
-                        Cadastrada
-                      </span>
+                      <div className="md:hidden">
+                        <CategoryStatusToggle
+                          count={categoryStatusMap[category.id]?.count ?? 0}
+                          active={
+                            categoryStatusMap[category.id]?.active ?? false
+                          }
+                          toggling={togglingCategoryId === category.id}
+                          name={category.name}
+                          onToggle={() => handleToggleCategoryActive(category)}
+                        />
+                      </div>
                     </div>
 
                     <div className="min-w-0">
@@ -192,9 +275,13 @@ function CategoryManagementContent() {
                     </div>
 
                     <div className="hidden md:block">
-                      <span className="inline-flex rounded-[6px] bg-muted px-2 py-0.5 text-[10.5px] font-bold text-muted-foreground">
-                        Cadastrada
-                      </span>
+                      <CategoryStatusToggle
+                        count={categoryStatusMap[category.id]?.count ?? 0}
+                        active={categoryStatusMap[category.id]?.active ?? false}
+                        toggling={togglingCategoryId === category.id}
+                        name={category.name}
+                        onToggle={() => handleToggleCategoryActive(category)}
+                      />
                     </div>
 
                     <div className="flex justify-end gap-1.5">
