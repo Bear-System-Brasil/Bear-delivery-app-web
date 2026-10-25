@@ -2,7 +2,6 @@
 
 import { AdminPageLayout } from "@/components/admin-page-layout"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { apiService, MAX_PAGE_LIMIT } from "@/services/api"
@@ -10,7 +9,7 @@ import { Order } from "@/services/api"
 import { formatCurrency, getCustomerDisplayName } from "@/utils"
 import { useAuthStore } from "@/stores"
 import { useQuery } from "@tanstack/react-query"
-import { ClipboardList, RefreshCw } from "lucide-react"
+import { ClipboardList } from "lucide-react"
 import { useMemo, useState } from "react"
 
 const STATUS_LABELS: Record<string, string> = {
@@ -51,7 +50,7 @@ export default function OrdersPage() {
   const { isAuthenticated } = useAuthStore()
   const [filterStatus, setFilterStatus] = useState<FilterStatus>("ALL")
 
-  const { data: orders = [], isLoading, refetch } = useQuery({
+  const { data: orders = [], isLoading, isFetching, refetch } = useQuery({
     queryKey: ["financial", "orders"],
     queryFn: async () => {
       // Filtro de status e cards de resumo dependem da base inteira -
@@ -92,20 +91,15 @@ export default function OrdersPage() {
 
   return (
     <AdminPageLayout
-      title="Pedidos da Empresa"
+      title="Pedidos"
       icon={ClipboardList}
       mainClassName="p-4 pb-20 sm:p-6 md:pb-10 lg:pl-64 lg:pr-8"
-      actions={
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => refetch()}
-          className="rounded-xl gap-2"
-        >
-          <RefreshCw className="h-4 w-4" />
-          Atualizar
-        </Button>
-      }
+      action={{
+        label: "Atualizar",
+        busyLabel: "Atualizando...",
+        onClick: () => refetch(),
+        busy: isFetching,
+      }}
     >
       <div className="max-w-7xl mx-auto space-y-6">
 
