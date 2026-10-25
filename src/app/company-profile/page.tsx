@@ -3,6 +3,7 @@
 import { AdminPageLayout } from "@/components/admin-page-layout";
 import { CompanyCoverUpload } from "@/components/company-cover-upload";
 import { CompanyLogoUpload } from "@/components/company-logo-upload";
+import { OpeningHoursCopy } from "@/components/opening-hours-copy";
 import ProtectedRoute from "@/components/protected-route";
 import { TimeInput } from "@/components/time-input";
 import { Button } from "@/components/ui/button";
@@ -227,6 +228,7 @@ function CompanyProfileContent() {
     hasChanges: hasHoursChanges,
     persistedDays,
     updateDay: updateDayHours,
+    copyHours,
     discardChanges: discardHoursChanges,
     handleSaveHours,
     isSavingHours,
@@ -698,122 +700,124 @@ function CompanyProfileContent() {
                   ))}
                 </div>
               ) : (
-                <div className="divide-y divide-border overflow-hidden rounded-md border border-border">
-                  {openingHours.map((day) => (
-                    <div
-                      key={day.day}
-                      className="flex flex-wrap items-center gap-2.5 px-3 py-2 sm:flex-nowrap"
-                    >
-                      {/* Trava só o que já existe no servidor: o PUT é upsert
-                          e não apaga, então desmarcar um dia salvo não teria
-                          efeito e o dono acharia que fechou. Dia que ele
-                          acabou de marcar aqui ainda não existe lá -
-                          desmarcar é só não criar, e isso pode. */}
-                      <label
-                        className={cn(
-                          "flex w-[100px] shrink-0 items-center gap-2",
-                          persistedDays.includes(day.day)
-                            ? "cursor-default"
-                            : "cursor-pointer",
-                        )}
-                        title={
-                          persistedDays.includes(day.day)
-                            ? "Fechar um dia já cadastrado depende de uma rota que o backend ainda não tem"
-                            : undefined
-                        }
+                <OpeningHoursCopy hours={openingHours} onCopy={copyHours}>
+                  <div className="divide-y divide-border overflow-hidden rounded-md border border-border">
+                    {openingHours.map((day) => (
+                      <div
+                        key={day.day}
+                        className="flex flex-wrap items-center gap-2.5 px-3 py-2 sm:flex-nowrap"
                       >
-                        <Checkbox
-                          checked={day.isOpen}
-                          disabled={persistedDays.includes(day.day)}
-                          onCheckedChange={(checked) =>
-                            updateDayHours(day.day, {
-                              isOpen: checked === true,
-                            })
-                          }
-                          className="h-4 w-4 border-border data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
-                        />
-                        <span
+                        {/* Trava só o que já existe no servidor: o PUT é upsert
+                            e não apaga, então desmarcar um dia salvo não teria
+                            efeito e o dono acharia que fechou. Dia que ele
+                            acabou de marcar aqui ainda não existe lá -
+                            desmarcar é só não criar, e isso pode. */}
+                        <label
                           className={cn(
-                            "text-[13px] font-semibold",
-                            day.isOpen ? "text-foreground" : "text-muted-foreground",
+                            "flex w-[100px] shrink-0 items-center gap-2",
+                            persistedDays.includes(day.day)
+                              ? "cursor-default"
+                              : "cursor-pointer",
                           )}
+                          title={
+                            persistedDays.includes(day.day)
+                              ? "Fechar um dia já cadastrado depende de uma rota que o backend ainda não tem"
+                              : undefined
+                          }
                         >
-                          {day.label}
-                        </span>
-                      </label>
+                          <Checkbox
+                            checked={day.isOpen}
+                            disabled={persistedDays.includes(day.day)}
+                            onCheckedChange={(checked) =>
+                              updateDayHours(day.day, {
+                                isOpen: checked === true,
+                              })
+                            }
+                            className="h-4 w-4 border-border data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
+                          />
+                          <span
+                            className={cn(
+                              "text-[13px] font-semibold",
+                              day.isOpen ? "text-foreground" : "text-muted-foreground",
+                            )}
+                          >
+                            {day.label}
+                          </span>
+                        </label>
   
-                      {day.isOpen ? (
-                        <div className="flex flex-1 flex-col gap-2 lg:flex-row lg:items-center">
-                          <div className="flex flex-1 items-center gap-2">
-                            <div className="relative flex-1">
-                              <Clock className="pointer-events-none absolute left-[9px] top-1/2 h-[13px] w-[13px] -translate-y-1/2 text-muted-foreground" />
-                              <TimeInput
-                                aria-label={`Abertura de ${day.label}`}
-                                value={day.openTime}
-                                onChange={(value) =>
-                                  updateDayHours(day.day, {
-                                    openTime: value,
-                                  })
-                                }
-                                className="h-8 rounded-md border-border bg-background pl-7 pr-2 text-[13px]"
-                              />
+                        {day.isOpen ? (
+                          <div className="flex flex-1 flex-col gap-2 lg:flex-row lg:items-center">
+                            <div className="flex flex-1 items-center gap-2">
+                              <div className="relative flex-1">
+                                <Clock className="pointer-events-none absolute left-[9px] top-1/2 h-[13px] w-[13px] -translate-y-1/2 text-muted-foreground" />
+                                <TimeInput
+                                  aria-label={`Abertura de ${day.label}`}
+                                  value={day.openTime}
+                                  onChange={(value) =>
+                                    updateDayHours(day.day, {
+                                      openTime: value,
+                                    })
+                                  }
+                                  className="h-8 rounded-md border-border bg-background pl-7 pr-2 text-[13px]"
+                                />
+                              </div>
+                              <span className="shrink-0 text-[11.5px] text-muted-foreground">
+                                até
+                              </span>
+                              <div className="relative flex-1">
+                                <Clock className="pointer-events-none absolute left-[9px] top-1/2 h-[13px] w-[13px] -translate-y-1/2 text-muted-foreground" />
+                                <TimeInput
+                                  aria-label={`Fechamento de ${day.label}`}
+                                  value={day.closeTime}
+                                  invalid={isMidnightClose(day.closeTime)}
+                                  onChange={(value) =>
+                                    updateDayHours(day.day, {
+                                      closeTime: value,
+                                    })
+                                  }
+                                  className="h-8 rounded-md border-border bg-background pl-7 pr-2 text-[13px]"
+                                />
+                              </div>
                             </div>
-                            <span className="shrink-0 text-[11.5px] text-muted-foreground">
-                              até
-                            </span>
-                            <div className="relative flex-1">
-                              <Clock className="pointer-events-none absolute left-[9px] top-1/2 h-[13px] w-[13px] -translate-y-1/2 text-muted-foreground" />
+  
+                            <div className="flex flex-1 items-center gap-2">
+                              <span className="shrink-0 text-[11.5px] text-muted-foreground">
+                                intervalo
+                              </span>
                               <TimeInput
-                                aria-label={`Fechamento de ${day.label}`}
-                                value={day.closeTime}
-                                invalid={isMidnightClose(day.closeTime)}
+                                aria-label={`Início do intervalo de ${day.label}`}
+                                value={day.breakStart || ""}
                                 onChange={(value) =>
                                   updateDayHours(day.day, {
-                                    closeTime: value,
+                                    breakStart: value,
                                   })
                                 }
-                                className="h-8 rounded-md border-border bg-background pl-7 pr-2 text-[13px]"
+                                className="h-8 flex-1 rounded-md border-border bg-background px-2 text-[13px]"
+                              />
+                              <span className="shrink-0 text-[11.5px] text-muted-foreground">
+                                até
+                              </span>
+                              <TimeInput
+                                aria-label={`Fim do intervalo de ${day.label}`}
+                                value={day.breakEnd || ""}
+                                onChange={(value) =>
+                                  updateDayHours(day.day, {
+                                    breakEnd: value,
+                                  })
+                                }
+                                className="h-8 flex-1 rounded-md border-border bg-background px-2 text-[13px]"
                               />
                             </div>
                           </div>
-  
-                          <div className="flex flex-1 items-center gap-2">
-                            <span className="shrink-0 text-[11.5px] text-muted-foreground">
-                              intervalo
-                            </span>
-                            <TimeInput
-                              aria-label={`Início do intervalo de ${day.label}`}
-                              value={day.breakStart || ""}
-                              onChange={(value) =>
-                                updateDayHours(day.day, {
-                                  breakStart: value,
-                                })
-                              }
-                              className="h-8 flex-1 rounded-md border-border bg-background px-2 text-[13px]"
-                            />
-                            <span className="shrink-0 text-[11.5px] text-muted-foreground">
-                              até
-                            </span>
-                            <TimeInput
-                              aria-label={`Fim do intervalo de ${day.label}`}
-                              value={day.breakEnd || ""}
-                              onChange={(value) =>
-                                updateDayHours(day.day, {
-                                  breakEnd: value,
-                                })
-                              }
-                              className="h-8 flex-1 rounded-md border-border bg-background px-2 text-[13px]"
-                            />
-                          </div>
-                        </div>
-                      ) : (
-                        <span className="flex-1 text-[12.5px] text-muted-foreground">
-                          Fechado
-                        </span>
-                      )}
-                    </div>
-                  ))}
-                </div>
+                        ) : (
+                          <span className="flex-1 text-[12.5px] text-muted-foreground">
+                            Fechado
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </OpeningHoursCopy>
               )}
             </SectionCard>
 

@@ -207,6 +207,58 @@ export function findOpeningHoursError(hours: DayHours[]): string | null {
   return null;
 }
 
+/** Dia aberto com abertura e fechamento preenchidos. */
+export function hasDayHours(day: DayHours): boolean {
+  return day.isOpen && Boolean(day.openTime && day.closeTime);
+}
+
+/**
+ * De onde o "Trazer horário" copia por padrão: o único dia com horário, ou a
+ * segunda quando há mais de um. Se a segunda não tiver horário, o primeiro
+ * dia da semana que tiver. `null` quando nenhum dia tem horário.
+ */
+export function getDefaultCopySource(hours: DayHours[]): DayKey | null {
+  const filled = hours.filter(hasDayHours);
+  return (filled.find((day) => day.day === "mon") ?? filled[0])?.day ?? null;
+}
+
+/**
+ * Dias marcados como abertos e ainda sem horário: os que recebem o horário
+ * quando só um dia tem horário, sem risco de sobrescrever nada.
+ */
+export function getEmptyOpenDays(hours: DayHours[]): DayKey[] {
+  return hours
+    .filter((day) => day.isOpen && !hasDayHours(day))
+    .map((day) => day.day);
+}
+
+/**
+ * Copia abertura, fechamento e intervalo de `source` para `targets`, que
+ * passam a ficar abertos. Intervalo vazio na origem limpa o do destino:
+ * o destino fica igual à origem.
+ */
+export function copyDayHours(
+  hours: DayHours[],
+  source: DayKey,
+  targets: DayKey[],
+): DayHours[] {
+  const from = hours.find((day) => day.day === source);
+  if (!from || !hasDayHours(from)) return hours;
+
+  return hours.map((day) =>
+    day.day !== source && targets.includes(day.day)
+      ? {
+          ...day,
+          isOpen: true,
+          openTime: from.openTime,
+          closeTime: from.closeTime,
+          breakStart: from.breakStart ?? "",
+          breakEnd: from.breakEnd ?? "",
+        }
+      : day,
+  );
+}
+
 /**
  * Corpo do PUT /opening-hours/me.
  *

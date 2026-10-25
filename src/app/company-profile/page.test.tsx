@@ -89,6 +89,7 @@ const h = vi.hoisted(() => {
       hasChanges: false,
       persistedDays: [] as number[],
       updateDay: vi.fn(),
+      copyHours: vi.fn(),
       discardChanges: vi.fn(),
       handleSaveHours: vi.fn(),
       isSavingHours: false,
