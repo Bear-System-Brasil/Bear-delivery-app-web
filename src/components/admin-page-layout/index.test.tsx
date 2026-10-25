@@ -33,12 +33,12 @@ describe("AdminPageLayout - header", () => {
     expect(within(header).getByText("Dono")).toBeInTheDocument();
   });
 
-  it("mantém as ações da tela junto do papel e do sino", () => {
+  it("mantém o botão da tela junto do papel e do sino", () => {
     render(
       <AdminPageLayout
         title="Controle de Caixa"
         icon={Settings}
-        actions={<button type="button">Atualizar</button>}
+        action={{ label: "Atualizar", onClick: vi.fn() }}
       >
         conteúdo
       </AdminPageLayout>,

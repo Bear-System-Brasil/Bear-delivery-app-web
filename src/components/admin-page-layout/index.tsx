@@ -34,11 +34,6 @@ interface AdminPageLayoutProps {
   icon: LucideIcon;
   subtitle?: string;
   action?: AdminHeaderAction;
-  /**
-   * @deprecated Transição do LDMF-392: as telas migram para `action` (botão
-   * único) e o resto desce pro corpo (LDMF-393). Sai ao fim da migração.
-   */
-  actions?: ReactNode;
   /** Conteúdo do modal de Ajuda. Sem ele, o modal mostra o aviso padrão. */
   help?: ReactNode;
   children: ReactNode;
@@ -53,7 +48,6 @@ export function AdminPageLayout({
   icon: Icon,
   subtitle,
   action,
-  actions,
   help,
   children,
   mainClassName,
@@ -72,14 +66,7 @@ export function AdminPageLayout({
         <header className="sticky top-0 z-10 border-b bg-card print:hidden lg:pl-64">
           {/* Uma linha só em todas as larguras: o botão da tela vira só
               ícone no mobile, pra não empurrar o sino pra baixo. */}
-          <div
-            className={cn(
-              "flex min-h-[52px] items-center justify-between gap-2 p-3 sm:gap-3",
-              // Transição: telas que ainda passam `actions` mantêm o layout
-              // antigo (empilha no mobile) até migrarem.
-              actions && "flex-col items-stretch sm:flex-row sm:items-center",
-            )}
-          >
+          <div className="flex min-h-[52px] items-center justify-between gap-2 p-3 sm:gap-3">
             <div className="flex min-w-0 items-center gap-2 sm:gap-3">
               <button
                 type="button"
@@ -107,13 +94,7 @@ export function AdminPageLayout({
               </div>
             </div>
 
-            <div
-              className={cn(
-                "flex items-center gap-2",
-                actions ? "w-full flex-wrap justify-end sm:w-auto" : "shrink-0",
-              )}
-            >
-              {actions}
+            <div className="flex shrink-0 items-center gap-2">
               {action && (
                 <button
                   type="button"
