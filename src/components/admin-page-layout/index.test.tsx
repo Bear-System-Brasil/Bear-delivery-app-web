@@ -163,4 +163,46 @@ describe("AdminPageLayout - header padronizado (LDMF-392)", () => {
     expect(main).toHaveClass("flex", "min-h-0", "flex-col");
     expect(main.parentElement).toHaveClass("h-dvh", "overflow-hidden");
   });
+
+  it("o botão de som mostra o estado e alterna", () => {
+    const onToggle = vi.fn();
+    const { rerender } = render(
+      <AdminPageLayout
+        title="Cozinha"
+        icon={Settings}
+        sound={{ enabled: true, onToggle }}
+      >
+        conteúdo
+      </AdminPageLayout>,
+    );
+
+    const ligado = screen.getByRole("button", { name: "Som ligado" });
+    expect(ligado).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(ligado);
+    expect(onToggle).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <AdminPageLayout
+        title="Cozinha"
+        icon={Settings}
+        sound={{ enabled: false, onToggle }}
+      >
+        conteúdo
+      </AdminPageLayout>,
+    );
+    expect(screen.getByRole("button", { name: "Som desligado" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+  });
+
+  it("sem a prop sound, o header não mostra o botão de som", () => {
+    render(
+      <AdminPageLayout title="Caixa" icon={Settings}>
+        conteúdo
+      </AdminPageLayout>,
+    );
+
+    expect(screen.queryByRole("button", { name: /^Som / })).not.toBeInTheDocument();
+  });
 });

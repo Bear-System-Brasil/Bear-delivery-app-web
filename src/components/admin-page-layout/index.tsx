@@ -11,7 +11,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { CircleHelp, Menu, RefreshCw, type LucideIcon } from "lucide-react";
+import {
+  CircleHelp,
+  Menu,
+  RefreshCw,
+  Volume2,
+  VolumeX,
+  type LucideIcon,
+} from "lucide-react";
 import { type ReactNode, useState } from "react";
 
 /**
@@ -34,6 +41,11 @@ interface AdminPageLayoutProps {
   icon: LucideIcon;
   subtitle?: string;
   action?: AdminHeaderAction;
+  /**
+   * Liga/desliga o som de pedido novo (Cozinha). Ícone de alto-falante, e não
+   * de sino, pra não ser confundido com o sino de notificações ao lado.
+   */
+  sound?: { enabled: boolean; onToggle: () => void };
   /** Conteúdo do modal de Ajuda. Sem ele, o modal mostra o aviso padrão. */
   help?: ReactNode;
   children: ReactNode;
@@ -54,6 +66,7 @@ export function AdminPageLayout({
   icon: Icon,
   subtitle,
   action,
+  sound,
   help,
   children,
   mainClassName,
@@ -122,6 +135,26 @@ export function AdminPageLayout({
                     className={cn("h-3.5 w-3.5", action.busy && "animate-spin")}
                   />
                   <span className="hidden sm:inline">{actionLabel}</span>
+                </button>
+              )}
+              {sound && (
+                <button
+                  type="button"
+                  onClick={sound.onToggle}
+                  aria-pressed={sound.enabled}
+                  aria-label={sound.enabled ? "Som ligado" : "Som desligado"}
+                  title={sound.enabled ? "Som ligado" : "Som desligado"}
+                  className={cn(
+                    headerButtonClass,
+                    "w-9",
+                    !sound.enabled && "text-muted-foreground",
+                  )}
+                >
+                  {sound.enabled ? (
+                    <Volume2 className="h-4 w-4" />
+                  ) : (
+                    <VolumeX className="h-4 w-4" />
+                  )}
                 </button>
               )}
               <button

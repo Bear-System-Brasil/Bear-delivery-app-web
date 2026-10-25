@@ -11,8 +11,6 @@ import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/utils";
 import {
   Ban,
-  Bell,
-  BellOff,
   CheckCircle,
   ChefHat,
   Package,
@@ -262,6 +260,7 @@ export default function Kitchen() {
       icon={ChefHat}
       mainClassName="pb-0 md:pb-0"
       action={{ label: "Atualizar", onClick: refetchAll, busy: isRefreshing }}
+      sound={{ enabled: soundEnabled, onToggle: toggleSound }}
       fillViewport
     >
       {/* Altura travada na viewport: a página não rola, só o interior das
@@ -335,20 +334,6 @@ export default function Kitchen() {
               <span className="hidden sm:inline">
                 {showCanceled ? "Ocultar cancelados" : "Ver cancelados"}
               </span>
-            </Button>
-
-            <Button
-              variant="ghost"
-              className="h-9 cursor-pointer gap-1.5 px-2 text-xs"
-              onClick={toggleSound}
-              aria-pressed={soundEnabled}
-            >
-              {soundEnabled ? (
-                <Bell className="h-4 w-4 text-brand-500" />
-              ) : (
-                <BellOff className="h-4 w-4 text-muted-foreground" />
-              )}
-              <span className="hidden sm:inline">{soundEnabled ? "Som ligado" : "Som desligado"}</span>
             </Button>
           </div>
         </div>
