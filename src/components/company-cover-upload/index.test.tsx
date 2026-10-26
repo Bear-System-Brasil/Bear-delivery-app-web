@@ -52,7 +52,7 @@ describe("CompanyCoverUpload", () => {
 
     expect(apiService.uploadCompanyCover).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("button", { name: "Salvar foto" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Salvar foto" }));
 
     await waitFor(() =>
       expect(apiService.uploadCompanyCover).toHaveBeenCalledTimes(1),
