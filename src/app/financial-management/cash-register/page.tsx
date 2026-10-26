@@ -573,44 +573,67 @@ export default function CashRegisterPage() {
   //
   // Não usar `availableBalance`: ele soma todos os métodos (cartão e pix
   // entram nele), então inflava a gaveta com dinheiro que não está nela.
+  // Operador é quem abriu o caixa, não quem está logado: o dono vendo o caixa
+  // de outro operador via o próprio nome na faixa. Sem `operator` na resposta,
+  // o usuário logado só serve se for ele mesmo quem abriu.
+  const registerOperatorName =
+    register?.operator?.name ||
+    (register?.operatorId && register.operatorId === user?.id
+      ? user?.name
+      : undefined) ||
+    "—";
   const registerOpeningBalance = register?.openingBalance ?? 0;
   const netCash = summary?.totalCash ?? 0;
   const expectedInDrawer = registerOpeningBalance + netCash;
+  // Caixa aberto sem resumo (404 vira null, 403/500 viram erro): os totais
+  // são desconhecidos, não zero. Mostrar R$ 0,00 fazia o esperado na gaveta
+  // virar só o fundo de troco e inventava sobra/falta no fechamento.
+  const summaryUnavailable = !summaryLoading && !summary;
+  // Caixa de outro operador: o back recusa o resumo (403 "Operador não
+  // vinculado ao caixa aberto."). Dá pra explicar o motivo sem ler a mensagem
+  // do back, comparando quem abriu com quem está logado.
+  const summaryFromOtherOperator =
+    summaryUnavailable &&
+    !!register?.operatorId &&
+    !!user?.id &&
+    register.operatorId !== user.id;
+  const summaryValue = (value: number) =>
+    summaryUnavailable ? "—" : formatCurrency(value);
 
   const hasContado = countedTotal.trim() !== "";
   const contadoVal = parseFloat(countedTotal.replace(",", "."));
-  const difVal =
-    hasContado && !isNaN(contadoVal) ? contadoVal - expectedInDrawer : 0;
-  const difOk = hasContado && !isNaN(contadoVal) && Math.abs(difVal) < 0.005;
-  const difSobra = hasContado && !isNaN(contadoVal) && difVal >= 0.005;
-  const difFalta = hasContado && !isNaN(contadoVal) && difVal <= -0.005;
+  const canCompare = hasContado && !isNaN(contadoVal) && !summaryUnavailable;
+  const difVal = canCompare ? contadoVal - expectedInDrawer : 0;
+  const difOk = canCompare && Math.abs(difVal) < 0.005;
+  const difSobra = canCompare && difVal >= 0.005;
+  const difFalta = canCompare && difVal <= -0.005;
 
-  const paymentBreakdown = summary
-    ? [
-        {
-          label: "Dinheiro",
-          value: summary.totalCash,
-          gaveta: true,
-        },
-        { label: "PIX", value: summary.totalPix, gaveta: false },
-        {
-          label: "Cartão de Crédito",
-          value: summary.totalCredit,
-          gaveta: false,
-        },
-        {
-          label: "Cartão de Débito",
-          value: summary.totalDebit,
-          gaveta: false,
-        },
-      ]
-    : [];
+  // Os 4 métodos aparecem sempre: sem resumo, o valor fica null ("—") em vez
+  // de a lista sumir.
+  const paymentBreakdown: {
+    label: string;
+    value: number | null;
+    gaveta: boolean;
+  }[] = [
+    { label: "Dinheiro", value: summary?.totalCash ?? null, gaveta: true },
+    { label: "PIX", value: summary?.totalPix ?? null, gaveta: false },
+    {
+      label: "Cartão de Crédito",
+      value: summary?.totalCredit ?? null,
+      gaveta: false,
+    },
+    {
+      label: "Cartão de Débito",
+      value: summary?.totalDebit ?? null,
+      gaveta: false,
+    },
+  ];
   // Os totais são líquidos, então um método pode fechar negativo (mais
   // sangria/reembolso do que venda). Somar tudo pra usar de base deixava a
   // participação sem sentido (PIX aparecia com 112%): a base é só o que
   // entrou de fato, e método negativo não tem participação a exibir.
   const paymentPositiveTotal = paymentBreakdown.reduce(
-    (sum, m) => sum + Math.max(m.value, 0),
+    (sum, m) => sum + Math.max(m.value ?? 0, 0),
     0,
   );
 
@@ -650,7 +673,7 @@ export default function CashRegisterPage() {
                 <span className="whitespace-nowrap">
                   <span className="text-muted-foreground">Operador </span>
                   <span className="font-semibold text-foreground">
-                    {user?.name || "—"}
+                    {registerOperatorName}
                   </span>
                 </span>
                 <span className="whitespace-nowrap">
@@ -686,8 +709,44 @@ export default function CashRegisterPage() {
 
             {/* auto-fit sem trava de breakpoint: vira 2 colunas assim que cabe
                 (~800px+ de conteúdo, inclui o desktop mode do mobile em ~980px)
-                e empilha sozinho em telas estreitas de verdade. */}
-            <div className="grid items-start gap-4 [grid-template-columns:repeat(auto-fit,minmax(360px,1fr))]">
+                e empilha sozinho em telas estreitas de verdade. O mínimo é
+                min(360px, 100%): em celular com menos de 360px de conteúdo
+                (ex.: 360px de tela - 32px de respiro), um mínimo fixo de 360px
+                empurrava Entradas/Saídas, Por forma de pagamento e Conferência
+                pra fora da tela (LDMF-427). No PC, 100% é sempre maior. */}
+            {summaryUnavailable && (
+              <div
+                role="alert"
+                className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-[13px] text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
+              >
+                <Info className="mt-0.5 h-4 w-4 shrink-0" />
+                {summaryFromOtherOperator ? (
+                  <div>
+                    <div className="font-semibold">
+                      Este caixa foi aberto por {registerOperatorName}
+                    </div>
+                    <div className="mt-0.5 text-xs">
+                      Os totais e a conferência de fechamento só aparecem para
+                      quem abriu o caixa. O extrato de movimentos abaixo
+                      continua disponível.
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <div className="font-semibold">
+                      Não foi possível carregar os totais do caixa
+                    </div>
+                    <div className="mt-0.5 text-xs">
+                      Entradas, saídas, formas de pagamento e o esperado na
+                      gaveta ficam em “—” até carregar. Toque em Atualizar para
+                      tentar de novo.
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="grid items-start gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(360px,100%),1fr))]">
               {/* Coluna principal */}
               <div className="flex min-w-0 flex-col gap-4">
                 {summaryLoading ? (
@@ -696,7 +755,7 @@ export default function CashRegisterPage() {
                   <div className="grid grid-cols-1 divide-y divide-border overflow-hidden rounded-lg border border-border bg-card sm:grid-cols-2 sm:divide-x sm:divide-y-0">
                     <KpiCell
                       label="Entradas"
-                      value={formatCurrency(
+                      value={summaryValue(
                         (summary?.totalSales ?? 0) +
                           (summary?.totalDeposits ?? 0),
                       )}
@@ -705,7 +764,7 @@ export default function CashRegisterPage() {
                     />
                     <KpiCell
                       label="Saídas"
-                      value={formatCurrency(
+                      value={summaryValue(
                         (summary?.totalWithdrawals ?? 0) +
                           (summary?.totalRefunds ?? 0),
                       )}
@@ -730,9 +789,11 @@ export default function CashRegisterPage() {
                   ) : (
                     <div className="divide-y divide-border">
                       {paymentBreakdown.map((m) => {
-                        const isNegative = m.value < 0;
+                        const isNegative = m.value !== null && m.value < 0;
                         const share =
-                          !isNegative && paymentPositiveTotal > 0
+                          m.value !== null &&
+                          !isNegative &&
+                          paymentPositiveTotal > 0
                             ? Math.min(
                                 (m.value / paymentPositiveTotal) * 100,
                                 100,
@@ -759,7 +820,7 @@ export default function CashRegisterPage() {
                                   : "text-foreground",
                               )}
                             >
-                              {formatSigned(m.value)}
+                              {m.value === null ? "—" : formatSigned(m.value)}
                             </span>
                             <span
                               className="w-10 shrink-0 text-right text-xs text-muted-foreground"
@@ -769,7 +830,9 @@ export default function CashRegisterPage() {
                                   : undefined
                               }
                             >
-                              {isNegative ? "—" : `${Math.round(share)}%`}
+                              {isNegative || m.value === null
+                                ? "—"
+                                : `${Math.round(share)}%`}
                             </span>
                           </div>
                         );
@@ -826,7 +889,7 @@ export default function CashRegisterPage() {
                             </strong>{" "}
                             + dinheiro líquido do turno{" "}
                             <strong className="font-semibold text-foreground">
-                              {formatCurrency(netCash)}
+                              {summaryValue(netCash)}
                             </strong>
                             .
                           </p>
@@ -838,7 +901,7 @@ export default function CashRegisterPage() {
                       </Popover>
                     </span>
                     <span className="whitespace-nowrap text-xl font-bold tabular-nums text-foreground">
-                      {formatCurrency(expectedInDrawer)}
+                      {summaryValue(expectedInDrawer)}
                     </span>
                   </div>
                   <p className="mt-1 text-[11.5px] text-muted-foreground">
@@ -854,22 +917,22 @@ export default function CashRegisterPage() {
                   </p>
                   <SummaryRow
                     label="Vendas (todos os métodos)"
-                    value={formatCurrency(summary?.totalSales ?? 0)}
+                    value={summaryValue(summary?.totalSales ?? 0)}
                     valueClassName="text-muted-foreground"
                   />
                   <SummaryRow
                     label="Suprimentos"
-                    value={formatCurrency(summary?.totalDeposits ?? 0)}
+                    value={summaryValue(summary?.totalDeposits ?? 0)}
                     valueClassName="text-muted-foreground"
                   />
                   <SummaryRow
                     label="Sangrias"
-                    value={formatCurrency(summary?.totalWithdrawals ?? 0)}
+                    value={summaryValue(summary?.totalWithdrawals ?? 0)}
                     valueClassName="text-muted-foreground"
                   />
                   <SummaryRow
                     label="Reembolsos"
-                    value={formatCurrency(summary?.totalRefunds ?? 0)}
+                    value={summaryValue(summary?.totalRefunds ?? 0)}
                     valueClassName="text-muted-foreground"
                   />
                 </div>
@@ -1211,7 +1274,7 @@ export default function CashRegisterPage() {
               Esperado na gaveta
             </span>
             <span className="whitespace-nowrap text-[15px] font-bold tabular-nums text-foreground">
-              {formatCurrency(expectedInDrawer)}
+              {summaryValue(expectedInDrawer)}
             </span>
           </div>
 
@@ -1228,10 +1291,16 @@ export default function CashRegisterPage() {
             />
           </div>
 
-          {!hasContado && (
-            <div className="mb-2 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
-              Informe o valor contado para calcular a diferença.
+          {summaryUnavailable ? (
+            <div className="mb-2 rounded-md bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+              Sem o resumo do caixa não dá pra calcular a diferença.
             </div>
+          ) : (
+            !hasContado && (
+              <div className="mb-2 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
+                Informe o valor contado para calcular a diferença.
+              </div>
+            )
           )}
           {difOk && (
             <div className="mb-2 rounded-md bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
