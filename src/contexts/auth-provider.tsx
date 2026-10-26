@@ -30,17 +30,29 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 /**
- * Copia só o indicador de CPF do /user/me para o usuário do store
- * (LDMF-362). O login não trazia esse indicador quando medido em 17/10, e o
- * resto do /user/me é mais pobre que o dado salvo no login - por isso não
- * substitui o usuário inteiro. Confere o id para não marcar outra conta se
- * a sessão trocou no meio.
+ * Mescla no usuário do store os campos que vêm da /session, sem trocar o
+ * usuário inteiro: o /user/me é mais pobre que o dado salvo no login (sem
+ * tradeName/logo da empresa), então um merge preserva esses campos ricos.
+ *
+ * - hasCpf: indicador do back (LDMF-362); o login nem sempre o traz.
+ * - email/phone/birthDate: dado pessoal que o store não persiste mais
+ *   (LDMF-424); é aqui que ele volta pra memória depois de um F5.
+ *
+ * Confere o id para não escrever numa conta diferente se a sessão trocou no
+ * meio.
  */
-function syncHasCpf(sessionUser: RawAuthUser | null) {
-  if (typeof sessionUser?.hasCpf !== "boolean") return;
+function syncSessionUser(sessionUser: RawAuthUser | null) {
   const { user, updateUser } = useAuthStore.getState();
-  if (!user || user.id !== sessionUser.id) return;
-  updateUser({ hasCpf: sessionUser.hasCpf });
+  if (!user || !sessionUser || user.id !== sessionUser.id) return;
+
+  const patch: Partial<User> = {};
+  if (typeof sessionUser.hasCpf === "boolean") patch.hasCpf = sessionUser.hasCpf;
+  if (typeof sessionUser.email === "string") patch.email = sessionUser.email;
+  if (typeof sessionUser.phone === "string") patch.phone = sessionUser.phone;
+  if (typeof sessionUser.birthDate === "string")
+    patch.birthDate = sessionUser.birthDate;
+
+  if (Object.keys(patch).length > 0) updateUser(patch);
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -90,7 +102,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!currentlyAuthenticated) {
           authStore.login(normalizeAuthUser(user));
         } else {
-          syncHasCpf(user);
+          syncSessionUser(user);
         }
       } else if (currentlyAuthenticated) {
         storeLogout();
@@ -119,7 +131,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       hideAuthModal();
       if (typeof userData.hasCpf !== "boolean") {
         void apiService.getSession().then(({ authenticated, user }) => {
-          if (authenticated) syncHasCpf(user);
+          if (authenticated) syncSessionUser(user);
         });
       }
     }
