@@ -1312,6 +1312,10 @@ export interface CashRegister {
   countedTotal?: number;
   observations?: string;
   status?: string;
+  /** Quem abriu o caixa - pode não ser o usuário logado (ex.: dono vendo o caixa do operador). */
+  operatorId?: string;
+  /** Observado em GET /cash-register/open/current; opcional porque nem toda resposta traz. */
+  operator?: { id: string; name?: string };
 }
 
 /**

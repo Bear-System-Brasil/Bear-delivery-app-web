@@ -4,6 +4,11 @@ import { AdminPageLayout } from "@/components/admin-page-layout";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   useCashDeposit,
@@ -44,10 +49,24 @@ import { type ReactNode, useState } from "react";
 type MovementType = "withdrawal" | "deposit" | "sale" | "refund";
 type DialogKind = "movement" | "close-register" | null;
 
-/** O método preferido vem do localStorage; um valor obsoleto ali não pode
- *  virar corpo de requisição, então cai pra "sem seleção". */
+/**
+ * Métodos que o caixa oferece: os 4, mesmo que o restaurante não aceite algum
+ * no app - o movimento pode ter sido feito fora dele (LDMF-391).
+ * BANK_TRANSFER fica de fora por enquanto: continua no enum e no mapa de
+ * rótulos, pra movimento antigo com ele seguir aparecendo pelo nome.
+ */
+const CASH_PAYMENT_METHODS: PaymentMethod[] = [
+  PaymentMethod.CASH,
+  PaymentMethod.CREDIT_CARD,
+  PaymentMethod.DEBIT_CARD,
+  PaymentMethod.PIX,
+];
+
+/** O método preferido vem do localStorage; um valor obsoleto ali (inclusive
+ *  um BANK_TRANSFER salvo antes) não pode virar corpo de requisição, então
+ *  cai pra "sem seleção". */
 function toPaymentMethod(value?: string): PaymentMethod | "" {
-  return Object.values(PaymentMethod).includes(value as PaymentMethod)
+  return CASH_PAYMENT_METHODS.includes(value as PaymentMethod)
     ? (value as PaymentMethod)
     : "";
 }
@@ -140,7 +159,7 @@ const MOVEMENT_TYPE_FILTERS: { value: CashMovementType | "ALL"; label: string }[
 const MOVEMENT_METHOD_FILTERS: { value: PaymentMethod | "ALL"; label: string }[] =
   [
     { value: "ALL", label: "Todos os métodos" },
-    ...Object.values(PaymentMethod).map((method) => ({
+    ...CASH_PAYMENT_METHODS.map((method) => ({
       value: method,
       label: PAYMENT_METHOD_LABELS[method],
     })),
@@ -397,13 +416,15 @@ export default function CashRegisterPage() {
     isError: movementsError,
     refetch: refetchMovements,
   } = useCashMovements(
+    // Os filtros de tipo/método NÃO vão pro backend: a rota aceita os params
+    // no Swagger mas não os aplica (LDMF-408), então a filtragem é feita aqui
+    // na tela, sobre a lista completa do caixa. O backend devolve o turno
+    // inteiro numa página só (não pagina de verdade), então filtrar aqui é
+    // completo, não só a página atual.
     {
       page: movementsPage,
       limit: MOVEMENTS_PAGE_SIZE,
       cashRegisterId: register?.id,
-      type: movementTypeFilter === "ALL" ? undefined : movementTypeFilter,
-      paymentMethod:
-        movementMethodFilter === "ALL" ? undefined : movementMethodFilter,
     },
     { enabled: !!register?.id },
   );
@@ -412,7 +433,23 @@ export default function CashRegisterPage() {
   const movementsMeta = movementsData?.meta;
   const movementsTotalPages = movementsMeta?.totalPages ?? 1;
 
-  // Filtro novo sempre volta pra página 1 (ver pagination.md).
+  // Filtragem na tela (ver comentário acima).
+  const filteredMovements = movements.filter((movement) => {
+    if (
+      movementTypeFilter !== "ALL" &&
+      movement.type !== movementTypeFilter
+    ) {
+      return false;
+    }
+    if (
+      movementMethodFilter !== "ALL" &&
+      movement.paymentMethod !== movementMethodFilter
+    ) {
+      return false;
+    }
+    return true;
+  });
+
   const changeMovementType = (value: CashMovementType | "ALL") => {
     setMovementTypeFilter(value);
     setMovementsPage(1);
@@ -529,48 +566,74 @@ export default function CashRegisterPage() {
     saleMutation.isPending ||
     refundMutation.isPending;
 
-  // Fundo de troco + líquido em dinheiro. `totalCash` já vem do backend como
-  // SALE + DEPOSIT − WITHDRAWAL − REFUND, então sangria e reembolso NÃO se
-  // subtraem de novo aqui - era isso que fazia a sangria contar duas vezes.
+  // Gaveta é dinheiro físico: fundo de troco + líquido EM DINHEIRO do turno.
+  // `totalCash` já vem do backend como SALE + DEPOSIT − WITHDRAWAL − REFUND só
+  // do método dinheiro, então sangria e reembolso NÃO se subtraem de novo aqui
+  // - era isso que fazia a sangria contar duas vezes.
+  //
+  // Não usar `availableBalance`: ele soma todos os métodos (cartão e pix
+  // entram nele), então inflava a gaveta com dinheiro que não está nela.
+  // Operador é quem abriu o caixa, não quem está logado: o dono vendo o caixa
+  // de outro operador via o próprio nome na faixa. Sem `operator` na resposta,
+  // o usuário logado só serve se for ele mesmo quem abriu.
+  const registerOperatorName =
+    register?.operator?.name ||
+    (register?.operatorId && register.operatorId === user?.id
+      ? user?.name
+      : undefined) ||
+    "—";
   const registerOpeningBalance = register?.openingBalance ?? 0;
   const netCash = summary?.totalCash ?? 0;
-  const expectedInDrawer =
-    summary?.availableBalance ?? registerOpeningBalance + netCash;
+  const expectedInDrawer = registerOpeningBalance + netCash;
+  // Caixa aberto sem resumo (404 vira null, 403/500 viram erro): os totais
+  // são desconhecidos, não zero. Mostrar R$ 0,00 fazia o esperado na gaveta
+  // virar só o fundo de troco e inventava sobra/falta no fechamento.
+  const summaryUnavailable = !summaryLoading && !summary;
+  // Caixa de outro operador: o back recusa o resumo (403 "Operador não
+  // vinculado ao caixa aberto."). Dá pra explicar o motivo sem ler a mensagem
+  // do back, comparando quem abriu com quem está logado.
+  const summaryFromOtherOperator =
+    summaryUnavailable &&
+    !!register?.operatorId &&
+    !!user?.id &&
+    register.operatorId !== user.id;
+  const summaryValue = (value: number) =>
+    summaryUnavailable ? "—" : formatCurrency(value);
 
   const hasContado = countedTotal.trim() !== "";
   const contadoVal = parseFloat(countedTotal.replace(",", "."));
-  const difVal =
-    hasContado && !isNaN(contadoVal) ? contadoVal - expectedInDrawer : 0;
-  const difOk = hasContado && !isNaN(contadoVal) && Math.abs(difVal) < 0.005;
-  const difSobra = hasContado && !isNaN(contadoVal) && difVal >= 0.005;
-  const difFalta = hasContado && !isNaN(contadoVal) && difVal <= -0.005;
+  const canCompare = hasContado && !isNaN(contadoVal) && !summaryUnavailable;
+  const difVal = canCompare ? contadoVal - expectedInDrawer : 0;
+  const difOk = canCompare && Math.abs(difVal) < 0.005;
+  const difSobra = canCompare && difVal >= 0.005;
+  const difFalta = canCompare && difVal <= -0.005;
 
-  const paymentBreakdown = summary
-    ? [
-        {
-          label: "Dinheiro",
-          value: summary.totalCash,
-          gaveta: true,
-        },
-        { label: "PIX", value: summary.totalPix, gaveta: false },
-        {
-          label: "Cartão de Crédito",
-          value: summary.totalCredit,
-          gaveta: false,
-        },
-        {
-          label: "Cartão de Débito",
-          value: summary.totalDebit,
-          gaveta: false,
-        },
-      ]
-    : [];
+  // Os 4 métodos aparecem sempre: sem resumo, o valor fica null ("—") em vez
+  // de a lista sumir.
+  const paymentBreakdown: {
+    label: string;
+    value: number | null;
+    gaveta: boolean;
+  }[] = [
+    { label: "Dinheiro", value: summary?.totalCash ?? null, gaveta: true },
+    { label: "PIX", value: summary?.totalPix ?? null, gaveta: false },
+    {
+      label: "Cartão de Crédito",
+      value: summary?.totalCredit ?? null,
+      gaveta: false,
+    },
+    {
+      label: "Cartão de Débito",
+      value: summary?.totalDebit ?? null,
+      gaveta: false,
+    },
+  ];
   // Os totais são líquidos, então um método pode fechar negativo (mais
   // sangria/reembolso do que venda). Somar tudo pra usar de base deixava a
   // participação sem sentido (PIX aparecia com 112%): a base é só o que
   // entrou de fato, e método negativo não tem participação a exibir.
   const paymentPositiveTotal = paymentBreakdown.reduce(
-    (sum, m) => sum + Math.max(m.value, 0),
+    (sum, m) => sum + Math.max(m.value ?? 0, 0),
     0,
   );
 
@@ -610,7 +673,7 @@ export default function CashRegisterPage() {
                 <span className="whitespace-nowrap">
                   <span className="text-muted-foreground">Operador </span>
                   <span className="font-semibold text-foreground">
-                    {user?.name || "—"}
+                    {registerOperatorName}
                   </span>
                 </span>
                 <span className="whitespace-nowrap">
@@ -644,7 +707,46 @@ export default function CashRegisterPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 items-start gap-4 lg:[grid-template-columns:repeat(auto-fit,minmax(440px,1fr))]">
+            {/* auto-fit sem trava de breakpoint: vira 2 colunas assim que cabe
+                (~800px+ de conteúdo, inclui o desktop mode do mobile em ~980px)
+                e empilha sozinho em telas estreitas de verdade. O mínimo é
+                min(360px, 100%): em celular com menos de 360px de conteúdo
+                (ex.: 360px de tela - 32px de respiro), um mínimo fixo de 360px
+                empurrava Entradas/Saídas, Por forma de pagamento e Conferência
+                pra fora da tela (LDMF-427). No PC, 100% é sempre maior. */}
+            {summaryUnavailable && (
+              <div
+                role="alert"
+                className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-[13px] text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
+              >
+                <Info className="mt-0.5 h-4 w-4 shrink-0" />
+                {summaryFromOtherOperator ? (
+                  <div>
+                    <div className="font-semibold">
+                      Este caixa foi aberto por {registerOperatorName}
+                    </div>
+                    <div className="mt-0.5 text-xs">
+                      Os totais e a conferência de fechamento só aparecem para
+                      quem abriu o caixa. O extrato de movimentos abaixo
+                      continua disponível.
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <div className="font-semibold">
+                      Não foi possível carregar os totais do caixa
+                    </div>
+                    <div className="mt-0.5 text-xs">
+                      Entradas, saídas, formas de pagamento e o esperado na
+                      gaveta ficam em “—” até carregar. Toque em Atualizar para
+                      tentar de novo.
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="grid items-start gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(360px,100%),1fr))]">
               {/* Coluna principal */}
               <div className="flex min-w-0 flex-col gap-4">
                 {summaryLoading ? (
@@ -653,7 +755,7 @@ export default function CashRegisterPage() {
                   <div className="grid grid-cols-1 divide-y divide-border overflow-hidden rounded-lg border border-border bg-card sm:grid-cols-2 sm:divide-x sm:divide-y-0">
                     <KpiCell
                       label="Entradas"
-                      value={formatCurrency(
+                      value={summaryValue(
                         (summary?.totalSales ?? 0) +
                           (summary?.totalDeposits ?? 0),
                       )}
@@ -662,7 +764,7 @@ export default function CashRegisterPage() {
                     />
                     <KpiCell
                       label="Saídas"
-                      value={formatCurrency(
+                      value={summaryValue(
                         (summary?.totalWithdrawals ?? 0) +
                           (summary?.totalRefunds ?? 0),
                       )}
@@ -687,9 +789,11 @@ export default function CashRegisterPage() {
                   ) : (
                     <div className="divide-y divide-border">
                       {paymentBreakdown.map((m) => {
-                        const isNegative = m.value < 0;
+                        const isNegative = m.value !== null && m.value < 0;
                         const share =
-                          !isNegative && paymentPositiveTotal > 0
+                          m.value !== null &&
+                          !isNegative &&
+                          paymentPositiveTotal > 0
                             ? Math.min(
                                 (m.value / paymentPositiveTotal) * 100,
                                 100,
@@ -716,7 +820,7 @@ export default function CashRegisterPage() {
                                   : "text-foreground",
                               )}
                             >
-                              {formatSigned(m.value)}
+                              {m.value === null ? "—" : formatSigned(m.value)}
                             </span>
                             <span
                               className="w-10 shrink-0 text-right text-xs text-muted-foreground"
@@ -726,7 +830,9 @@ export default function CashRegisterPage() {
                                   : undefined
                               }
                             >
-                              {isNegative ? "—" : `${Math.round(share)}%`}
+                              {isNegative || m.value === null
+                                ? "—"
+                                : `${Math.round(share)}%`}
                             </span>
                           </div>
                         );
@@ -743,23 +849,59 @@ export default function CashRegisterPage() {
                 </SectionCard>
               </div>
 
-              {/* Conferência de fechamento. flex-col + h-full no lg pra o card
-                  preencher a altura da coluna da esquerda e o botão ancorar no
-                  rodapé - assim os blocos ficam alinhados. */}
+              {/* Conferência de fechamento. flex-col + h-full pra, quando as
+                  duas colunas aparecem lado a lado, o card preencher a altura da
+                  coluna da esquerda e o botão ancorar no rodapé - assim os blocos
+                  ficam do mesmo tamanho. Em coluna única não tem efeito. */}
               <SectionCard
                 icon={Scale}
                 title="Conferência de fechamento"
-                className="lg:flex lg:h-full lg:flex-col"
+                className="flex h-full flex-col"
               >
-                {/* Número direto, sem repetir o fundo de troco (que já aparece
-                    na faixa do topo): o que precisa ter na gaveta agora. */}
+                {/* O valor aparece direto; o ⓘ abre a composição (fundo de troco
+                    + dinheiro do turno) sob demanda, sem ocupar altura - era a
+                    dúvida de onde saía o R$ do fundo de troco. */}
                 <div className="px-4 pt-4">
                   <div className="flex items-baseline justify-between gap-3">
-                    <span className="text-[13px] font-semibold text-foreground">
+                    <span className="flex items-center gap-1 text-[13px] font-semibold text-foreground">
                       Esperado na gaveta
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button
+                            type="button"
+                            aria-label="Como o esperado na gaveta é calculado"
+                            className="text-muted-foreground transition-colors hover:text-foreground"
+                          >
+                            <Info className="h-3.5 w-3.5" />
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent
+                          align="start"
+                          className="w-64 text-[12px] leading-relaxed"
+                        >
+                          <p className="font-semibold text-foreground">
+                            Como é calculado
+                          </p>
+                          <p className="mt-1 text-muted-foreground">
+                            Fundo de troco da abertura{" "}
+                            <strong className="font-semibold text-foreground">
+                              {formatCurrency(registerOpeningBalance)}
+                            </strong>{" "}
+                            + dinheiro líquido do turno{" "}
+                            <strong className="font-semibold text-foreground">
+                              {summaryValue(netCash)}
+                            </strong>
+                            .
+                          </p>
+                          <p className="mt-1.5 text-muted-foreground">
+                            O fundo de troco não é um movimento do turno, por isso
+                            não aparece em “Por forma de pagamento”.
+                          </p>
+                        </PopoverContent>
+                      </Popover>
                     </span>
                     <span className="whitespace-nowrap text-xl font-bold tabular-nums text-foreground">
-                      {formatCurrency(expectedInDrawer)}
+                      {summaryValue(expectedInDrawer)}
                     </span>
                   </div>
                   <p className="mt-1 text-[11.5px] text-muted-foreground">
@@ -775,27 +917,27 @@ export default function CashRegisterPage() {
                   </p>
                   <SummaryRow
                     label="Vendas (todos os métodos)"
-                    value={formatCurrency(summary?.totalSales ?? 0)}
+                    value={summaryValue(summary?.totalSales ?? 0)}
                     valueClassName="text-muted-foreground"
                   />
                   <SummaryRow
                     label="Suprimentos"
-                    value={formatCurrency(summary?.totalDeposits ?? 0)}
+                    value={summaryValue(summary?.totalDeposits ?? 0)}
                     valueClassName="text-muted-foreground"
                   />
                   <SummaryRow
                     label="Sangrias"
-                    value={formatCurrency(summary?.totalWithdrawals ?? 0)}
+                    value={summaryValue(summary?.totalWithdrawals ?? 0)}
                     valueClassName="text-muted-foreground"
                   />
                   <SummaryRow
                     label="Reembolsos"
-                    value={formatCurrency(summary?.totalRefunds ?? 0)}
+                    value={summaryValue(summary?.totalRefunds ?? 0)}
                     valueClassName="text-muted-foreground"
                   />
                 </div>
 
-                <div className="mt-3 border-t border-border p-4 lg:mt-auto">
+                <div className="mt-3 border-t border-border p-4 [@media(min-width:800px)]:mt-auto">
                   <Button
                     onClick={() => setDialog("close-register")}
                     disabled={closeMutation.isPending}
@@ -818,8 +960,8 @@ export default function CashRegisterPage() {
               aside={
                 <div className="flex flex-wrap items-center justify-end gap-2">
                   <span className="rounded bg-muted px-2 py-0.5 text-[11.5px] font-semibold tabular-nums text-muted-foreground">
-                    {movementsMeta?.total ?? 0} movimento
-                    {(movementsMeta?.total ?? 0) !== 1 ? "s" : ""}
+                    {filteredMovements.length} movimento
+                    {filteredMovements.length !== 1 ? "s" : ""}
                   </span>
                   <select
                     aria-label="Filtrar por tipo"
@@ -880,7 +1022,7 @@ export default function CashRegisterPage() {
                     Use Atualizar para tentar de novo
                   </div>
                 </div>
-              ) : movements.length === 0 ? (
+              ) : filteredMovements.length === 0 ? (
                 <div className="px-4 py-8 text-center">
                   <div className="text-[13px] font-semibold text-foreground">
                     Nenhum movimento encontrado
@@ -900,7 +1042,7 @@ export default function CashRegisterPage() {
                       movementsFetching && "opacity-60",
                     )}
                   >
-                    {movements.map((movement) => {
+                    {filteredMovements.map((movement) => {
                       const signed = movementSignedAmount(movement);
                       return (
                         <div key={movement.id} className="px-4 py-3">
@@ -967,7 +1109,7 @@ export default function CashRegisterPage() {
                       </div>
 
                       <div className={cn(movementsFetching && "opacity-60")}>
-                        {movements.map((movement) => {
+                        {filteredMovements.map((movement) => {
                           const signed = movementSignedAmount(movement);
                           return (
                             <div
@@ -1132,7 +1274,7 @@ export default function CashRegisterPage() {
               Esperado na gaveta
             </span>
             <span className="whitespace-nowrap text-[15px] font-bold tabular-nums text-foreground">
-              {formatCurrency(expectedInDrawer)}
+              {summaryValue(expectedInDrawer)}
             </span>
           </div>
 
@@ -1149,10 +1291,16 @@ export default function CashRegisterPage() {
             />
           </div>
 
-          {!hasContado && (
-            <div className="mb-2 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
-              Informe o valor contado para calcular a diferença.
+          {summaryUnavailable ? (
+            <div className="mb-2 rounded-md bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+              Sem o resumo do caixa não dá pra calcular a diferença.
             </div>
+          ) : (
+            !hasContado && (
+              <div className="mb-2 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
+                Informe o valor contado para calcular a diferença.
+              </div>
+            )
           )}
           {difOk && (
             <div className="mb-2 rounded-md bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
@@ -1260,7 +1408,7 @@ export default function CashRegisterPage() {
             <option value="" disabled>
               Selecione o método
             </option>
-            {Object.values(PaymentMethod).map((m) => (
+            {CASH_PAYMENT_METHODS.map((m) => (
               <option key={m} value={m}>
                 {PAYMENT_METHOD_LABELS[m]}
               </option>

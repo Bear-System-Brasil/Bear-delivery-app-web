@@ -39,6 +39,7 @@ Convenções deste repositório. Siga sem precisar de lembrete.
 - **PR mergeado é porta fechada.** Commit novo depois do merge exige branch nova a partir da `dev` atualizada — empurrar na branch antiga deixa o commit órfão.
 - Antes de empurrar, verifique se a `dev` avançou. Se avançou, traga por merge (nunca rebase nem force-push em branch compartilhada).
 - Se houver PR aberto mexendo nos mesmos arquivos, simule a junção antes do push e avise se der conflito.
+- **Antes de começar uma tarefa, confira branches e PRs (abertos e fechados)** procurando trabalho já feito ou em andamento sobre o mesmo assunto — inclusive branch sem PR. Se encontrar, avise e pergunte antes de seguir, para evitar retrabalho.
 - **Descrição do PR:** separe o que foi testado pelo Claude Code do que foi testado pela pessoa.
 
 ## Mensagem de commit
