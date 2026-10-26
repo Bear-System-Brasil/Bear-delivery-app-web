@@ -19,7 +19,6 @@ const PAY_METHOD_OPTIONS: { value: PaymentMethod | "ALL"; label: string }[] = [
   { value: PaymentMethod.CREDIT_CARD, label: "Cartão de Crédito" },
   { value: PaymentMethod.DEBIT_CARD, label: "Cartão de Débito" },
   { value: PaymentMethod.CASH, label: "Dinheiro" },
-  { value: PaymentMethod.BANK_TRANSFER, label: "Transferência" },
 ];
 
 const PAY_STATUS_OPTIONS: { value: PaymentStatus | "ALL"; label: string }[] = [

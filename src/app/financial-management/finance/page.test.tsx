@@ -134,3 +134,24 @@ describe("Finanças - alterar forma de pagamento", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 });
+
+describe("Finanças - filtro de método (LDMF-391)", () => {
+  it("tem os 4 métodos, sem Transferência", () => {
+    render(<FinancePage />);
+
+    const select = screen
+      .getByRole("option", { name: "Todos os métodos" })
+      .closest("select") as HTMLElement;
+    const labels = within(select)
+      .getAllByRole("option")
+      .map((o) => o.textContent);
+
+    expect(labels).toEqual([
+      "Todos os métodos",
+      "PIX",
+      "Cartão de Crédito",
+      "Cartão de Débito",
+      "Dinheiro",
+    ]);
+  });
+});
