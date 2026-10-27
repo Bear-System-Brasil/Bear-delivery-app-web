@@ -3,9 +3,20 @@
 import { ConfirmProvider } from '@/contexts/confirm-provider'
 import { Toaster } from '@/components/ui/sonner'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
+import dynamic from 'next/dynamic'
 import { useEffect, useState } from 'react'
 import { bindQueryCacheToUser } from '@/lib/query-cache-session'
+
+const ReactQueryDevtools =
+  process.env.NODE_ENV === 'development'
+    ? dynamic(
+        () =>
+          import('@tanstack/react-query-devtools').then((mod) => ({
+            default: mod.ReactQueryDevtools,
+          })),
+        { ssr: false }
+      )
+    : () => null
 
 interface ProvidersProps {
   children: React.ReactNode
