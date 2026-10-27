@@ -1,8 +1,5 @@
 "use client";
 
-import { GlassCard, GlassCardContent } from "@/components/ui/custom";
-import { Button } from "@/components/ui/button";
-
 export function CouponBanner() {
   return (
     <div>

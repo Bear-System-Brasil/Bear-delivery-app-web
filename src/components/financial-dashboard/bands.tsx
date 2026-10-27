@@ -14,7 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import type { useFinancialDashboard } from "@/hooks/use-financial-dashboard";
 import { formatCurrency } from "@/utils";
-import { Lock, TriangleAlert, Unlock, Wallet } from "lucide-react";
+import { TriangleAlert, Unlock, Wallet } from "lucide-react";
 import {
   CartesianGrid,
   Line,
