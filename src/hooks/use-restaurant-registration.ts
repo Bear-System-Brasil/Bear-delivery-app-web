@@ -1,6 +1,6 @@
 import { apiService } from '@/services/api'
 import { useAuthStore } from '@/stores'
-import { onlyNumbers } from '@/utils'
+import { getBirthDateError, onlyNumbers } from '@/utils'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 
@@ -18,6 +18,9 @@ interface RestaurantFormData {
   confirmPassword: string
   phone: string
   description: string
+  // Data de nascimento do dono (LDMF-422): a conta é de uma pessoa, e o back
+  // exige a data e recusa menor de 18. Só usada ao criar conta nova.
+  birthDate: string
 }
 
 /**
@@ -46,6 +49,7 @@ export const useRestaurantRegistration = () => {
     confirmPassword: '',
     phone: '',
     description: '',
+    birthDate: '',
   })
 
   const [passwordErrors, setPasswordErrors] = useState<string[]>([])
@@ -215,6 +219,14 @@ export const useRestaurantRegistration = () => {
       return
     }
 
+    // A conta é do dono, uma pessoa: o back exige a data e recusa menor de
+    // 18 (LDMF-422). Trava aqui pra dar a mensagem certa antes do POST.
+    const birthDateError = getBirthDateError(registerData.birthDate)
+    if (birthDateError) {
+      setSubmitMessage({ type: 'error', text: birthDateError })
+      return
+    }
+
     setIsLoading(true)
 
     try {
@@ -231,6 +243,7 @@ export const useRestaurantRegistration = () => {
         email: registerData.email,
         phone: cleanPhone,
         password: registerData.password,
+        birthDate: registerData.birthDate,
       })
 
       if (!registerResponse.success || !registerResponse.data) {
@@ -290,7 +303,8 @@ export const useRestaurantRegistration = () => {
           registerData.password &&
           registerData.confirmPassword &&
           passwordErrors.length === 0 &&
-          passwordMatch,
+          passwordMatch &&
+          !getBirthDateError(registerData.birthDate),
       )
 
   return {

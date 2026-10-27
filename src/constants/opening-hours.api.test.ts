@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  copyDayHours,
   EMPTY_WEEK_HOURS,
   findOpeningHoursError,
+  getDefaultCopySource,
+  getEmptyOpenDays,
   getPersistedDays,
   toDayHours,
   toOpeningHoursDays,
@@ -191,9 +194,103 @@ describe("findOpeningHoursError", () => {
     );
   });
 
+  it("barra fechamento às 00:00 e indica 23:59 (LDMF-351)", () => {
+    expect(findOpeningHoursError([dia({ closeTime: "00:00" })])).toContain(
+      "23:59",
+    );
+    expect(findOpeningHoursError([dia({ closeTime: "23:59" })])).toBeNull();
+    // Abrir às 00:00 continua valendo.
+    expect(findOpeningHoursError([dia({ openTime: "00:00" })])).toBeNull();
+  });
+
+  it("acusa intervalo ligado e não preenchido (LDMF-351)", () => {
+    expect(findOpeningHoursError([dia({ hasBreak: true })])).toContain(
+      "intervalo",
+    );
+    expect(
+      findOpeningHoursError([
+        dia({ hasBreak: true, breakStart: "15:00", breakEnd: "16:00" }),
+      ]),
+    ).toBeNull();
+  });
+
   it("acusa intervalo pela metade", () => {
     expect(findOpeningHoursError([dia({ breakStart: "14:00" })])).toContain(
       "intervalo",
     );
+  });
+});
+
+describe("Trazer horário (LDMF-351)", () => {
+  const vazio = { openTime: "", closeTime: "", breakStart: "", breakEnd: "" };
+  const semana = (): DayHours[] =>
+    EMPTY_WEEK_HOURS.map((day) =>
+      day.day === "mon"
+        ? { ...day, isOpen: true, openTime: "12:00", closeTime: "20:00", breakStart: "15:00", breakEnd: "16:00" }
+        : day,
+    );
+
+  it("origem é o único dia com horário", () => {
+    const hours = semana().map((day) =>
+      day.day === "mon"
+        ? { ...day, isOpen: false, ...vazio }
+        : day.day === "wed"
+          ? { ...day, isOpen: true, openTime: "10:00", closeTime: "14:00" }
+          : day,
+    );
+    expect(getDefaultCopySource(hours)).toBe("wed");
+  });
+
+  it("com mais de um dia com horário, a origem é a segunda", () => {
+    const hours = semana().map((day) =>
+      day.day === "sat" ? { ...day, isOpen: true, openTime: "18:00", closeTime: "23:00" } : day,
+    );
+    expect(getDefaultCopySource(hours)).toBe("mon");
+  });
+
+  it("sem dia com horário não há origem", () => {
+    expect(getDefaultCopySource(EMPTY_WEEK_HOURS)).toBeNull();
+  });
+
+  it("dias que recebem sem escolher: marcados e sem horário", () => {
+    const hours = semana().map((day) =>
+      ["tue", "wed"].includes(day.day) ? { ...day, isOpen: true } : day,
+    );
+    expect(getEmptyOpenDays(hours)).toEqual(["tue", "wed"]);
+  });
+
+  it("copia abertura, fechamento e intervalo e abre o destino", () => {
+    const result = copyDayHours(semana(), "mon", ["tue", "fri"]);
+    for (const key of ["tue", "fri"]) {
+      expect(result.find((day) => day.day === key)).toMatchObject({
+        isOpen: true,
+        openTime: "12:00",
+        closeTime: "20:00",
+        breakStart: "15:00",
+        breakEnd: "16:00",
+      });
+    }
+    // Quem não foi escolhido não muda.
+    expect(result.find((day) => day.day === "wed")).toMatchObject({ isOpen: false, openTime: "" });
+  });
+
+  it("origem sem intervalo limpa o intervalo do destino", () => {
+    const hours = semana().map((day) =>
+      day.day === "mon"
+        ? { ...day, breakStart: "", breakEnd: "" }
+        : day.day === "tue"
+          ? { ...day, isOpen: true, openTime: "08:00", closeTime: "12:00", breakStart: "10:00", breakEnd: "10:30" }
+          : day,
+    );
+    expect(copyDayHours(hours, "mon", ["tue"]).find((day) => day.day === "tue")).toMatchObject({
+      openTime: "12:00",
+      breakStart: "",
+      breakEnd: "",
+    });
+  });
+
+  it("origem sem horário não copia nada", () => {
+    const hours = EMPTY_WEEK_HOURS;
+    expect(copyDayHours(hours, "mon", ["tue"])).toBe(hours);
   });
 });

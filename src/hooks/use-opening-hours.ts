@@ -1,4 +1,5 @@
 import {
+  copyDayHours,
   EMPTY_WEEK_HOURS,
   findOpeningHoursError,
   getPersistedDays,
@@ -125,6 +126,11 @@ export function useCompanyOpeningHours(companyId?: string | null) {
     );
   };
 
+  /** "Trazer horário": copia o horário de `source` para `targets`. */
+  const copyHours = (source: DayKey, targets: DayKey[]) => {
+    setDraft(copyDayHours(hours, source, targets));
+  };
+
   const discardChanges = () => setDraft(null);
 
   const saveMutation = useMutation({
@@ -162,6 +168,7 @@ export function useCompanyOpeningHours(companyId?: string | null) {
     hours,
     hasChanges,
     updateDay,
+    copyHours,
     discardChanges,
     handleSaveHours,
     isSavingHours: saveMutation.isPending,

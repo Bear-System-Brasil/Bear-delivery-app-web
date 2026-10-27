@@ -32,6 +32,7 @@ const valid = {
   password: "Senha@123",
   confirmPassword: "Senha@123",
   description: "",
+  birthDate: "01/01/1990",
 };
 
 type Hook = ReturnType<typeof renderHook<ReturnType<typeof useRestaurantRegistration>, unknown>>["result"];
@@ -116,6 +117,16 @@ describe("useRestaurantRegistration", () => {
 
       expect(result.current.isFormValid).toBeTruthy();
     });
+
+    it("não é válido sem data de nascimento (LDMF-422)", () => {
+      const { result } = renderHook(() => useRestaurantRegistration());
+
+      type(result, { ...valid, birthDate: "" });
+      expect(result.current.isFormValid).toBeFalsy();
+
+      type(result, { birthDate: "01/01/1990" });
+      expect(result.current.isFormValid).toBeTruthy();
+    });
   });
 
   describe("envio", () => {
@@ -131,6 +142,7 @@ describe("useRestaurantRegistration", () => {
         email: "loja@bear.com",
         phone: "41999990000",
         password: "Senha@123",
+        birthDate: "01/01/1990",
       });
       expect(api.companies.create).toHaveBeenCalledWith({
         tradeName: "Bear Burger",
@@ -190,6 +202,37 @@ describe("useRestaurantRegistration", () => {
 
       expect(result.current.submitMessage?.text).toBe("As senhas não coincidem.");
       expect(api.register).not.toHaveBeenCalled();
+    });
+
+    it("sem data de nascimento bloqueia sem chamar a API (LDMF-422)", async () => {
+      const { result } = renderHook(() => useRestaurantRegistration());
+      type(result, { ...valid, birthDate: "" });
+
+      await submit(result);
+
+      expect(result.current.submitMessage?.type).toBe("error");
+      expect(api.register).not.toHaveBeenCalled();
+    });
+
+    it("menor de 18 bloqueia sem chamar a API (LDMF-422)", async () => {
+      const { result } = renderHook(() => useRestaurantRegistration());
+      type(result, { ...valid, birthDate: "01/01/2015" });
+
+      await submit(result);
+
+      expect(result.current.submitMessage?.type).toBe("error");
+      expect(api.register).not.toHaveBeenCalled();
+    });
+
+    it("manda a data de nascimento do dono no cadastro (LDMF-422)", async () => {
+      const { result } = renderHook(() => useRestaurantRegistration());
+      type(result, valid);
+
+      await submit(result);
+
+      expect(api.register.mock.calls[0][0]).toMatchObject({
+        birthDate: "01/01/1990",
+      });
     });
 
     it("conta recusada não tenta criar a empresa", async () => {

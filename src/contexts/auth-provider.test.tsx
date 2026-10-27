@@ -108,6 +108,45 @@ describe("AuthProvider - indicador de CPF (LDMF-362)", () => {
     expect(useAuthStore.getState().user?.name).toBe("Nome salvo no login");
   });
 
+  it("repõe e-mail, telefone e nascimento da /session depois do F5 (LDMF-424)", async () => {
+    // Usuário veio do localStorage sem os campos pessoais (não são mais
+    // persistidos) e com os campos ricos da empresa.
+    useAuthStore.setState({
+      user: {
+        id: "user-1",
+        name: "Restaurante do Zé",
+        email: "",
+        cpf: "",
+        phone: "",
+        birthDate: "",
+        role: "owner",
+        tradeName: "Restaurante do Zé",
+      },
+      isAuthenticated: true,
+    });
+    getSession.mockResolvedValue({
+      authenticated: true,
+      user: {
+        id: "user-1",
+        email: "ze@example.com",
+        phone: "27999990000",
+        birthDate: "1990-01-01",
+        role: "owner",
+      },
+    });
+
+    renderProvider();
+
+    await waitFor(() =>
+      expect(useAuthStore.getState().user?.email).toBe("ze@example.com"),
+    );
+    const stored = useAuthStore.getState().user;
+    expect(stored?.phone).toBe("27999990000");
+    expect(stored?.birthDate).toBe("1990-01-01");
+    // Não troca o usuário inteiro: o campo rico da empresa continua lá.
+    expect(stored?.tradeName).toBe("Restaurante do Zé");
+  });
+
   it("não marca CPF se o /user/me for de outra conta", async () => {
     getSession
       .mockResolvedValueOnce({ authenticated: false, user: null })

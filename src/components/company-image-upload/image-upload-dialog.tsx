@@ -46,6 +46,20 @@ interface ImageUploadDialogProps {
 }
 
 /**
+ * Tipos aceitos no seletor de arquivo. Com todos os tipos começando por
+ * "image/", o Chrome do Android 13+ abre o seletor de fotos do sistema, que às
+ * vezes entrega um arquivo que o Chrome não consegue ler (NotReadableError) -
+ * medido no celular (LDMF-412), em ~2 de 6 escolhas, e relatado por outros
+ * projetos. Aceitar também qualquer arquivo (ACCEPT_ANDROID) faz o Chrome
+ * abrir o seletor comum do Android
+ * (Galeria, Arquivos...), cujos arquivos ficam legíveis. Só no Android: no
+ * iPhone e no computador o seletor continua o de imagens. O que não for
+ * imagem segue barrado pela validação de tipo.
+ */
+const ACCEPT_IMAGES = "image/*";
+const ACCEPT_ANDROID = "image/*,*/*";
+
+/**
  * Abre a imagem em tamanho cheio (sem corte) e só grava no backend depois de
  * escolher "Trocar foto" e confirmar em "Salvar foto" - não salva ao escolher
  * o arquivo, diferente do comportamento antigo (LDMF-410).
@@ -70,36 +84,67 @@ export function ImageUploadDialog({
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [pendingPreview, setPendingPreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  // Lendo o arquivo escolhido antes de mostrar o preview.
+  const [reading, setReading] = useState(false);
+  // Conta as escolhas, pra descartar uma leitura que terminou depois de outra.
+  const pickSeqRef = useRef(0);
+  // O navegador não conseguiu desenhar o preview pendente (a <img> deu erro).
+  const [previewFailed, setPreviewFailed] = useState(false);
+  // O navegador recusou ler o arquivo escolhido: só escolhendo de novo.
+  const [readFailed, setReadFailed] = useState(false);
+
+  // Decidido depois de montar, pra não divergir do HTML do servidor.
+  const [accept, setAccept] = useState(ACCEPT_IMAGES);
+  useEffect(() => {
+    if (/Android/i.test(navigator.userAgent)) setAccept(ACCEPT_ANDROID);
+  }, []);
 
   const shownUrl = pendingPreview ?? currentUrl;
   const hasImage = Boolean(shownUrl);
 
-  // Revoga o object URL pendente se o componente sair sem limpar (evita vazar).
+  // Object URL do preview pendente. Fica num ref atualizado na hora (não num
+  // efeito) pra revogar fora do updater do setState: o React pode rodar o
+  // updater mais de uma vez, e efeito colateral ali dentro é frágil.
   const previewRef = useRef<string | null>(null);
-  useEffect(() => {
-    previewRef.current = pendingPreview;
-  }, [pendingPreview]);
   useEffect(
     () => () => {
+      // Revoga o pendente se o componente sair sem limpar (evita vazar) e
+      // descarta uma leitura que ainda esteja em andamento.
+      pickSeqRef.current++;
       if (previewRef.current) URL.revokeObjectURL(previewRef.current);
     },
     [],
   );
 
+  const replacePreview = (next: string | null) => {
+    if (previewRef.current) URL.revokeObjectURL(previewRef.current);
+    previewRef.current = next;
+    setPendingPreview(next);
+    setPreviewFailed(false);
+  };
+
   const clearPending = () => {
-    setPendingPreview((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      return null;
-    });
+    // Invalida uma leitura em andamento pra ela não repor o preview depois.
+    pickSeqRef.current++;
+    setReading(false);
+    setReadFailed(false);
+    replacePreview(null);
     setPendingFile(null);
   };
 
-  const handlePick = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePick = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const input = e.target;
-    const file = input.files?.[0];
-    // Libera reescolher o mesmo arquivo depois.
-    input.value = "";
+    try {
+      await pickFile(input.files?.[0]);
+    } finally {
+      // Libera reescolher o mesmo arquivo depois. Só limpa depois da leitura:
+      // no Android, limpar o input logo na escolha pode soltar o acesso ao
+      // arquivo antes de lê-lo (LDMF-412).
+      input.value = "";
+    }
+  };
 
+  const pickFile = async (file: File | undefined) => {
     if (!file) return;
 
     if (!file.type.startsWith("image/")) {
@@ -113,16 +158,47 @@ export function ImageUploadDialog({
       return;
     }
 
-    // createObjectURL é síncrono: o preview troca junto com o arquivo. O
-    // FileReader/readAsDataURL antigo era assíncrono - abria uma janela em que
-    // o pendente já valia (dava pra "Salvar") mas o preview ainda mostrava a
-    // foto antiga, e com imagem grande o data URL travava/ficava "seletivo"
-    // (LDMF-412).
-    setPendingPreview((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      return URL.createObjectURL(file);
-    });
-    setPendingFile(file);
+    // Lê o arquivo inteiro antes de montar o preview, pra saber na hora se ele
+    // pode ser lido. No Chrome do Android 13+, o seletor de fotos do sistema
+    // às vezes entregava um arquivo ilegível (NotReadableError): o object URL
+    // criado direto dele virava o ícone de imagem quebrada e o upload falhava
+    // igual (LDMF-412). O ACCEPT_ANDROID evita esse seletor; se ainda assim
+    // a leitura falhar, pede pra escolher de novo. Sem novas tentativas: a
+    // mesma escolha não volta a ser lida (4 tentativas em ~2s falharam iguais
+    // no celular).
+    const seq = ++pickSeqRef.current;
+    setReading(true);
+    setReadFailed(false);
+    let bytes: ArrayBuffer;
+    try {
+      bytes = await file.arrayBuffer();
+    } catch {
+      if (seq !== pickSeqRef.current) return;
+      // Arquivo que o navegador não lê também não sobe: o upload falharia
+      // com o mesmo erro (visto no celular). Em vez de liberar um Salvar que
+      // não funciona, pede pra escolher a foto de novo - numa nova escolha o
+      // Android costuma liberar o arquivo.
+      replacePreview(null);
+      setPendingFile(null);
+      setReadFailed(true);
+      setReading(false);
+      return;
+    }
+    // Outra escolha, cancelar ou fechar no meio da leitura: descarta esta.
+    if (seq !== pickSeqRef.current) return;
+
+    // Preview e arquivo trocam juntos, sem janela em que o pendente já vale
+    // mas o preview ainda mostra a foto antiga.
+    replacePreview(URL.createObjectURL(new Blob([bytes], { type: file.type })));
+    // O upload também usa a cópia em memória, pra não depender de o Android
+    // entregar o arquivo de novo na hora do Salvar.
+    setPendingFile(
+      new File([bytes], file.name, {
+        type: file.type,
+        lastModified: file.lastModified,
+      }),
+    );
+    setReading(false);
   };
 
   const handleSave = async () => {
@@ -178,12 +254,39 @@ export function ImageUploadDialog({
               : "flex min-h-[180px] w-full items-center justify-center overflow-hidden rounded-lg border border-border bg-muted p-3"
           }
         >
-          {hasImage ? (
+          {reading ? (
+            <span
+              role="status"
+              className="flex items-center gap-2 text-xs text-muted-foreground"
+            >
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Carregando a imagem...
+            </span>
+          ) : readFailed ? (
+            <span
+              role="status"
+              className="px-4 text-center text-xs text-muted-foreground"
+            >
+              O celular não liberou essa foto. Escolha de novo.
+            </span>
+          ) : pendingPreview && previewFailed ? (
+            // Sem o ícone de imagem quebrada: o arquivo foi lido e pode ser
+            // salvo, só o navegador não conseguiu mostrar a prévia.
+            <span
+              role="status"
+              className="px-4 text-center text-xs text-muted-foreground"
+            >
+              Não deu pra mostrar a prévia, mas a foto pode ser salva.
+            </span>
+          ) : hasImage ? (
             // Logo/capa do restaurante seguem como <img> por decisão de projeto.
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={shownUrl}
               alt={alt}
+              onError={() => {
+                if (pendingPreview) setPreviewFailed(true);
+              }}
               className="max-h-[280px] w-auto max-w-full object-contain"
             />
           ) : (
@@ -196,7 +299,7 @@ export function ImageUploadDialog({
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*"
+          accept={accept}
           onChange={handlePick}
           className="hidden"
         />
@@ -229,6 +332,7 @@ export function ImageUploadDialog({
                   type="button"
                   variant="outline"
                   onClick={handleRemove}
+                  disabled={reading}
                   className="gap-2 text-destructive hover:text-destructive"
                 >
                   <Trash2 className="h-4 w-4" />
@@ -239,10 +343,15 @@ export function ImageUploadDialog({
                 type="button"
                 variant="outline"
                 onClick={() => fileInputRef.current?.click()}
+                disabled={reading}
                 className="gap-2"
               >
                 <Upload className="h-4 w-4" />
-                {hasImage ? "Trocar foto" : "Escolher foto"}
+                {readFailed
+                  ? "Escolher de novo"
+                  : hasImage
+                    ? "Trocar foto"
+                    : "Escolher foto"}
               </Button>
             </>
           )}
