@@ -97,8 +97,10 @@ function CategoryStatusToggle({
 }
 
 /**
- * Setas de subir/descer (LDMF-345). Funcionam bem no celular; arrastar fica
- * como melhoria futura. Mexem só no estado local até "Salvar ordem".
+ * Setas de subir/descer (LDMF-345). Dois botões separados e com alvo de
+ * toque generoso no celular (36px) pra não errar o sentido; menores no PC.
+ * Arrastar fica como melhoria futura. Mexem só no estado local até "Salvar
+ * ordem".
  */
 function ReorderControl({
   name,
@@ -113,17 +115,20 @@ function ReorderControl({
   onMoveUp: () => void;
   onMoveDown: () => void;
 }) {
+  const buttonClass =
+    "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30 md:h-7 md:w-7";
+
   return (
-    <div className="flex flex-col overflow-hidden rounded-[7px] border border-border">
+    <div className="flex items-center gap-1.5">
       <button
         type="button"
         onClick={onMoveUp}
         disabled={isFirst}
         aria-label={`Mover ${name} para cima`}
         title="Mover para cima"
-        className="flex h-[15px] w-6 items-center justify-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30"
+        className={buttonClass}
       >
-        <ChevronUp className="h-3 w-3" />
+        <ChevronUp className="h-4 w-4 md:h-3.5 md:w-3.5" />
       </button>
       <button
         type="button"
@@ -131,9 +136,9 @@ function ReorderControl({
         disabled={isLast}
         aria-label={`Mover ${name} para baixo`}
         title="Mover para baixo"
-        className="flex h-[15px] w-6 items-center justify-center border-t border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30"
+        className={buttonClass}
       >
-        <ChevronDown className="h-3 w-3" />
+        <ChevronDown className="h-4 w-4 md:h-3.5 md:w-3.5" />
       </button>
     </div>
   );
@@ -281,7 +286,7 @@ function CategoryManagementContent() {
 
         <div className="grid min-h-0 items-start gap-3 md:h-[calc(100vh-165px)] xl:grid-cols-[minmax(0,1fr)_320px]">
           <section className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-card md:h-full">
-            <div className="hidden shrink-0 grid-cols-[44px_minmax(0,1fr)_112px_112px_92px_108px] items-center gap-2 border-b border-border bg-muted px-3.5 py-2.5 md:grid">
+            <div className="hidden shrink-0 grid-cols-[44px_minmax(0,1fr)_112px_112px_92px_132px] items-center gap-2 border-b border-border bg-muted px-3.5 py-2.5 md:grid">
               <span className="text-[10px] font-extrabold uppercase tracking-wide text-muted-foreground">
                 #
               </span>
@@ -307,7 +312,7 @@ function CategoryManagementContent() {
                 {[1, 2, 3, 4, 5, 6].map((item) => (
                   <div
                     key={item}
-                    className="grid gap-2 p-3.5 md:grid-cols-[44px_minmax(0,1fr)_112px_112px_92px_108px] md:items-center"
+                    className="grid gap-2 p-3.5 md:grid-cols-[44px_minmax(0,1fr)_112px_112px_92px_132px] md:items-center"
                   >
                     <Skeleton className="h-4 w-7" />
                     <div className="space-y-2">
@@ -331,7 +336,7 @@ function CategoryManagementContent() {
                 {filteredCategories.map((category, index) => (
                   <div
                     key={category.id}
-                    className="grid gap-3 p-3.5 md:grid-cols-[44px_minmax(0,1fr)_112px_112px_92px_108px] md:items-center md:gap-2"
+                    className="grid gap-3 p-3.5 md:grid-cols-[44px_minmax(0,1fr)_112px_112px_92px_132px] md:items-center md:gap-2"
                   >
                     <div className="flex items-center justify-between gap-3 md:block">
                       <span className="text-[11px] font-extrabold text-muted-foreground">
