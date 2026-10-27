@@ -27,7 +27,6 @@ import {
   Mail,
   Phone,
   Store,
-  User,
 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";

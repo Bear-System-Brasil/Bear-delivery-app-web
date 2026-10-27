@@ -65,7 +65,7 @@ export default function CartPage() {
     handleGoToCheckout,
   } = useCartActions();
 
-  const { appliedPromo, setAppliedPromo, getTotalItems } = useCartStore();
+  const { appliedPromo, setAppliedPromo } = useCartStore();
   const handleCartClick = () => router.push("/cart");
   const [promoCode, setPromoCode] = useState("");
   const [isMounted, setIsMounted] = useState(false);
