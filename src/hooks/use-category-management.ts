@@ -1,7 +1,7 @@
 import { apiService, type Category, type Product } from "@/services/api";
 import { useAuthStore } from "@/stores";
 import { useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   useCategories,
@@ -18,6 +18,9 @@ import { useCompanyProducts } from "./use-products";
  * nova não herdar o botão por omissão.
  */
 const CATEGORY_DELETE_ROLES = ["owner", "admin"];
+
+// Reordenar categorias: só owner e manager (o back nega admin com 403).
+const CATEGORY_REORDER_ROLES = ["owner", "manager"];
 
 interface CategoryFormData {
   name: string;
@@ -81,13 +84,25 @@ export const useCategoryManagement = () => {
   const deleteCategory = useDeleteCategory();
   const { user } = useAuthStore();
   const canDelete = CATEGORY_DELETE_ROLES.includes(user?.role ?? "");
+  // Reordenar é só owner e manager: o back nega PATCH /categories/order pro
+  // admin (403), ao contrário das outras rotas de categoria (LDMF-345).
+  const canReorder = CATEGORY_REORDER_ROLES.includes(user?.role ?? "");
 
   const queryClient = useQueryClient();
   const companyId = user?.companyId || user?.id || null;
+  // Mesma chave usada pelo useCategories, pra escrever a resposta ordenada
+  // direto no cache.
+  const companyIdToMatch = user?.companyId || user?.id;
   const { data: products = [] } = useCompanyProducts(companyId);
   const [togglingCategoryId, setTogglingCategoryId] = useState<string | null>(
     null,
   );
+
+  // Ordem local da reordenação: espelha a ordem do back enquanto não há
+  // edição pendente; ao mexer nas setas, "descola" até salvar ou cancelar.
+  const [localOrder, setLocalOrder] = useState<Category[]>([]);
+  const [isReorderDirty, setIsReorderDirty] = useState(false);
+  const [isSavingOrder, setIsSavingOrder] = useState(false);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
@@ -132,11 +147,102 @@ export const useCategoryManagement = () => {
   // disso a tela evita afirmar "oculta" sem dado.
   const hasCategoryProductData = products.length > 0;
 
+  // O useCategories já devolve na ordem do back; enquanto não há edição
+  // pendente, o rascunho local acompanha (inclusive após salvar/refetch).
+  // Compara por id antes de trocar: durante o loading `categories` cai no
+  // default `[]` recriado a cada render, e setar essa referência nova toda
+  // vez entraria em loop de render.
+  useEffect(() => {
+    if (isReorderDirty) return;
+    setLocalOrder((prev) => {
+      const same =
+        prev.length === categories.length &&
+        prev.every((category, index) => category.id === categories[index].id);
+      return same ? prev : categories;
+    });
+  }, [categories, isReorderDirty]);
+
   const filteredCategories = categories.filter(
     (category: Category) =>
       category.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       category.description?.toLowerCase().includes(searchQuery.toLowerCase()),
   );
+
+  // Com busca ativa, reordenar fica travado: enviar só a lista filtrada
+  // jogaria as categorias de fora pro fim. A tela mostra a lista filtrada
+  // enquanto busca e o rascunho ordenável quando a busca está limpa.
+  const isSearching = searchQuery.trim().length > 0;
+  const displayCategories = isSearching ? filteredCategories : localOrder;
+
+  const moveCategory = (categoryId: string, direction: -1 | 1) => {
+    // Só marca como alterado quando o movimento é válido: subir o primeiro ou
+    // descer o último é no-op e não deve acender o "Salvar ordem".
+    const index = localOrder.findIndex((c) => c.id === categoryId);
+    const target = index + direction;
+    if (index === -1 || target < 0 || target >= localOrder.length) return;
+
+    setLocalOrder((prev) => {
+      const i = prev.findIndex((c) => c.id === categoryId);
+      const t = i + direction;
+      if (i === -1 || t < 0 || t >= prev.length) return prev;
+      const next = [...prev];
+      [next[i], next[t]] = [next[t], next[i]];
+      return next;
+    });
+    setIsReorderDirty(true);
+  };
+
+  const handleMoveCategoryUp = (categoryId: string) =>
+    moveCategory(categoryId, -1);
+  const handleMoveCategoryDown = (categoryId: string) =>
+    moveCategory(categoryId, 1);
+
+  const handleCancelReorder = () => {
+    // O efeito acima ressincroniza o rascunho com a ordem do back.
+    setIsReorderDirty(false);
+  };
+
+  const handleSaveOrder = async () => {
+    if (!canReorder || !isReorderDirty || isSavingOrder) return;
+    const ids = localOrder.map((category) => category.id);
+    if (ids.length === 0) return;
+
+    setIsSavingOrder(true);
+    try {
+      const response = await apiService.reorderMyCategories(ids);
+      if (!response.success || !response.data) {
+        const status = response.status;
+        if (status === 404) {
+          toast.error(
+            "A lista de categorias mudou. Recarregue a página e tente de novo.",
+          );
+        } else if (status === 403) {
+          toast.error("Você não tem permissão para reordenar categorias.");
+        } else {
+          toast.error(response.message || "Erro ao salvar a ordem.");
+        }
+        return;
+      }
+
+      // Resposta já vem ordenada e sem paginação: grava no cache e invalida
+      // o que depende da ordem (categorias e produtos do cardápio).
+      queryClient.setQueryData(
+        ["categories", "my", companyIdToMatch],
+        response.data,
+      );
+      queryClient.invalidateQueries({ queryKey: ["categories"] });
+      queryClient.invalidateQueries({
+        queryKey: ["products", "company", companyId],
+      });
+      setIsReorderDirty(false);
+      toast.success("Ordem das categorias salva!");
+    } catch (error) {
+      console.error("Erro ao salvar a ordem das categorias:", error);
+      toast.error("Erro ao salvar a ordem das categorias.");
+    } finally {
+      setIsSavingOrder(false);
+    }
+  };
 
   const handleOpenCreateModal = () => {
     setEditingCategory(null);
@@ -349,7 +455,7 @@ export const useCategoryManagement = () => {
   };
 
   return {
-    categories: filteredCategories,
+    categories: displayCategories,
     allCategories: categories,
     isLoading,
 
@@ -377,5 +483,14 @@ export const useCategoryManagement = () => {
     hasCategoryProductData,
     togglingCategoryId,
     handleToggleCategoryActive,
+
+    canReorder,
+    isSearching,
+    isReorderDirty,
+    isSavingOrder,
+    handleMoveCategoryUp,
+    handleMoveCategoryDown,
+    handleSaveOrder,
+    handleCancelReorder,
   };
 };

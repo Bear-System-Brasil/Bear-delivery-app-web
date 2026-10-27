@@ -27,6 +27,8 @@ import { useCategoryManagement } from "@/hooks";
 import { cn } from "@/lib/utils";
 import {
   CalendarDays,
+  ChevronDown,
+  ChevronUp,
   Edit,
   Eye,
   LayoutGrid,
@@ -94,6 +96,49 @@ function CategoryStatusToggle({
   );
 }
 
+/**
+ * Setas de subir/descer (LDMF-345). Funcionam bem no celular; arrastar fica
+ * como melhoria futura. Mexem só no estado local até "Salvar ordem".
+ */
+function ReorderControl({
+  name,
+  isFirst,
+  isLast,
+  onMoveUp,
+  onMoveDown,
+}: {
+  name: string;
+  isFirst: boolean;
+  isLast: boolean;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+}) {
+  return (
+    <div className="flex flex-col overflow-hidden rounded-[7px] border border-border">
+      <button
+        type="button"
+        onClick={onMoveUp}
+        disabled={isFirst}
+        aria-label={`Mover ${name} para cima`}
+        title="Mover para cima"
+        className="flex h-[15px] w-6 items-center justify-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30"
+      >
+        <ChevronUp className="h-3 w-3" />
+      </button>
+      <button
+        type="button"
+        onClick={onMoveDown}
+        disabled={isLast}
+        aria-label={`Mover ${name} para baixo`}
+        title="Mover para baixo"
+        className="flex h-[15px] w-6 items-center justify-center border-t border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30"
+      >
+        <ChevronDown className="h-3 w-3" />
+      </button>
+    </div>
+  );
+}
+
 function CategoryManagementContent() {
   const {
     categories: filteredCategories,
@@ -120,7 +165,19 @@ function CategoryManagementContent() {
     hasCategoryProductData,
     togglingCategoryId,
     handleToggleCategoryActive,
+    canReorder,
+    isSearching,
+    isReorderDirty,
+    isSavingOrder,
+    handleMoveCategoryUp,
+    handleMoveCategoryDown,
+    handleSaveOrder,
+    handleCancelReorder,
   } = useCategoryManagement();
+
+  // Setas aparecem só quando dá pra reordenar de fato: papel permitido e
+  // sem busca ativa (com busca, enviar a lista filtrada bagunçaria o resto).
+  const showReorder = canReorder && !isSearching;
 
   // A prévia espelha o que o cliente vê: só as categorias ativas (com item
   // disponível). Enquanto os produtos não chegam, mostra todas pra não piscar
@@ -184,9 +241,47 @@ function CategoryManagementContent() {
           </div>
         </div>
 
+        {canReorder && isReorderDirty && (
+          <div className="mb-3 flex flex-col gap-2 rounded-xl border border-brand-200 bg-brand-50 px-3.5 py-2.5 dark:border-brand-800 dark:bg-brand-950/40 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-[12.5px] font-bold text-brand-700 dark:text-brand-300">
+              Ordem alterada. Salve para o cardápio do cliente refletir.
+            </p>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={handleCancelReorder}
+                disabled={isSavingOrder}
+                className="h-8 cursor-pointer rounded-lg border-border text-xs"
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleSaveOrder}
+                disabled={isSavingOrder}
+                className="h-8 cursor-pointer rounded-lg bg-brand-500 text-xs font-bold text-white hover:bg-brand-600"
+              >
+                {isSavingOrder ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Salvando...
+                  </>
+                ) : (
+                  "Salvar ordem"
+                )}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {canReorder && isSearching && (
+          <p className="mb-3 text-[11.5px] font-medium text-muted-foreground">
+            Limpe a busca para reordenar as categorias.
+          </p>
+        )}
+
         <div className="grid min-h-0 items-start gap-3 md:h-[calc(100vh-165px)] xl:grid-cols-[minmax(0,1fr)_320px]">
           <section className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-card md:h-full">
-            <div className="hidden shrink-0 grid-cols-[44px_minmax(0,1fr)_112px_112px_92px_68px] items-center gap-2 border-b border-border bg-muted px-3.5 py-2.5 md:grid">
+            <div className="hidden shrink-0 grid-cols-[44px_minmax(0,1fr)_112px_112px_92px_108px] items-center gap-2 border-b border-border bg-muted px-3.5 py-2.5 md:grid">
               <span className="text-[10px] font-extrabold uppercase tracking-wide text-muted-foreground">
                 #
               </span>
@@ -212,7 +307,7 @@ function CategoryManagementContent() {
                 {[1, 2, 3, 4, 5, 6].map((item) => (
                   <div
                     key={item}
-                    className="grid gap-2 p-3.5 md:grid-cols-[44px_minmax(0,1fr)_112px_112px_92px_68px] md:items-center"
+                    className="grid gap-2 p-3.5 md:grid-cols-[44px_minmax(0,1fr)_112px_112px_92px_108px] md:items-center"
                   >
                     <Skeleton className="h-4 w-7" />
                     <div className="space-y-2">
@@ -236,7 +331,7 @@ function CategoryManagementContent() {
                 {filteredCategories.map((category, index) => (
                   <div
                     key={category.id}
-                    className="grid gap-3 p-3.5 md:grid-cols-[44px_minmax(0,1fr)_112px_112px_92px_68px] md:items-center md:gap-2"
+                    className="grid gap-3 p-3.5 md:grid-cols-[44px_minmax(0,1fr)_112px_112px_92px_108px] md:items-center md:gap-2"
                   >
                     <div className="flex items-center justify-between gap-3 md:block">
                       <span className="text-[11px] font-extrabold text-muted-foreground">
@@ -284,7 +379,16 @@ function CategoryManagementContent() {
                       />
                     </div>
 
-                    <div className="flex justify-end gap-1.5">
+                    <div className="flex items-center justify-end gap-1.5">
+                      {showReorder && (
+                        <ReorderControl
+                          name={category.name}
+                          isFirst={index === 0}
+                          isLast={index === filteredCategories.length - 1}
+                          onMoveUp={() => handleMoveCategoryUp(category.id)}
+                          onMoveDown={() => handleMoveCategoryDown(category.id)}
+                        />
+                      )}
                       <Button
                         variant="ghost"
                         size="icon"
