@@ -2,7 +2,7 @@ import { Minus, Plus } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/utils";
-import { ExtraGroup } from "../customize-order";
+import type { ExtraGroup } from "../customize-order";
 
 type Props = {
   group: ExtraGroup;
