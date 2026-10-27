@@ -15,7 +15,10 @@ export async function POST(request: Request) {
     email: body.email,
     phone: body.phone ? String(body.phone).replace(/\D/g, "") : "",
     password: body.password,
-    birthDate: body.birthDate || "01/01/2000",
+    // Não inventa data de nascimento (LDMF-422): a data é do dono e vem do
+    // formulário. Sem ela, o back recusa com 400, que é o certo - melhor do
+    // que gravar 01/01/2000 e mascarar a idade real.
+    birthDate: body.birthDate,
     // Nunca repassa o role do corpo (LDMF-425): a conta sempre nasce client,
     // que e o padrao do back, e vira owner so no POST /company. Sem isto,
     // qualquer um criava conta admin pela rota publica e lia dado de outras
