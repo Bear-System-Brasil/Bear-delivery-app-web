@@ -30,6 +30,9 @@ export interface Category {
   created_at: string;
   updated_at: string;
   description: string;
+  // Ordem de exibicao vinda do back (LDMF-345). Opcional: producao so manda
+  // depois do release do back.
+  position?: number;
 }
 
 export interface ProductCategory {
