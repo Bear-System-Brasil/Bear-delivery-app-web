@@ -151,3 +151,29 @@ describe("Sidebar da gestao - papel no rodape", () => {
     expect(screen.getByText("Cozinheiro")).toBeInTheDocument();
   });
 });
+
+describe("Sidebar da gestao - design novo (LDMF-443)", () => {
+  it("chama o cadastro da empresa de Perfil da Empresa, como o titulo da tela", () => {
+    render(<Sidebar isOpen onClose={() => {}} />);
+
+    expect(
+      screen.getByRole("link", { name: "Perfil da Empresa" }),
+    ).toHaveAttribute("href", "/company-profile");
+  });
+
+  it("marca o item ativo com fundo claro, e nao com o laranja cheio", () => {
+    // usePathname esta fixo em /menu-management no mock.
+    render(<Sidebar isOpen onClose={() => {}} />);
+
+    const ativo = screen.getByRole("link", { name: "Cardápio" });
+    expect(ativo).toHaveClass("bg-brand-50", "text-brand-700");
+    expect(ativo).not.toHaveClass("bg-brand-500");
+  });
+
+  it("mostra o Sair discreto, sem o laranja de botao de acao", () => {
+    render(<Sidebar isOpen onClose={() => {}} />);
+
+    const sair = screen.getByRole("button", { name: "Sair" });
+    expect(sair).not.toHaveClass("bg-brand-500");
+  });
+});

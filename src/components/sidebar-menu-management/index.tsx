@@ -137,7 +137,7 @@ const navGroups: { label: string; links: NavLink[] }[] = [
     links: [
       {
         href: "/company-profile",
-        label: "Meu Perfil",
+        label: "Perfil da Empresa",
         icon: User,
         roles: ["owner", "admin"],
       },
@@ -208,15 +208,19 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
                     onClick={onClose}
                     className={cn(
                       "flex h-[38px] items-center gap-[11px] rounded-[14px] px-3 text-[13px] font-semibold transition-colors",
+                      // Ativo em fundo claro com texto laranja: o laranja
+                      // cheio fica pros botões de ação.
                       active
-                        ? "bg-brand-500 text-white shadow-[0_6px_14px_var(--tw-shadow-color)] shadow-brand-500/35"
+                        ? "bg-brand-50 text-brand-700 dark:bg-brand-950/60 dark:text-brand-300"
                         : "text-foreground/80 hover:bg-muted hover:text-foreground",
                     )}
                   >
                     <Icon
                       className={cn(
                         "h-4 w-4 shrink-0",
-                        active ? "text-white" : "text-muted-foreground",
+                        active
+                          ? "text-brand-600 dark:text-brand-300"
+                          : "text-muted-foreground",
                       )}
                     />
                     <span className="truncate">{label}</span>
@@ -228,22 +232,21 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
         ))}
       </nav>
 
-      <div className="shrink-0 border-t border-border px-3 pb-3 pt-3">
+      {/* Sair discreto, na mesma linha da versão. Abaixo de sm o header
+          cede a linha ao título e não mostra o papel; ele vem pra cá. */}
+      <div className="flex shrink-0 items-center justify-between gap-2 border-t border-border px-3 py-2.5">
         <button
           type="button"
           onClick={handleLogout}
-          className="flex h-[38px] w-full items-center gap-[11px] rounded-[14px] bg-brand-500 px-3 text-[13px] font-semibold text-white shadow-[0_6px_14px_var(--tw-shadow-color)] shadow-brand-500/35 transition-colors hover:bg-brand-400 cursor-pointer"
+          className="flex h-[38px] cursor-pointer items-center gap-2 rounded-[10px] px-3 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         >
           <LogOut className="h-4 w-4 shrink-0" />
-          <span className="truncate">Sair da conta</span>
+          <span>Sair</span>
         </button>
-      </div>
-
-      {/* Abaixo de sm o header cede a linha ao título e não mostra o papel;
-          ele vem pra cá, na linha da versão, sem criar linha nova no menu. */}
-      <div className="flex shrink-0 items-center justify-center gap-2 border-t border-border px-[18px] py-3.5 text-[10.5px] font-semibold text-muted-foreground">
-        <RoleBadge className="py-0 text-[10.5px] sm:hidden" />
-        <span>v1.0.0</span>
+        <div className="flex min-w-0 items-center gap-2 text-[10.5px] font-semibold text-muted-foreground">
+          <RoleBadge className="py-0 text-[10.5px] sm:hidden" />
+          <span>v1.0.0</span>
+        </div>
       </div>
     </div>
   );
