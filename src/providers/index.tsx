@@ -61,8 +61,13 @@ export function Providers({ children }: ProvidersProps) {
     <QueryClientProvider client={queryClient}>
       <ConfirmProvider>
         {children}
+        {/* Abaixo do header, pra não cobrir os botões dele (LDMF-452).
+            Medido: header do app 58px no celular e 70px no desktop; o da
+            gestão 61px e 65px. Abaixo de 600px o sonner usa mobileOffset. */}
         <Toaster
           position="top-right"
+          offset={{ top: 82 }}
+          mobileOffset={{ top: 72 }}
           richColors
           closeButton
           duration={4000}
