@@ -536,6 +536,28 @@ describe("useKitchenOrders", () => {
       expect(playMock).not.toHaveBeenCalled();
     });
 
+    it("as páginas seguintes de Novos não piscam nem apitam (LDMF-452)", async () => {
+      // Medido na loja de teste: 29 pedidos em Novos, e a página 2 (9 pedidos
+      // antigos) tocava o som de pedido novo segundos depois de abrir a tela.
+      board = {
+        ORDERED: [[order("o1", "ORDERED")], [order("o2", "ORDERED")], [order("o3", "ORDERED")]],
+      };
+      usePreferencesStore.setState({ kitchenSoundEnabled: true });
+
+      const { result } = await renderLoaded();
+      await waitFor(() => {
+        expect(ids(result.current.columns.ORDERED.orders)).toEqual(["o1", "o2", "o3"]);
+      });
+
+      expect(result.current.highlightedIds).toEqual([]);
+      expect(playMock).not.toHaveBeenCalled();
+
+      // E o pedido novo de verdade, depois das páginas, continua apitando.
+      act(() => fakeSocket.fire("orderCreated", order("o9", "ORDERED")));
+      await waitFor(() => expect(result.current.highlightedIds).toEqual(["o9"]));
+      expect(playMock).toHaveBeenCalledWith("new-order");
+    });
+
     it("pedido que chega depois pisca e toca o alerta quando o som está ligado", async () => {
       usePreferencesStore.setState({ kitchenSoundEnabled: true });
       const { result } = await renderLoaded();
