@@ -26,12 +26,12 @@ export function useAuthModal({
 
   // Formulários
   const [loginData, setLoginData] = useState({ email: "", password: "" });
-  const [forgotPasswordData, setForgotPasswordData] = useState({ phone: "" });
-  const [resetPasswordData, setResetPasswordData] = useState({ phone: "", code: "", newPassword: "", confirmPassword: "" });
+  const [forgotPasswordData, setForgotPasswordData] = useState({ email: "" });
+  const [resetPasswordData, setResetPasswordData] = useState({ email: "", code: "", newPassword: "", confirmPassword: "" });
   const [registerData, setRegisterData] = useState({
     name: "", email: "", cpf: "", phone: "", password: "", confirmPassword: "", birthDate: "", role: "client",
   });
-  const [otpData, setOtpData] = useState({ phone: "", code: "" });
+  const [otpData, setOtpData] = useState({ email: "", code: "" });
   // Aceite dos termos e da política (LDMF-281). Fora do `registerData` de
   // propósito: o backend não tem esse campo e roda com forbidNonWhitelisted,
   // então mandar no corpo do cadastro derrubaria a requisição com 400.
@@ -139,10 +139,10 @@ export function useAuthModal({
     setStep("form");
     setLoginData({ email: "", password: "" });
     setRegisterData({ name: "", email: "", cpf: "", phone: "", password: "", confirmPassword: "", birthDate: "", role: "client" });
-    setOtpData({ phone: "", code: "" });
+    setOtpData({ email: "", code: "" });
     setAcceptedTerms(false);
-    setForgotPasswordData({ phone: "" });
-    setResetPasswordData({ phone: "", code: "", newPassword: "", confirmPassword: "" });
+    setForgotPasswordData({ email: "" });
+    setResetPasswordData({ email: "", code: "", newPassword: "", confirmPassword: "" });
     setSubmitMessage(null);
     setPasswordErrors([]);
     setPasswordMatch(true);
@@ -203,9 +203,11 @@ export function useAuthModal({
         const response = await apiService.createUser(apiData);
 
         if (response.success) {
-          setOtpData((prev) => ({ ...prev, phone: registerData.phone.replace(/\D/g, "") }));
+          // O código de confirmação do cadastro vai por e-mail (LDMF-294), e o
+          // POST /user/complet identifica a conta pelo mesmo e-mail.
+          setOtpData((prev) => ({ ...prev, email: registerData.email }));
           setStep("otp");
-          setSubmitMessage({ type: "success", text: "Código de verificação enviado para seu telefone!" });
+          setSubmitMessage({ type: "success", text: "Código de verificação enviado para seu e-mail!" });
         } else {
           const birthDateError = getBirthDateApiError(response);
           setBirthDateServerError(birthDateError);
@@ -226,7 +228,7 @@ export function useAuthModal({
     setIsLoading(true);
     setSubmitMessage(null);
     try {
-      const response = await apiService.verifyOtp({ phone: otpData.phone.replace(/\D/g, ""), code: otpData.code });
+      const response = await apiService.verifyOtp({ email: otpData.email, code: otpData.code });
       if (response.success) {
         setSubmitMessage({ type: "success", text: "Conta verificada com sucesso!" });
         setTimeout(() => {
@@ -249,14 +251,16 @@ export function useAuthModal({
     setIsLoading(true);
     setSubmitMessage(null);
     try {
-      const phone = forgotPasswordData.phone.replace(/\D/g, "");
-      const response = await apiService.forgotPassword({ phone });
+      const email = forgotPasswordData.email.trim().toLowerCase();
+      const response = await apiService.forgotPassword({ email });
       if (response.success) {
-        setResetPasswordData((prev) => ({ ...prev, phone }));
+        // O back responde 200 mesmo para e-mail sem cadastro, pra não revelar
+        // quem tem conta. Por isso o texto não confirma que o e-mail existe.
+        setResetPasswordData((prev) => ({ ...prev, email }));
         setStep("reset-password");
-        setSubmitMessage({ type: "success", text: "Código de recuperação enviado para seu telefone!" });
+        setSubmitMessage({ type: "success", text: "Se o e-mail estiver cadastrado, você vai receber um código de recuperação." });
       } else {
-        setSubmitMessage({ type: "error", text: response.message || "Telefone não encontrado. Verifique e tente novamente." });
+        setSubmitMessage({ type: "error", text: response.message || "Não foi possível enviar o código. Tente novamente." });
       }
     } catch (error) {
       setSubmitMessage({ type: "error", text: "Erro de conexão. Tente novamente." });
@@ -284,7 +288,7 @@ export function useAuthModal({
 
     try {
       const response = await apiService.resetPassword({
-        phone: resetPasswordData.phone,
+        email: resetPasswordData.email,
         code: resetPasswordData.code,
         newPassword: resetPasswordData.newPassword,
       });

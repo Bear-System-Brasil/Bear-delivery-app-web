@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import AuthModal from "./index";
@@ -12,14 +12,14 @@ const hookState = {
   setStep: noop,
   isLoading: false,
   loginData: { identifier: "", password: "" },
-  forgotPasswordData: { phone: "" },
+  forgotPasswordData: { email: "" },
   setForgotPasswordData: noop,
-  resetPasswordData: { phone: "", code: "", newPassword: "", confirmPassword: "" },
+  resetPasswordData: { email: "", code: "", newPassword: "", confirmPassword: "" },
   setResetPasswordData: noop,
   registerData: {},
   acceptedTerms: false,
   setAcceptedTerms: noop,
-  otpData: { code: "" },
+  otpData: { email: "", code: "" },
   setOtpData: noop,
   passwordErrors: [],
   passwordMatch: false,
@@ -40,26 +40,30 @@ vi.mock("@/hooks/useAuthModal", () => ({
 }));
 
 describe("AuthModal - Esqueci minha senha", () => {
-  it("avisa que a recuperação não está disponível, sem pedir telefone", () => {
+  it("pede o e-mail da conta, sem pedir telefone", () => {
     render(<AuthModal isOpen onClose={noop} />);
 
-    expect(
-      screen.getByText(/a recuperação de senha ainda não está disponível/i),
-    ).toBeInTheDocument();
+    expect(screen.getByLabelText(/email/i)).toHaveAttribute("type", "email");
     expect(screen.queryByLabelText(/telefone/i)).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: /enviar código/i }),
-    ).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /voltar ao login/i }),
     ).toBeInTheDocument();
   });
 
-  it("indica o e-mail de contato para quem precisa entrar agora", () => {
+  it("só libera o envio com e-mail preenchido", () => {
     render(<AuthModal isOpen onClose={noop} />);
 
-    expect(
-      screen.getByRole("link", { name: "beardeliveryofc@gmail.com" }),
-    ).toHaveAttribute("href", "mailto:beardeliveryofc@gmail.com");
+    expect(screen.getByRole("button", { name: /enviar código/i })).toBeDisabled();
+  });
+
+  it("digitar o e-mail atualiza o formulário em minúsculas", () => {
+    hookState.setForgotPasswordData.mockClear();
+    render(<AuthModal isOpen onClose={noop} />);
+
+    fireEvent.change(screen.getByLabelText(/email/i), {
+      target: { value: "Ana@Example.com" },
+    });
+
+    expect(hookState.setForgotPasswordData).toHaveBeenCalledWith({ email: "ana@example.com" });
   });
 });
