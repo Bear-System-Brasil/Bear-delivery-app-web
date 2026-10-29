@@ -1,5 +1,6 @@
 "use client";
 
+import { AdminPageLayout } from "@/components/admin-page-layout";
 import { Button } from "@/components/ui/button";
 import { OrderDetailSheet } from "@/components/order-detail-sheet";
 import { getCustomerName, getItemName, getOrderLabel, getPaymentLabel, toDateInputValue } from "./helpers";
@@ -10,12 +11,9 @@ import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/utils";
 import {
   Ban,
-  Bell,
-  BellOff,
   CheckCircle,
   ChefHat,
   Package,
-  RefreshCw,
   Store,
   Truck,
   type LucideIcon,
@@ -254,161 +252,150 @@ export default function Kitchen() {
     setPeriod("custom");
   };
 
+  // A casca fica aqui, e não na página: o Atualizar do header precisa do
+  // refetchAll e do isRefreshing deste hook.
   return (
-    // Altura travada na viewport: a página não rola, só o interior das colunas.
-    <div className="flex h-[calc(100dvh-52px)] min-h-0 flex-col overflow-hidden">
-      {/* Cabeçalho compacto: identidade da estação, relógio, total ativo e controles */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b bg-card px-3 py-2 print:hidden">
-        <div className="flex min-w-0 items-center gap-2 font-bold text-foreground">
-          <Store className="h-4 w-4 shrink-0 text-brand-500" />
-          <span className="truncate">{restaurantName}</span>
-        </div>
+    <AdminPageLayout
+      title="Cozinha"
+      icon={ChefHat}
+      mainClassName="pb-0 md:pb-0"
+      action={{ label: "Atualizar", onClick: refetchAll, busy: isRefreshing }}
+      sound={{ enabled: soundEnabled, onToggle: toggleSound }}
+      fillViewport
+    >
+      {/* Altura travada na viewport: a página não rola, só o interior das
+          colunas. Ocupa o que sobra abaixo do header (fillViewport) em vez de
+          descontar 52px fixos: o header real tem 61px no mobile e 65px acima. */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        {/* Cabeçalho compacto: identidade da estação, relógio, total ativo e controles */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b bg-card px-3 py-2 print:hidden">
+          <div className="flex min-w-0 items-center gap-2 font-bold text-foreground">
+            <Store className="h-4 w-4 shrink-0 text-brand-500" />
+            <span className="truncate">{restaurantName}</span>
+          </div>
 
-        <span className="tabular-nums text-sm font-semibold text-muted-foreground">{clockLabel}</span>
+          <span className="tabular-nums text-sm font-semibold text-muted-foreground">{clockLabel}</span>
 
-        <span className="text-sm font-semibold text-muted-foreground">
-          {activeOrderTotal} {activeOrderTotal === 1 ? "pedido ativo" : "pedidos ativos"}
-        </span>
+          <span className="text-sm font-semibold text-muted-foreground">
+            {activeOrderTotal} {activeOrderTotal === 1 ? "pedido ativo" : "pedidos ativos"}
+          </span>
 
-        <span
-          className={cn(
-            "inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-xs font-semibold",
-            isLive ? "bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-400" : "bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-400",
-          )}
-        >
           <span
             className={cn(
-              "h-1.5 w-1.5 rounded-full",
-              isLive ? "bg-emerald-500" : "animate-pulse bg-amber-500",
+              "inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-xs font-semibold",
+              isLive ? "bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-400" : "bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-400",
             )}
-          />
-          {isLive ? "Ao vivo" : "Reconectando..."}
-        </span>
-
-        <div className="ml-auto flex flex-wrap items-center gap-1">
-          {/* Só afeta Feitos e Cancelados — Novos/Em Preparo/Prontos são sempre "tudo em aberto". */}
-          <span className="hidden text-xs text-muted-foreground md:inline">
-            Período (Feitos/Cancelados):
-          </span>
-          <select
-            value={period}
-            onChange={(event) => setPeriod(event.target.value as KitchenPeriod)}
-            aria-label="Período de Concluídos e Cancelados"
-            className="h-9 cursor-pointer rounded-lg border border-input bg-background px-2 text-sm text-muted-foreground"
           >
-            {PERIOD_PRESETS.map((preset) => (
-              <option key={preset} value={preset}>
-                {KITCHEN_PERIOD_LABELS[preset]}
-              </option>
-            ))}
-            <option value="custom">{KITCHEN_PERIOD_LABELS.custom}</option>
-          </select>
-
-          {period === "custom" && (
-            <input
-              type="date"
-              value={toDateInputValue(customDate)}
-              max={toDateInputValue(new Date())}
-              onChange={(event) => handleCustomDateChange(event.target.value)}
-              aria-label="Selecionar data específica"
-              className="h-9 cursor-pointer rounded-lg border border-input bg-background px-2 text-sm text-muted-foreground"
+            <span
+              className={cn(
+                "h-1.5 w-1.5 rounded-full",
+                isLive ? "bg-emerald-500" : "animate-pulse bg-amber-500",
+              )}
             />
-          )}
+            {isLive ? "Ao vivo" : "Reconectando..."}
+          </span>
 
-          <Button
-            variant={showCanceled ? "secondary" : "ghost"}
-            className="h-9 cursor-pointer gap-1.5 px-2 text-xs"
-            onClick={toggleCanceled}
-          >
-            <Ban className="h-4 w-4" />
-            <span className="hidden sm:inline">
-              {showCanceled ? "Ocultar cancelados" : "Ver cancelados"}
+          <div className="ml-auto flex flex-wrap items-center gap-1">
+            {/* Só afeta Feitos e Cancelados — Novos/Em Preparo/Prontos são sempre "tudo em aberto". */}
+            <span className="hidden text-xs text-muted-foreground md:inline">
+              Período (Feitos/Cancelados):
             </span>
-          </Button>
+            <select
+              value={period}
+              onChange={(event) => setPeriod(event.target.value as KitchenPeriod)}
+              aria-label="Período de Concluídos e Cancelados"
+              className="h-9 cursor-pointer rounded-lg border border-input bg-background px-2 text-sm text-muted-foreground"
+            >
+              {PERIOD_PRESETS.map((preset) => (
+                <option key={preset} value={preset}>
+                  {KITCHEN_PERIOD_LABELS[preset]}
+                </option>
+              ))}
+              <option value="custom">{KITCHEN_PERIOD_LABELS.custom}</option>
+            </select>
 
-          <Button
-            variant="ghost"
-            className="h-9 cursor-pointer gap-1.5 px-2 text-xs"
-            onClick={toggleSound}
-            aria-pressed={soundEnabled}
-          >
-            {soundEnabled ? (
-              <Bell className="h-4 w-4 text-brand-500" />
-            ) : (
-              <BellOff className="h-4 w-4 text-muted-foreground" />
+            {period === "custom" && (
+              <input
+                type="date"
+                value={toDateInputValue(customDate)}
+                max={toDateInputValue(new Date())}
+                onChange={(event) => handleCustomDateChange(event.target.value)}
+                aria-label="Selecionar data específica"
+                className="h-9 cursor-pointer rounded-lg border border-input bg-background px-2 text-sm text-muted-foreground"
+              />
             )}
-            <span className="hidden sm:inline">{soundEnabled ? "Som ligado" : "Som desligado"}</span>
-          </Button>
 
-          <Button
-            variant="ghost"
-            className="h-9 cursor-pointer gap-1.5 px-2 text-xs"
-            onClick={refetchAll}
-            disabled={isRefreshing}
-          >
-            <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin")} />
-            <span className="hidden sm:inline">Atualizar</span>
-          </Button>
+            <Button
+              variant={showCanceled ? "secondary" : "ghost"}
+              className="h-9 cursor-pointer gap-1.5 px-2 text-xs"
+              onClick={toggleCanceled}
+            >
+              <Ban className="h-4 w-4" />
+              <span className="hidden sm:inline">
+                {showCanceled ? "Ocultar cancelados" : "Ver cancelados"}
+              </span>
+            </Button>
+          </div>
         </div>
-      </div>
 
-      {/* Cards de contador — em telas estreitas também trocam a coluna visível */}
-      <div
-        className="flex shrink-0 gap-2 overflow-x-auto border-b bg-card p-2 print:hidden"
-        role="tablist"
-        aria-label="Colunas da cozinha"
-      >
-        {columnOrder.map((config) => (
-          <KitchenCounterTile
-            key={config.status}
-            config={config}
-            count={columns[config.status].total}
-            active={activeStatus === config.status}
-            onSelect={() => setActiveStatus(config.status)}
-          />
-        ))}
-      </div>
-
-      {/* Telas estreitas: só a coluna ativa, com rolagem interna própria */}
-      <div className="min-h-0 flex-1 p-3 lg:hidden print:hidden">
-        <KitchenColumn {...columnProps(activeStatus)} showHeader={false} />
-      </div>
-
-      {/* Telas largas: colunas lado a lado, cada uma com altura fixa e rolagem própria */}
-      <div className="hidden min-h-0 flex-1 p-4 lg:block print:hidden">
+        {/* Cards de contador — em telas estreitas também trocam a coluna visível */}
         <div
-          className={cn(
-            "grid h-full min-h-0 gap-4",
-            columnOrder.length === 5 ? "lg:grid-cols-5" : "lg:grid-cols-4",
-          )}
+          className="flex shrink-0 gap-2 overflow-x-auto border-b bg-card p-2 print:hidden"
+          role="tablist"
+          aria-label="Colunas da cozinha"
         >
           {columnOrder.map((config) => (
-            <KitchenColumn key={config.status} {...columnProps(config.status)} />
+            <KitchenCounterTile
+              key={config.status}
+              config={config}
+              count={columns[config.status].total}
+              active={activeStatus === config.status}
+              onSelect={() => setActiveStatus(config.status)}
+            />
           ))}
         </div>
+
+        {/* Telas estreitas: só a coluna ativa, com rolagem interna própria */}
+        <div className="min-h-0 flex-1 p-3 lg:hidden print:hidden">
+          <KitchenColumn {...columnProps(activeStatus)} showHeader={false} />
+        </div>
+
+        {/* Telas largas: colunas lado a lado, cada uma com altura fixa e rolagem própria */}
+        <div className="hidden min-h-0 flex-1 p-4 lg:block print:hidden">
+          <div
+            className={cn(
+              "grid h-full min-h-0 gap-4",
+              columnOrder.length === 5 ? "lg:grid-cols-5" : "lg:grid-cols-4",
+            )}
+          >
+            {columnOrder.map((config) => (
+              <KitchenColumn key={config.status} {...columnProps(config.status)} />
+            ))}
+          </div>
+        </div>
+
+        <CancelKitchenOrderDialog
+          order={cancelTarget}
+          open={!!cancelTarget}
+          onClose={() => setCancelTarget(null)}
+          onConfirm={cancelOrder}
+          isLoading={isCanceling}
+        />
+
+        {/* Mesmas funções do hook que o card usa — otimista e rollback ficam consistentes. */}
+        <OrderDetailSheet
+          order={selectedOrder}
+          open={!!selectedOrder}
+          onClose={() => setSelectedOrder(null)}
+          actionLabel={selectedOrder ? KITCHEN_COLUMN_BY_STATUS[selectedOrder.status]?.actionLabel : null}
+          onAction={advanceOrder}
+          onCancel={canCancelOrder ? setCancelTarget : undefined}
+          onPrint={handlePrint}
+          isUpdating={!!selectedOrder && advancingOrderId === selectedOrder.id}
+        />
+
+        <KitchenPrintArea order={printOrder} />
       </div>
-
-      <CancelKitchenOrderDialog
-        order={cancelTarget}
-        open={!!cancelTarget}
-        onClose={() => setCancelTarget(null)}
-        onConfirm={cancelOrder}
-        isLoading={isCanceling}
-      />
-
-      {/* Mesmas funções do hook que o card usa — otimista e rollback ficam consistentes. */}
-      <OrderDetailSheet
-        order={selectedOrder}
-        open={!!selectedOrder}
-        onClose={() => setSelectedOrder(null)}
-        actionLabel={selectedOrder ? KITCHEN_COLUMN_BY_STATUS[selectedOrder.status]?.actionLabel : null}
-        onAction={advanceOrder}
-        onCancel={canCancelOrder ? setCancelTarget : undefined}
-        onPrint={handlePrint}
-        isUpdating={!!selectedOrder && advancingOrderId === selectedOrder.id}
-      />
-
-      <KitchenPrintArea order={printOrder} />
-    </div>
+    </AdminPageLayout>
   );
 }

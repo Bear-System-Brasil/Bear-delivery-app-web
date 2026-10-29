@@ -15,6 +15,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { usePayment } from "@/hooks";
 import { buildPaymentMethodUpdate } from "@/lib/payment-update";
 import { cn } from "@/lib/utils";
+// Linha separada de propósito, pra não conflitar com o PR do LDMF-429, que
+// mexe na linha de import do React. Unificar depois (LDMF-392).
+import { useRef } from "react";
 import { Payment, PaymentMethod, PaymentStatus } from "@/services/api";
 import { useAuthStore } from "@/stores";
 import { formatCurrency, getCustomerDisplayName } from "@/utils";
@@ -186,28 +189,55 @@ export default function FinancePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Último filtro que foi de fato pro back. O "Atualizar" do header repete
+  // esta busca: sem isso, um filtro digitado e ainda não aplicado entraria
+  // de carona, e limpar o estado faria a lista voltar sem filtro.
+  const appliedSearchRef = useRef<(targetPage: number) => Promise<void>>(
+    async (targetPage) => {
+      await fetchPaymentsByFilters({}, { page: targetPage, limit: PAGE_SIZE });
+    },
+  );
+
   // targetPage: por padrão mantém a página atual (ex: reload após aprovar
   // um pagamento não deve chutar o usuário de volta pra página 1).
   const handleSearch = async (targetPage: number = page) => {
-    setPage(targetPage);
-    const params = { page: targetPage, limit: PAGE_SIZE };
+    let run: (targetPage: number) => Promise<void>;
 
     if (dateFrom && dateTo) {
-      await fetchPaymentsByDateRange(
-        {
-          startDate: new Date(dateFrom).toISOString(),
-          endDate: new Date(dateTo).toISOString(),
-          customerId: searchCustomerId || undefined,
-        },
-        params,
-      );
+      const range = {
+        startDate: new Date(dateFrom).toISOString(),
+        endDate: new Date(dateTo).toISOString(),
+        customerId: searchCustomerId || undefined,
+      };
+      run = async (p) => {
+        await fetchPaymentsByDateRange(range, { page: p, limit: PAGE_SIZE });
+      };
     } else if (filterMethod !== "ALL") {
-      await fetchPaymentsByMethod(filterMethod, params);
+      const method = filterMethod;
+      run = async (p) => {
+        await fetchPaymentsByMethod(method, { page: p, limit: PAGE_SIZE });
+      };
     } else {
       const filters: { orderId?: string; customerId?: string } = {};
       if (searchOrderId) filters.orderId = searchOrderId;
       if (searchCustomerId) filters.customerId = searchCustomerId;
-      await fetchPaymentsByFilters(filters, params);
+      run = async (p) => {
+        await fetchPaymentsByFilters(filters, { page: p, limit: PAGE_SIZE });
+      };
+    }
+
+    appliedSearchRef.current = run;
+    setPage(targetPage);
+    await run(targetPage);
+  };
+
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await appliedSearchRef.current(page);
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
@@ -222,7 +252,10 @@ export default function FinancePage() {
     setDateFrom("");
     setDateTo("");
     setPage(1);
-    fetchPaymentsByFilters({}, { page: 1, limit: PAGE_SIZE });
+    appliedSearchRef.current = async (p) => {
+      await fetchPaymentsByFilters({}, { page: p, limit: PAGE_SIZE });
+    };
+    appliedSearchRef.current(1);
   };
 
   const handleApprove = async (payment: Payment) => {
@@ -310,9 +343,15 @@ export default function FinancePage() {
 
   return (
     <AdminPageLayout
-      title="Gestão de Pagamentos"
+      title="Pagamentos"
       icon={DollarSign}
       mainClassName="p-4 pb-20 sm:p-6 md:pb-10 lg:pl-64 lg:pr-8"
+      action={{
+        label: "Atualizar",
+        busyLabel: "Atualizando...",
+        onClick: handleRefresh,
+        busy: isRefreshing,
+      }}
     >
       <div className="mx-auto max-w-7xl">
         {/* Resumo: total em pagamentos + quebra por método */}

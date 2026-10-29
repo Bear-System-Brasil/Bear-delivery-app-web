@@ -62,13 +62,74 @@ vi.mock("@/stores", () => ({
 }));
 
 vi.mock("@/components/admin-page-layout", () => ({
-  AdminPageLayout: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  // O botão único do header vira um botão simples: a casca tem teste próprio.
+  AdminPageLayout: ({
+    children,
+    action,
+  }: {
+    children: ReactNode;
+    action?: { label: string; onClick: () => void };
+  }) => (
+    <div>
+      {action && (
+        <button type="button" onClick={action.onClick}>
+          {action.label}
+        </button>
+      )}
+      {children}
+    </div>
+  ),
 }));
 
 const { default: FinancePage } = await import("./page");
 
 /** A tabela (desktop) fica escondida por CSS, mas existe no DOM; o card do celular também. */
 const changeLinks = () => screen.queryAllByRole("button", { name: "Alterar" });
+
+// Fica antes do describe de alterar forma: o PR do LDMF-391 acrescenta
+// teste no fim do arquivo, e os dois no mesmo lugar dariam conflito.
+describe("Finanças - Atualizar do header (LDMF-392)", () => {
+  beforeEach(() => {
+    fetchPaymentsByFilters.mockReset();
+    AUTH.user = { role: "manager" };
+  });
+
+  it("repete a última busca aplicada, sem o filtro digitado e não aplicado", async () => {
+    const user = userEvent.setup();
+    render(<FinancePage />);
+
+    await user.type(screen.getByPlaceholderText("Buscar por pedido"), "order-1");
+    await user.click(screen.getByRole("button", { name: "Buscar" }));
+
+    // Digitou outro pedido, mas não clicou em Buscar: não é o filtro ativo.
+    await user.clear(screen.getByPlaceholderText("Buscar por pedido"));
+    await user.type(screen.getByPlaceholderText("Buscar por pedido"), "order-2");
+    fetchPaymentsByFilters.mockClear();
+
+    await user.click(screen.getByRole("button", { name: "Atualizar" }));
+
+    expect(fetchPaymentsByFilters).toHaveBeenCalledTimes(1);
+    expect(fetchPaymentsByFilters).toHaveBeenCalledWith(
+      { orderId: "order-1" },
+      { page: 1, limit: 20 },
+    );
+  });
+
+  it("depois de limpar os filtros, atualiza sem filtro", async () => {
+    const user = userEvent.setup();
+    render(<FinancePage />);
+
+    await user.type(screen.getByPlaceholderText("Buscar por pedido"), "order-1");
+    await user.click(screen.getByRole("button", { name: "Buscar" }));
+    // O 429 encurta pra "Limpar"; aceita os dois rótulos.
+    await user.click(screen.getByRole("button", { name: /^Limpar/ }));
+    fetchPaymentsByFilters.mockClear();
+
+    await user.click(screen.getByRole("button", { name: "Atualizar" }));
+
+    expect(fetchPaymentsByFilters).toHaveBeenCalledWith({}, { page: 1, limit: 20 });
+  });
+});
 
 describe("Finanças - alterar forma de pagamento", () => {
   beforeEach(() => {

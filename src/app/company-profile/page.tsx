@@ -286,6 +286,7 @@ function CompanyProfileContent() {
       title="Perfil da Empresa"
       icon={Building2}
       mainClassName="p-4 sm:p-6 lg:pl-64 lg:pr-8"
+      subtitle="A identidade que aparece para o cliente no app"
     >
       <div className="mx-auto max-w-[920px]">
         {profileError && !isLoadingProfile ? (
@@ -295,10 +296,7 @@ function CompanyProfileContent() {
         ) : (
           <>
             {/* Header row */}
-            <div className="mb-4 flex items-start justify-between gap-4">
-              <p className="text-[12.5px] font-medium text-muted-foreground">
-                A identidade que aparece para o cliente no app
-              </p>
+            <div className="mb-4 flex justify-end">
               <Link href={`/restaurant/${companyId}`} target="_blank">
                 <Button
                   variant="outline"
