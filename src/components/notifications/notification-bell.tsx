@@ -11,6 +11,7 @@ import {
   useBrowserNotificationPermission,
   useNotifications,
 } from "@/hooks/use-notifications";
+import { acknowledgeOrder } from "@/lib/order-alerts";
 import { cn } from "@/lib/utils";
 import type {
   AppNotification,
@@ -36,6 +37,7 @@ export function NotificationBell({ audience, className }: NotificationBellProps)
 
   const handleSelect = (item: AppNotification) => {
     markAsRead(item.id);
+    if (item.orderId) acknowledgeOrder(item.orderId);
     setOpen(false);
     if (item.href) router.push(item.href);
   };

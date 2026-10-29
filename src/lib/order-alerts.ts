@@ -6,6 +6,9 @@
  * 2. Nada de loop sem fim em 2,8 s. Repetição espaçada a cada 30 segundos
  *    enquanto houver pedidos novos não visualizados/atendidos.
  * 3. Para imediatamente assim que o pedido for aberto ou o aviso for clicado/dispensado.
+ *    "Aberto" = detalhe do pedido na Cozinha ou a notificação no sino. O toast
+ *    sumir sozinho não conta: o lembrete segue, sem limite, até alguém ver o
+ *    pedido ou ele avançar (decisão do Kauan, LDMF-452).
  * 4. Respeita o perfil do usuário para rota e som:
  *    - cook e papéis de gestão (owner, admin, manager): levam para /kitchen
  *    - financial: leva para /financial-management/orders (mudo por padrão)
@@ -99,6 +102,7 @@ export function triggerOrderAlert(
     title: "Novo pedido recebido",
     body: `Pedido #${label} acabou de chegar.`,
     href: targetRoute,
+    orderId: order.id,
   });
 
   // 5. Toast com ação explícita de "Ver pedido"

@@ -77,6 +77,7 @@ describe("order-alerts", () => {
         title: "Novo pedido recebido",
         body: "Pedido #101 acabou de chegar.",
         href: "/kitchen",
+        orderId: "order-1",
       });
 
       expect(toast.info).toHaveBeenCalledWith(
@@ -102,6 +103,7 @@ describe("order-alerts", () => {
         title: "Novo pedido recebido",
         body: "Pedido #102 acabou de chegar.",
         href: "/financial-management/orders",
+        orderId: "order-2",
       });
       expect(toast.info).toHaveBeenCalled();
     });
@@ -155,6 +157,36 @@ describe("order-alerts", () => {
 
       expect(isOrderUnacknowledged("order-5")).toBe(false);
       expect(pushMock).toHaveBeenCalledWith("/kitchen");
+    });
+  });
+
+  describe("lembrete depois que o toast some (LDMF-452)", () => {
+    it("o toast sumir sozinho nao para o lembrete: segue ate alguem ver o pedido", () => {
+      vi.useFakeTimers();
+      triggerOrderAlert({ id: "order-6", orderNumber: 106 }, { role: "manager" });
+
+      // O auto-close do sonner (15s) nao chama onDismiss: so o fechamento
+      // manual chama. Passados 15s, o pedido continua sem ser visto.
+      vi.advanceTimersByTime(15_000);
+      expect(isOrderUnacknowledged("order-6")).toBe(true);
+
+      vi.advanceTimersByTime(REMINDER_INTERVAL_MS * 4);
+      expect(soundManager.play).toHaveBeenCalledTimes(1 + 4);
+
+      acknowledgeOrder("order-6");
+      vi.advanceTimersByTime(REMINDER_INTERVAL_MS * 2);
+      expect(soundManager.play).toHaveBeenCalledTimes(1 + 4);
+    });
+
+    it("fechar o toast na mao conta como ver e para o lembrete", () => {
+      vi.useFakeTimers();
+      triggerOrderAlert({ id: "order-7", orderNumber: 107 }, { role: "manager" });
+
+      const opcoes = vi.mocked(toast.info).mock.calls[0][1] as { onDismiss: () => void };
+      opcoes.onDismiss();
+
+      vi.advanceTimersByTime(REMINDER_INTERVAL_MS * 2);
+      expect(soundManager.play).toHaveBeenCalledTimes(1);
     });
   });
 

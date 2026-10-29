@@ -7,6 +7,7 @@ import { getCustomerName, getItemName, getOrderLabel, getPaymentLabel, toDateInp
 import { useKitchenOrders } from "@/hooks/use-kitchen-orders";
 import { useAuthStore } from "@/stores";
 import { getCashChange } from "@/lib/delivery";
+import { acknowledgeOrder } from "@/lib/order-alerts";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/utils";
 import {
@@ -233,7 +234,11 @@ export default function Kitchen() {
   }, [printOrder]);
 
   const handlePrint = (order: KitchenOrder) => setPrintOrder(order);
-  const handleViewDetails = (order: KitchenOrder) => setSelectedOrder(order);
+  // Abrir o pedido conta como ver: para o lembrete sonoro dele (LDMF-452).
+  const handleViewDetails = (order: KitchenOrder) => {
+    acknowledgeOrder(order.id);
+    setSelectedOrder(order);
+  };
 
   const columnProps = (status: KitchenStatus) => ({
     column: columns[status],
