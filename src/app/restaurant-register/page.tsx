@@ -15,8 +15,9 @@ import {
 } from "@/components/ui/custom";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { BirthDateInput } from "@/components/birth-date-input";
 import { useRestaurantRegistration } from "@/hooks";
-import { formatCnpj, formatPhoneDisplay } from "@/utils";
+import { formatCnpj, formatPhoneDisplay, getBirthDateError } from "@/utils";
 import {
   ArrowLeft,
   Building2,
@@ -26,7 +27,6 @@ import {
   Mail,
   Phone,
   Store,
-  User,
 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
@@ -346,6 +346,24 @@ export default function RestaurantRegisterPage() {
                         </div>
                       )}
                     </div>
+
+                    <div className="space-y-2">
+                      <Label
+                        htmlFor="birthDate"
+                        className="flex items-center gap-2 text-sm font-medium text-foreground cursor-pointer"
+                      >
+                        <Calendar className="h-4 w-4 text-brand-500" />
+                        Data de nascimento do responsável
+                      </Label>
+                      <BirthDateInput
+                        id="birthDate"
+                        value={registerData.birthDate}
+                        onChange={(value) =>
+                          handleInputChange("birthDate", value)
+                        }
+                        error={getBirthDateError(registerData.birthDate)}
+                      />
+                    </div>
                   </>
                 )}
 
@@ -358,7 +376,8 @@ export default function RestaurantRegisterPage() {
                   />
                   <Label htmlFor="acceptTerms" className="text-sm font-medium leading-snug text-foreground">
                     <span>
-                      Li e aceito os{" "}
+                      {isLoggedIn ? "Li" : "Tenho 18 anos ou mais e li"} e aceito
+                      os{" "}
                       <Link href="/terms" target="_blank" rel="noopener noreferrer" className="font-semibold text-brand-600 underline dark:text-brand-400">
                         Termos de uso
                       </Link>{" "}

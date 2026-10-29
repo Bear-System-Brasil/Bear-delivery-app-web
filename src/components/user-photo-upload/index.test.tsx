@@ -53,7 +53,7 @@ describe("UserPhotoUpload", () => {
     // Escolher o arquivo não grava nada ainda.
     expect(apiService.uploadUserPhoto).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("button", { name: "Salvar foto" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Salvar foto" }));
 
     await waitFor(() =>
       expect(apiService.uploadUserPhoto).toHaveBeenCalledTimes(1),

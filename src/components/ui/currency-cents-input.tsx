@@ -21,13 +21,6 @@ const formatCurrency = (value: number) => {
   }).format(value)
 }
 
-const formatCurrencyWithoutSymbol = (value: number) => {
-  return new Intl.NumberFormat("pt-BR", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value)
-}
-
 /**
  * Processa entrada monetária com digit shifting e opção de máscara em tempo real
  * maskWhileTyping=false: digita 5 → "0,05" (sem R$)

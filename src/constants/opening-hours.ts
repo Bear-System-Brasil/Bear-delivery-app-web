@@ -16,6 +16,11 @@ export interface DayHours {
   /** Intervalo (almoço), opcional. Vazio quando não há. */
   breakStart?: string;
   breakEnd?: string;
+  /**
+   * Intervalo ligado na tela ("+ intervalo"), mesmo antes de preencher.
+   * Só da tela: não vai para o back.
+   */
+  hasBreak?: boolean;
 }
 
 /** Ordem da semana como aparece na tela (segunda a domingo). */
@@ -127,6 +132,7 @@ export function toDayHours(raw: unknown): DayHours[] {
       closeTime,
       breakStart: hasBreak ? breakStart : "",
       breakEnd: hasBreak ? breakEnd : "",
+      hasBreak,
     });
   }
 
@@ -168,6 +174,14 @@ export function getPersistedDays(serverHours: DayHours[] | undefined): DayKey[] 
 }
 
 /**
+ * 00:00 no fechamento não vale: o back lê 00:00 como abertura do dia, então
+ * fechar à meia-noite é 23:59 (LDMF-351).
+ */
+export function isMidnightClose(closeTime: string): boolean {
+  return /^0?0:00$/.test(closeTime);
+}
+
+/**
  * Primeiro problema que impediria o save, ou `null` se estiver tudo certo.
  *
  * Sem isso o dia incompleto seria descartado em silêncio por
@@ -187,12 +201,73 @@ export function findOpeningHoursError(hours: DayHours[]): string | null {
       return `Informe abertura e fechamento de ${day.label}.`;
     }
 
-    if (Boolean(day.breakStart) !== Boolean(day.breakEnd)) {
+    if (isMidnightClose(day.closeTime)) {
+      return `${day.label} não pode fechar às 00:00. Para fechar à meia-noite, use 23:59.`;
+    }
+
+    // Ligar o intervalo e não preencher também barra: tirar é no "×".
+    if (
+      (day.hasBreak || day.breakStart || day.breakEnd) &&
+      !(day.breakStart && day.breakEnd)
+    ) {
       return `O intervalo de ${day.label} precisa de início e fim.`;
     }
   }
 
   return null;
+}
+
+/** Dia aberto com abertura e fechamento preenchidos. */
+export function hasDayHours(day: DayHours): boolean {
+  return day.isOpen && Boolean(day.openTime && day.closeTime);
+}
+
+/**
+ * De onde o "Trazer horário" copia por padrão: o único dia com horário, ou a
+ * segunda quando há mais de um. Se a segunda não tiver horário, o primeiro
+ * dia da semana que tiver. `null` quando nenhum dia tem horário.
+ */
+export function getDefaultCopySource(hours: DayHours[]): DayKey | null {
+  const filled = hours.filter(hasDayHours);
+  return (filled.find((day) => day.day === "mon") ?? filled[0])?.day ?? null;
+}
+
+/**
+ * Dias marcados como abertos e ainda sem horário: os que recebem o horário
+ * quando só um dia tem horário, sem risco de sobrescrever nada.
+ */
+export function getEmptyOpenDays(hours: DayHours[]): DayKey[] {
+  return hours
+    .filter((day) => day.isOpen && !hasDayHours(day))
+    .map((day) => day.day);
+}
+
+/**
+ * Copia abertura, fechamento e intervalo de `source` para `targets`, que
+ * passam a ficar abertos. Intervalo vazio na origem limpa o do destino:
+ * o destino fica igual à origem.
+ */
+export function copyDayHours(
+  hours: DayHours[],
+  source: DayKey,
+  targets: DayKey[],
+): DayHours[] {
+  const from = hours.find((day) => day.day === source);
+  if (!from || !hasDayHours(from)) return hours;
+
+  return hours.map((day) =>
+    day.day !== source && targets.includes(day.day)
+      ? {
+          ...day,
+          isOpen: true,
+          openTime: from.openTime,
+          closeTime: from.closeTime,
+          breakStart: from.breakStart ?? "",
+          breakEnd: from.breakEnd ?? "",
+          hasBreak: Boolean(from.breakStart && from.breakEnd),
+        }
+      : day,
+  );
 }
 
 /**

@@ -165,6 +165,14 @@ function MenuManagementContent() {
     }));
   }, [products]);
 
+  // Contadores da lista exibida (respeitam busca e categoria selecionada),
+  // no mesmo padrao das outras telas do design novo.
+  const dishCount = filteredDishes.length;
+  const availableCount = useMemo(
+    () => filteredDishes.filter((dish) => dish.available !== false).length,
+    [filteredDishes],
+  );
+
   const allCategories = useMemo(() => {
     return [{ id: "all", name: "Todas" }, ...categories];
   }, [categories]);
@@ -456,6 +464,7 @@ function MenuManagementContent() {
       title="Cardápio"
       icon={UtensilsCrossed}
       mainClassName="px-4 pb-20 pt-5 sm:px-6 md:pb-10 lg:pl-[252px] lg:pr-8 lg:pt-[26px]"
+      subtitle="Pratos e itens que o cliente vê no app"
     >
       <div className="mx-auto max-w-[1180px]">
         <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -469,8 +478,15 @@ function MenuManagementContent() {
             />
           </div>
 
-          {/* Desceram do header (LDMF-393): lá fica só o botão único. */}
-          <div className="flex items-center gap-2">
+          {/* Contadores (LDMF-437) e os botões que desceram do header (LDMF-393). */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="rounded-xl border border-border bg-card px-2.5 py-1 text-[11.5px] font-bold text-foreground">
+              {dishCount} {dishCount === 1 ? "prato" : "pratos"}
+            </span>
+            <span className="rounded-xl bg-muted px-2.5 py-1 text-[11.5px] font-bold text-muted-foreground">
+              {availableCount}{" "}
+              {availableCount === 1 ? "disponível" : "disponíveis"}
+            </span>
             <Button
               asChild
               variant="outline"

@@ -806,6 +806,10 @@ export interface Category {
   companyId: string;
   created_at: string;
   updated_at: string;
+  // Ordem de exibição vinda do back (LDMF-345). Opcional de propósito:
+  // produção só passa a mandar o campo depois do release do back, então o
+  // front não pode exigir que ele exista.
+  position?: number;
 }
 
 // Specialty types (restaurant types)
@@ -1312,6 +1316,10 @@ export interface CashRegister {
   countedTotal?: number;
   observations?: string;
   status?: string;
+  /** Quem abriu o caixa - pode não ser o usuário logado (ex.: dono vendo o caixa do operador). */
+  operatorId?: string;
+  /** Observado em GET /cash-register/open/current; opcional porque nem toda resposta traz. */
+  operator?: { id: string; name?: string };
 }
 
 /**
@@ -1766,6 +1774,13 @@ export const apiService = {
   // Remoção-Apenas Admin e Owner podem deletar (Manager recebe 403)
   deleteMyCategory: (id: string) =>
     apiRequest<Category>("DELETE", `/categories/me/${id}`, undefined, true),
+
+  // Reordena as categorias da empresa (LDMF-345). Corpo { ids } na ordem
+  // nova. Só owner e manager (admin recebe 403, ao contrário das outras
+  // rotas de categoria). Resposta 200 = todas as categorias já ordenadas,
+  // sem paginação. 404 = algum id não é desta empresa (nada é salvo).
+  reorderMyCategories: (ids: string[]) =>
+    apiRequest<Category[]>("PATCH", "/categories/order", { ids }, true),
   // Legacy global category endpoints
   createCategory: (categoryData: CreateCategoryRequest) =>
     apiRequest<Category>("POST", "/categories/me", categoryData, true),

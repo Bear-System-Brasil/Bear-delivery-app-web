@@ -166,8 +166,46 @@ export default function RestaurantPage() {
     return groups;
   }, [categoryMap, menuItems]);
 
-  // 2. Extrai as categorias para os botões do menu baseado nos grupos
-  const categories = useMemo(() => Object.keys(groupedItems), [groupedItems]);
+  // Ordem das categorias no cardápio: usa a position que o back manda em
+  // cada produto (LDMF-345). Guarda a menor position vista por nome de
+  // categoria; nome sem position não entra no mapa (vai pro fim, mantendo a
+  // ordem atual) - produção só manda o campo depois do release do back.
+  const categoryPositionByName = useMemo(() => {
+    const positions: Record<string, number> = {};
+    menuItems.forEach((item) => {
+      const first = item.productCategories?.[0];
+      if (!first || typeof first === "string") return;
+      const name = getProductCategoryName(first, categoryMap);
+      const position = first.category?.position;
+      if (name && typeof position === "number") {
+        positions[name] =
+          name in positions ? Math.min(positions[name], position) : position;
+      }
+    });
+    return positions;
+  }, [menuItems, categoryMap]);
+
+  // 2. Extrai as categorias para os botões do menu baseado nos grupos.
+  // Só entra categoria com ao menos um item disponível: o lojista "esconde"
+  // uma categoria deixando todos os produtos dela indisponíveis (LDMF-442),
+  // então categoria 100% indisponível some do app. Item indisponível avulso
+  // dentro de uma categoria visível continua aparecendo esmaecido (abaixo).
+  // A lista sai ordenada pela position do back (LDMF-345).
+  const categories = useMemo(() => {
+    const visible = Object.keys(groupedItems).filter((catName) =>
+      groupedItems[catName].some((item) => item.isAvailable !== false),
+    );
+    return visible.sort((a, b) => {
+      if (a === "Outros") return 1;
+      if (b === "Outros") return -1;
+      const pa = categoryPositionByName[a];
+      const pb = categoryPositionByName[b];
+      if (pa === undefined && pb === undefined) return 0;
+      if (pa === undefined) return 1;
+      if (pb === undefined) return -1;
+      return pa - pb;
+    });
+  }, [groupedItems, categoryPositionByName]);
 
   // Define a primeira categoria como selecionada inicialmente
   useEffect(() => {
@@ -472,14 +510,16 @@ export default function RestaurantPage() {
                 aria-label="Itens do cardápio"
                 className="mt-2 space-y-6"
               >
-                {menuItems.length === 0 ? (
+                {categories.length === 0 ? (
                   <Card className="border-border bg-card p-10 text-center shadow-sm">
                     <p className="text-sm font-medium text-muted-foreground">
                       Nenhum produto disponível no momento.
                     </p>
                   </Card>
                 ) : (
-                  Object.entries(groupedItems).map(([category, items]) => (
+                  categories.map((category) => {
+                    const items = groupedItems[category];
+                    return (
                     <div
                       key={category}
                       id={`category-${slugify(category)}`} // Uso do slug
@@ -573,7 +613,8 @@ export default function RestaurantPage() {
                         })}
                       </div>
                     </div>
-                  ))
+                    );
+                  })
                 )}
               </section>
             </>
