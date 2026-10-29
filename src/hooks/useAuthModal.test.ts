@@ -486,21 +486,36 @@ describe("useAuthModal", () => {
   });
 
   describe("recuperar senha", () => {
-    it("envia o telefone só com dígitos e passa para a redefinição", async () => {
+    it("envia o e-mail sem espaços e em minúsculas e passa para a redefinição", async () => {
       api.forgotPassword.mockResolvedValue({ success: true });
       const { result } = renderModal();
-      act(() => result.current.setForgotPasswordData({ phone: "(41) 99999-0000" }));
+      act(() => result.current.setForgotPasswordData({ email: "  Ana@Example.com " }));
 
       await act(async () => {
         await result.current.handleForgotPasswordSubmit();
       });
 
-      expect(api.forgotPassword).toHaveBeenCalledWith({ phone: "41999990000" });
+      expect(api.forgotPassword).toHaveBeenCalledWith({ email: "ana@example.com" });
       expect(result.current.step).toBe("reset-password");
-      expect(result.current.resetPasswordData.phone).toBe("41999990000");
+      expect(result.current.resetPasswordData.email).toBe("ana@example.com");
     });
 
-    it("telefone desconhecido fica na etapa com a mensagem", async () => {
+    it("não confirma que o e-mail tem cadastro", async () => {
+      api.forgotPassword.mockResolvedValue({ success: true });
+      const { result } = renderModal();
+      act(() => result.current.setForgotPasswordData({ email: "ana@example.com" }));
+
+      await act(async () => {
+        await result.current.handleForgotPasswordSubmit();
+      });
+
+      expect(result.current.submitMessage).toEqual({
+        type: "success",
+        text: "Se o e-mail estiver cadastrado, você vai receber um código de recuperação.",
+      });
+    });
+
+    it("falha no envio fica na etapa com a mensagem", async () => {
       api.forgotPassword.mockResolvedValue({ success: false });
       const { result } = renderModal();
       act(() => result.current.setStep("forgot-password"));
@@ -511,7 +526,7 @@ describe("useAuthModal", () => {
 
       expect(result.current.step).toBe("forgot-password");
       expect(result.current.submitMessage?.text).toBe(
-        "Telefone não encontrado. Verifique e tente novamente.",
+        "Não foi possível enviar o código. Tente novamente.",
       );
     });
 
@@ -519,7 +534,7 @@ describe("useAuthModal", () => {
       const { result } = renderModal();
       act(() =>
         result.current.setResetPasswordData({
-          phone: "41999990000",
+          email: "ana@example.com",
           code: "123456",
           newPassword: "fraca",
           confirmPassword: "fraca",
@@ -541,7 +556,7 @@ describe("useAuthModal", () => {
       const { result } = renderModal();
       act(() =>
         result.current.setResetPasswordData({
-          phone: "41999990000",
+          email: "ana@example.com",
           code: "123456",
           newPassword: "Senha@1",
           confirmPassword: "Senha@2",
@@ -565,7 +580,7 @@ describe("useAuthModal", () => {
       const { result } = renderModal();
       act(() =>
         result.current.setResetPasswordData({
-          phone: "41999990000",
+          email: "ana@example.com",
           code: "123456",
           newPassword: "Senha@1",
           confirmPassword: "Senha@1",
@@ -577,7 +592,7 @@ describe("useAuthModal", () => {
       });
 
       expect(api.resetPassword).toHaveBeenCalledWith({
-        phone: "41999990000",
+        email: "ana@example.com",
         code: "123456",
         newPassword: "Senha@1",
       });
@@ -592,7 +607,7 @@ describe("useAuthModal", () => {
       const { result } = renderModal("register");
       act(() =>
         result.current.setResetPasswordData({
-          phone: "41999990000",
+          email: "ana@example.com",
           code: "123456",
           newPassword: "Senha@1",
           confirmPassword: "Senha@1",
@@ -614,7 +629,7 @@ describe("useAuthModal", () => {
       const { result } = renderModal();
       act(() =>
         result.current.setResetPasswordData({
-          phone: "41999990000",
+          email: "ana@example.com",
           code: "1",
           newPassword: "Senha@1",
           confirmPassword: "Senha@1",

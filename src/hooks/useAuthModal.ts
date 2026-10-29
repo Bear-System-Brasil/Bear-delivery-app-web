@@ -26,8 +26,8 @@ export function useAuthModal({
 
   // Formulários
   const [loginData, setLoginData] = useState({ email: "", password: "" });
-  const [forgotPasswordData, setForgotPasswordData] = useState({ phone: "" });
-  const [resetPasswordData, setResetPasswordData] = useState({ phone: "", code: "", newPassword: "", confirmPassword: "" });
+  const [forgotPasswordData, setForgotPasswordData] = useState({ email: "" });
+  const [resetPasswordData, setResetPasswordData] = useState({ email: "", code: "", newPassword: "", confirmPassword: "" });
   const [registerData, setRegisterData] = useState({
     name: "", email: "", cpf: "", phone: "", password: "", confirmPassword: "", birthDate: "", role: "client",
   });
@@ -141,8 +141,8 @@ export function useAuthModal({
     setRegisterData({ name: "", email: "", cpf: "", phone: "", password: "", confirmPassword: "", birthDate: "", role: "client" });
     setOtpData({ email: "", code: "" });
     setAcceptedTerms(false);
-    setForgotPasswordData({ phone: "" });
-    setResetPasswordData({ phone: "", code: "", newPassword: "", confirmPassword: "" });
+    setForgotPasswordData({ email: "" });
+    setResetPasswordData({ email: "", code: "", newPassword: "", confirmPassword: "" });
     setSubmitMessage(null);
     setPasswordErrors([]);
     setPasswordMatch(true);
@@ -251,14 +251,16 @@ export function useAuthModal({
     setIsLoading(true);
     setSubmitMessage(null);
     try {
-      const phone = forgotPasswordData.phone.replace(/\D/g, "");
-      const response = await apiService.forgotPassword({ phone });
+      const email = forgotPasswordData.email.trim().toLowerCase();
+      const response = await apiService.forgotPassword({ email });
       if (response.success) {
-        setResetPasswordData((prev) => ({ ...prev, phone }));
+        // O back responde 200 mesmo para e-mail sem cadastro, pra não revelar
+        // quem tem conta. Por isso o texto não confirma que o e-mail existe.
+        setResetPasswordData((prev) => ({ ...prev, email }));
         setStep("reset-password");
-        setSubmitMessage({ type: "success", text: "Código de recuperação enviado para seu telefone!" });
+        setSubmitMessage({ type: "success", text: "Se o e-mail estiver cadastrado, você vai receber um código de recuperação." });
       } else {
-        setSubmitMessage({ type: "error", text: response.message || "Telefone não encontrado. Verifique e tente novamente." });
+        setSubmitMessage({ type: "error", text: response.message || "Não foi possível enviar o código. Tente novamente." });
       }
     } catch (error) {
       setSubmitMessage({ type: "error", text: "Erro de conexão. Tente novamente." });
@@ -286,7 +288,7 @@ export function useAuthModal({
 
     try {
       const response = await apiService.resetPassword({
-        phone: resetPasswordData.phone,
+        email: resetPasswordData.email,
         code: resetPasswordData.code,
         newPassword: resetPasswordData.newPassword,
       });
