@@ -263,40 +263,42 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     return () => mq.removeEventListener("change", handler);
   }, []);
 
-  if (isDesktop) {
-    return (
-      <aside className="fixed left-0 top-0 z-40 h-full w-sidebar border-r border-border bg-card">
+  return (
+    <>
+      {/* O menu fixo depende só de CSS, e não do matchMedia: assim ele já
+          vem no HTML do servidor e não some até a página hidratar. */}
+      <aside className="fixed left-0 top-0 z-40 hidden h-full w-sidebar border-r border-border bg-card lg:block">
         <SidebarContent />
       </aside>
-    );
-  }
 
-  return (
-    <SheetPrimitive.Root
-      open={isOpen}
-      onOpenChange={(open) => !open && onClose()}
-    >
-      <SheetPrimitive.Portal>
-        <SheetPrimitive.Overlay
-          className={cn(
-            "fixed inset-0 z-40 bg-black/50",
-            "data-[state=open]:animate-in data-[state=open]:fade-in-0",
-            "data-[state=closed]:animate-out data-[state=closed]:fade-out-0",
-          )}
-        />
-        <SheetPrimitive.Content
-          className={cn(
-            "fixed left-0 top-0 z-50 h-full w-sidebar border-r border-border bg-card shadow-lg",
-            "data-[state=open]:animate-in data-[state=open]:fade-in data-[state=open]:slide-in-from-left-8 data-[state=open]:duration-200",
-            "data-[state=closed]:animate-out data-[state=closed]:fade-out data-[state=closed]:slide-out-to-left-8 data-[state=closed]:duration-200",
-          )}
-        >
-          <SheetPrimitive.Title asChild>
-            <span className="sr-only">Menu de navegação</span>
-          </SheetPrimitive.Title>
-          <SidebarContent onClose={onClose} />
-        </SheetPrimitive.Content>
-      </SheetPrimitive.Portal>
-    </SheetPrimitive.Root>
+      {/* O matchMedia só impede a gaveta de abrir no desktop, onde o menu
+          fixo já está na tela. */}
+      <SheetPrimitive.Root
+        open={isOpen && !isDesktop}
+        onOpenChange={(open) => !open && onClose()}
+      >
+        <SheetPrimitive.Portal>
+          <SheetPrimitive.Overlay
+            className={cn(
+              "fixed inset-0 z-40 bg-black/50",
+              "data-[state=open]:animate-in data-[state=open]:fade-in-0",
+              "data-[state=closed]:animate-out data-[state=closed]:fade-out-0",
+            )}
+          />
+          <SheetPrimitive.Content
+            className={cn(
+              "fixed left-0 top-0 z-50 h-full w-sidebar border-r border-border bg-card shadow-lg",
+              "data-[state=open]:animate-in data-[state=open]:fade-in data-[state=open]:slide-in-from-left-8 data-[state=open]:duration-200",
+              "data-[state=closed]:animate-out data-[state=closed]:fade-out data-[state=closed]:slide-out-to-left-8 data-[state=closed]:duration-200",
+            )}
+          >
+            <SheetPrimitive.Title asChild>
+              <span className="sr-only">Menu de navegação</span>
+            </SheetPrimitive.Title>
+            <SidebarContent onClose={onClose} />
+          </SheetPrimitive.Content>
+        </SheetPrimitive.Portal>
+      </SheetPrimitive.Root>
+    </>
   );
 }

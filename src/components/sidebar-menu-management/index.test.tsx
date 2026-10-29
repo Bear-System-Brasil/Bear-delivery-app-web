@@ -177,3 +177,32 @@ describe("Sidebar da gestao - design novo (LDMF-443)", () => {
     expect(sair).not.toHaveClass("bg-brand-500");
   });
 });
+
+describe("Sidebar da gestao - menu fixo sem depender do matchMedia (LDMF-443)", () => {
+  it("o menu fixo ja vem renderizado antes do matchMedia responder", () => {
+    // No servidor e na primeira pintura o matchMedia ainda nao rodou; o menu
+    // fixo tem que estar la mesmo assim (quem esconde no mobile e o CSS).
+    const original = window.matchMedia;
+    window.matchMedia = ((query: string) => ({
+      matches: false,
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    })) as unknown as typeof window.matchMedia;
+
+    try {
+      const { container } = render(<Sidebar isOpen={false} onClose={() => {}} />);
+      const aside = container.querySelector("aside");
+      expect(aside).toBeInTheDocument();
+      expect(aside).toHaveClass("hidden", "lg:block");
+    } finally {
+      window.matchMedia = original;
+    }
+  });
+
+  it("no desktop a gaveta nao abre por cima do menu fixo", () => {
+    render(<Sidebar isOpen onClose={() => {}} />);
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+});
