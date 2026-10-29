@@ -31,7 +31,7 @@ export function useAuthModal({
   const [registerData, setRegisterData] = useState({
     name: "", email: "", cpf: "", phone: "", password: "", confirmPassword: "", birthDate: "", role: "client",
   });
-  const [otpData, setOtpData] = useState({ phone: "", code: "" });
+  const [otpData, setOtpData] = useState({ email: "", code: "" });
   // Aceite dos termos e da política (LDMF-281). Fora do `registerData` de
   // propósito: o backend não tem esse campo e roda com forbidNonWhitelisted,
   // então mandar no corpo do cadastro derrubaria a requisição com 400.
@@ -139,7 +139,7 @@ export function useAuthModal({
     setStep("form");
     setLoginData({ email: "", password: "" });
     setRegisterData({ name: "", email: "", cpf: "", phone: "", password: "", confirmPassword: "", birthDate: "", role: "client" });
-    setOtpData({ phone: "", code: "" });
+    setOtpData({ email: "", code: "" });
     setAcceptedTerms(false);
     setForgotPasswordData({ phone: "" });
     setResetPasswordData({ phone: "", code: "", newPassword: "", confirmPassword: "" });
@@ -203,9 +203,11 @@ export function useAuthModal({
         const response = await apiService.createUser(apiData);
 
         if (response.success) {
-          setOtpData((prev) => ({ ...prev, phone: registerData.phone.replace(/\D/g, "") }));
+          // O código de confirmação do cadastro vai por e-mail (LDMF-294), e o
+          // POST /user/complet identifica a conta pelo mesmo e-mail.
+          setOtpData((prev) => ({ ...prev, email: registerData.email }));
           setStep("otp");
-          setSubmitMessage({ type: "success", text: "Código de verificação enviado para seu telefone!" });
+          setSubmitMessage({ type: "success", text: "Código de verificação enviado para seu e-mail!" });
         } else {
           const birthDateError = getBirthDateApiError(response);
           setBirthDateServerError(birthDateError);
@@ -226,7 +228,7 @@ export function useAuthModal({
     setIsLoading(true);
     setSubmitMessage(null);
     try {
-      const response = await apiService.verifyOtp({ phone: otpData.phone.replace(/\D/g, ""), code: otpData.code });
+      const response = await apiService.verifyOtp({ email: otpData.email, code: otpData.code });
       if (response.success) {
         setSubmitMessage({ type: "success", text: "Conta verificada com sucesso!" });
         setTimeout(() => {

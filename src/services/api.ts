@@ -113,7 +113,7 @@ export interface UpdateUserRequest {
 }
 
 export interface VerifyOtpRequest {
-  phone: string;
+  email: string;
   code: string;
 }
 

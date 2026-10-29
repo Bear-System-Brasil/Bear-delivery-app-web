@@ -282,10 +282,10 @@ describe("useAuthModal", () => {
         role: "client",
       });
       expect(result.current.step).toBe("otp");
-      expect(result.current.otpData.phone).toBe("41999990000");
+      expect(result.current.otpData.email).toBe("ana@example.com");
       expect(result.current.submitMessage).toEqual({
         type: "success",
-        text: "Código de verificação enviado para seu telefone!",
+        text: "Código de verificação enviado para seu e-mail!",
       });
     });
 
@@ -456,13 +456,13 @@ describe("useAuthModal", () => {
     it("código certo conclui e fecha depois de 2s", async () => {
       api.verifyOtp.mockResolvedValue({ success: true });
       const { result } = renderModal();
-      act(() => result.current.setOtpData({ phone: "(41) 99999-0000", code: "123456" }));
+      act(() => result.current.setOtpData({ email: "ana@example.com", code: "123456" }));
 
       await act(async () => {
         await result.current.handleOTPSubmit();
       });
 
-      expect(api.verifyOtp).toHaveBeenCalledWith({ phone: "41999990000", code: "123456" });
+      expect(api.verifyOtp).toHaveBeenCalledWith({ email: "ana@example.com", code: "123456" });
       act(() => vi.advanceTimersByTime(2000));
       expect(onAuthSuccess).toHaveBeenCalled();
       expect(onClose).toHaveBeenCalled();
@@ -471,13 +471,13 @@ describe("useAuthModal", () => {
     it("código errado limpa o campo para digitar de novo", async () => {
       api.verifyOtp.mockResolvedValue({ success: false });
       const { result } = renderModal();
-      act(() => result.current.setOtpData({ phone: "41999990000", code: "000000" }));
+      act(() => result.current.setOtpData({ email: "ana@example.com", code: "000000" }));
 
       await act(async () => {
         await result.current.handleOTPSubmit();
       });
 
-      expect(result.current.otpData).toEqual({ phone: "41999990000", code: "" });
+      expect(result.current.otpData).toEqual({ email: "ana@example.com", code: "" });
       expect(result.current.submitMessage).toEqual({
         type: "error",
         text: "Código inválido. Tente novamente.",

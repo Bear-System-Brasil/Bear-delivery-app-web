@@ -77,7 +77,7 @@ export default function AuthModal({
                 <LogIn className="w-5 h-5 text-white" />
               </div>
               <DialogTitle className="text-lg sm:text-xl font-bold text-foreground">
-                {step === "otp" ? "Verificação SMS" : "Autenticação"}
+                {step === "otp" ? "Verificação de e-mail" : "Autenticação"}
               </DialogTitle>
             </div>
           </div>
@@ -362,10 +362,10 @@ export default function AuthModal({
             <div className="space-y-4 sm:space-y-6">
               <div className="text-center">
                 <div className="w-16 h-16 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Phone className="h-8 w-8 text-green-600 dark:text-green-400" />
+                  <Mail className="h-8 w-8 text-green-600 dark:text-green-400" />
                 </div>
                 <p className="text-muted-foreground">Enviamos um código de verificação para</p>
-                <p className="font-semibold text-foreground">{otpData.phone}</p>
+                <p className="font-semibold text-foreground break-all">{otpData.email}</p>
               </div>
 
               <div className="space-y-2">
