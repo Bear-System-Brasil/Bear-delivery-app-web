@@ -141,13 +141,16 @@ describe("useCategoryManagement - reordenar categorias (LDMF-345)", () => {
 
     act(() => result.current.handleMoveCategoryDown("a"));
 
+    let saved: boolean | undefined;
     await act(async () => {
-      await result.current.handleSaveOrder();
+      saved = await result.current.handleSaveOrder();
     });
 
     expect(api.reorderMyCategories).toHaveBeenCalledWith(["b", "a", "c"]);
     expect(result.current.isReorderDirty).toBe(false);
     expect(toast.success).toHaveBeenCalled();
+    // A tela usa o retorno pra sair do modo "Ordenar" só no sucesso (LDMF-453).
+    expect(saved).toBe(true);
   });
 
   it("busca ativa: trava a reordenação e mostra a lista filtrada", () => {
@@ -168,13 +171,16 @@ describe("useCategoryManagement - reordenar categorias (LDMF-345)", () => {
     const { result } = renderHook(() => useCategoryManagement(), { wrapper });
 
     act(() => result.current.handleMoveCategoryDown("a"));
+    let saved: boolean | undefined;
     await act(async () => {
-      await result.current.handleSaveOrder();
+      saved = await result.current.handleSaveOrder();
     });
 
     expect(toast.error).toHaveBeenCalledWith(
       expect.stringContaining("Recarregue"),
     );
     expect(result.current.isReorderDirty).toBe(true);
+    // Falha mantém o modo "Ordenar" aberto pra retry (LDMF-453).
+    expect(saved).toBe(false);
   });
 });
