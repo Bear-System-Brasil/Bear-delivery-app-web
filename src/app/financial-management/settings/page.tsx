@@ -97,7 +97,7 @@ export default function SettingsPage() {
     <AdminPageLayout
       title="Configurações"
       icon={Settings}
-      mainClassName="p-4 pb-20 sm:p-6 md:pb-10 lg:pl-64 lg:pr-8"
+      mainClassName="p-4 pb-20 sm:p-6 md:pb-10 lg:px-8"
       subtitle="Preferências de operação do caixa."
       action={{
         label: "Restaurar padrão",

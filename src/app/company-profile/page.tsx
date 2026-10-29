@@ -285,7 +285,7 @@ function CompanyProfileContent() {
     <AdminPageLayout
       title="Perfil da Empresa"
       icon={Building2}
-      mainClassName="p-4 sm:p-6 lg:pl-64 lg:pr-8"
+      mainClassName="p-4 sm:p-6 lg:px-8"
       subtitle="A identidade que aparece para o cliente no app"
     >
       <div className="mx-auto max-w-[920px]">

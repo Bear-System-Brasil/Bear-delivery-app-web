@@ -262,7 +262,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
   if (isDesktop) {
     return (
-      <aside className="fixed left-0 top-0 z-40 h-full w-[220px] border-r border-border bg-card">
+      <aside className="fixed left-0 top-0 z-40 h-full w-sidebar border-r border-border bg-card">
         <SidebarContent />
       </aside>
     );
@@ -283,7 +283,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         />
         <SheetPrimitive.Content
           className={cn(
-            "fixed left-0 top-0 z-50 h-full w-[220px] border-r border-border bg-card shadow-lg",
+            "fixed left-0 top-0 z-50 h-full w-sidebar border-r border-border bg-card shadow-lg",
             "data-[state=open]:animate-in data-[state=open]:fade-in data-[state=open]:slide-in-from-left-8 data-[state=open]:duration-200",
             "data-[state=closed]:animate-out data-[state=closed]:fade-out data-[state=closed]:slide-out-to-left-8 data-[state=closed]:duration-200",
           )}

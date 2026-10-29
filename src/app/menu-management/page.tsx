@@ -463,7 +463,7 @@ function MenuManagementContent() {
     <AdminPageLayout
       title="Cardápio"
       icon={UtensilsCrossed}
-      mainClassName="px-4 pb-20 pt-5 sm:px-6 md:pb-10 lg:pl-[252px] lg:pr-8 lg:pt-[26px]"
+      mainClassName="px-4 pb-20 pt-5 sm:px-6 md:pb-10 lg:px-8 lg:pt-[26px]"
       subtitle="Pratos e itens que o cliente vê no app"
     >
       <div className="mx-auto max-w-[1180px]">

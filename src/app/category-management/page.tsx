@@ -200,7 +200,7 @@ function CategoryManagementContent() {
     <AdminPageLayout
       title="Categorias"
       icon={LayoutGrid}
-      mainClassName="p-4 pb-20 sm:p-6 md:pb-10 lg:pl-[17rem] lg:pr-8"
+      mainClassName="p-4 pb-20 sm:p-6 md:pb-10 lg:px-8"
     >
       <div className="mx-auto max-w-7xl">
         <div className="mb-3 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
