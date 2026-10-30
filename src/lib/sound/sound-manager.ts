@@ -35,6 +35,8 @@ class SoundManager {
   private listeners = new Set<() => void>();
   private lastPlayed = new Map<SoundName, number>();
   private unlockInstalled = false;
+  private watchingAudioState = false;
+  private audioBlocked = false;
   private failed = new Set<SoundName>();
 
   private muted = false;
@@ -161,6 +163,30 @@ class SoundManager {
     if (ctx && ctx.state === "suspended") {
       void ctx.resume().catch(() => {});
     }
+  }
+
+  /**
+   * Passa a acompanhar se o navegador está segurando o áudio (LDMF-458).
+   * O Chrome só libera som depois de um toque na página: um tablet que
+   * recarregou e ninguém tocou fica mudo sem avisar. Quem chama mostra um
+   * aviso enquanto `isAudioBlocked()` for true.
+   */
+  watchAudioState() {
+    const ctx = this.getContext();
+    if (!ctx || this.watchingAudioState) return;
+    this.watchingAudioState = true;
+    const update = () => {
+      const blocked = ctx.state === "suspended";
+      if (blocked === this.audioBlocked) return;
+      this.audioBlocked = blocked;
+      this.emit();
+    };
+    ctx.addEventListener("statechange", update);
+    update();
+  }
+
+  isAudioBlocked() {
+    return this.audioBlocked;
   }
 
   /**
