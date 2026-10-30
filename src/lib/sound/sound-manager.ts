@@ -1,3 +1,4 @@
+import { runInOneTab } from "@/lib/tab-coordination";
 import { useAuthStore } from "@/stores/auth-store";
 import {
   ALERT_LOOP_MS,
@@ -8,6 +9,9 @@ import {
 } from "./manifest";
 
 const MUTED_KEY = "like:sound-muted";
+
+/** Sons que tocam numa aba só quando a gestão está aberta em várias. */
+const ONE_TAB_SOUNDS = new Set<SoundName>(["new-order"]);
 const VOLUME_KEY = "like:sound-volume";
 
 /**
@@ -231,42 +235,48 @@ class SoundManager {
     if (now - last < 500) return;
     this.lastPlayed.set(name, now);
 
-    void (async () => {
-      const ctx = this.getContext();
-      if (!ctx) return;
+    // Som de alerta toca numa aba só, mesmo com a gestão aberta em várias:
+    // cada aba recebe o pedido pelo próprio socket (LDMF-459).
+    const playNow = () => {
+      void (async () => {
+        const ctx = this.getContext();
+        if (!ctx) return;
 
-      const buffer = await this.load(name);
-      if (!buffer || !this.masterGain) return;
+        const buffer = await this.load(name);
+        if (!buffer || !this.masterGain) return;
 
-      // Recheca depois do await: o usuário pode ter silenciado no meio do
-      // carregamento, e um alerta em loop pode ter sido parado.
-      if (this.muted) return;
+        // Recheca depois do await: o usuário pode ter silenciado no meio do
+        // carregamento, e um alerta em loop pode ter sido parado.
+        if (this.muted) return;
 
-      if (ctx.state === "suspended") {
-        try {
-          await ctx.resume();
-        } catch {
-          return;
+        if (ctx.state === "suspended") {
+          try {
+            await ctx.resume();
+          } catch {
+            return;
+          }
+          if (ctx.state === "suspended") return;
         }
-        if (ctx.state === "suspended") return;
-      }
 
-      try {
-        const source = ctx.createBufferSource();
-        const nodeGain = ctx.createGain();
-        nodeGain.gain.value = Math.min(1, Math.max(0, gain)) * this.volume;
-        source.buffer = buffer;
-        source.connect(nodeGain);
-        nodeGain.connect(this.masterGain);
-        source.start();
-        source.onended = () => {
-          source.disconnect();
-          nodeGain.disconnect();
-        };
-      } catch {
-        // Contexto morreu no meio do caminho; ignora.
-      }
-    })();
+        try {
+          const source = ctx.createBufferSource();
+          const nodeGain = ctx.createGain();
+          nodeGain.gain.value = Math.min(1, Math.max(0, gain)) * this.volume;
+          source.buffer = buffer;
+          source.connect(nodeGain);
+          nodeGain.connect(this.masterGain);
+          source.start();
+          source.onended = () => {
+            source.disconnect();
+            nodeGain.disconnect();
+          };
+        } catch {
+          // Contexto morreu no meio do caminho; ignora.
+        }
+      })();
+    };
+    if (ONE_TAB_SOUNDS.has(name)) runInOneTab(`sound:${name}`, 1000, playNow);
+    else playNow();
   }
 
   /**

@@ -16,11 +16,14 @@
 
 import { notify } from "@/lib/notify";
 import { soundManager } from "@/lib/sound";
+import { notifyOtherTabs, runInOneTab, onOtherTabsMessage } from "@/lib/tab-coordination";
 import { useNotificationsStore } from "@/stores/notifications-store";
 import { toast } from "sonner";
 
 export const REMINDER_INTERVAL_MS = 30_000;
 export const NEW_ORDER_TOAST_ID = "new-order";
+const LAST_REMINDER_KEY = "bear:last-order-reminder";
+const REMINDER_SLACK_MS = 5_000;
 
 const unacknowledgedOrders = new Set<string>();
 let reminderInterval: ReturnType<typeof setInterval> | null = null;
@@ -41,20 +44,44 @@ function stopReminderTimer() {
   }
 }
 
+/**
+ * Com a gestão aberta em várias abas, cada uma tem o próprio intervalo, em
+ * fases diferentes: sem isso o lembrete tocava uma vez por aba. Quem chega
+ * primeiro no ciclo lembra e anota a hora; as outras veem a anotação e
+ * pulam (LDMF-459). A folga cobre o atraso natural do setInterval.
+ */
+function remind() {
+  if (soundManager.isMuted()) return;
+  runInOneTab("order-reminder", 0, () => {
+    const now = Date.now();
+    let last = 0;
+    try {
+      last = Number(window.localStorage.getItem(LAST_REMINDER_KEY)) || 0;
+    } catch {
+      // Sem localStorage cada aba lembra por si, como antes.
+    }
+    if (last <= now && now - last < REMINDER_INTERVAL_MS - REMINDER_SLACK_MS) return;
+    try {
+      window.localStorage.setItem(LAST_REMINDER_KEY, String(now));
+    } catch {
+      // idem
+    }
+    soundManager.play("new-order");
+  });
+}
+
 function startReminderTimer() {
   if (reminderInterval) return;
   reminderInterval = setInterval(() => {
     if (unacknowledgedOrders.size > 0) {
-      if (!soundManager.isMuted()) {
-        soundManager.play("new-order");
-      }
+      remind();
     } else {
       stopReminderTimer();
     }
   }, REMINDER_INTERVAL_MS);
 }
 
-export function acknowledgeOrder(orderId: string): void {
+function markSeenHere(orderId: string) {
   unacknowledgedOrders.delete(orderId);
   // Ver o pedido também tira o "não lida" dele do sino (LDMF-460): sem isso o
   // sino acumulava pedido já visto e as pessoas paravam de olhar pra ele.
@@ -62,6 +89,21 @@ export function acknowledgeOrder(orderId: string): void {
   if (unacknowledgedOrders.size === 0) {
     stopReminderTimer();
   }
+}
+
+export function acknowledgeOrder(orderId: string): void {
+  markSeenHere(orderId);
+  // Visto numa aba é visto em todas: as outras param o lembrete dele.
+  notifyOtherTabs({ type: "order-seen", orderId });
+}
+
+if (typeof window !== "undefined") {
+  onOtherTabsMessage((message) => {
+    const { type, orderId } = (message ?? {}) as { type?: string; orderId?: string };
+    if (type !== "order-seen" || !orderId) return;
+    markSeenHere(orderId);
+    if (unacknowledgedOrders.size === 0) toast.dismiss(NEW_ORDER_TOAST_ID);
+  });
 }
 
 export function stopOrderAlerts(): void {

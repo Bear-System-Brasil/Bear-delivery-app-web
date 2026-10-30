@@ -21,6 +21,7 @@ vi.mock("@/lib/notify", () => ({
 vi.mock("sonner", () => ({
   toast: {
     info: vi.fn(),
+    dismiss: vi.fn(),
     error: vi.fn(),
     success: vi.fn(),
   },
@@ -37,6 +38,7 @@ vi.mock("@/lib/sound", () => ({
 describe("order-alerts", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
     stopOrderAlerts();
     vi.mocked(soundManager.isMuted).mockReturnValue(false);
   });
@@ -240,6 +242,36 @@ describe("order-alerts", () => {
       const [titulo, opcoes] = ultimoToast();
       expect(titulo).toBe("Novo pedido recebido #201");
       expect((opcoes?.action as { label: string }).label).toBe("Ver pedido");
+    });
+  });
+
+  describe("várias abas (LDMF-459)", () => {
+    it("se outra aba já lembrou neste ciclo, esta pula o lembrete", () => {
+      vi.useFakeTimers();
+      triggerOrderAlert({ id: "t1", orderNumber: 301 }, { role: "manager" });
+      expect(soundManager.play).toHaveBeenCalledTimes(1);
+
+      // A outra aba lembrou há 10s (anotou no localStorage).
+      vi.advanceTimersByTime(REMINDER_INTERVAL_MS - 10_000);
+      localStorage.setItem("bear:last-order-reminder", String(Date.now()));
+      vi.advanceTimersByTime(10_000);
+      expect(soundManager.play).toHaveBeenCalledTimes(1);
+
+      // No ciclo seguinte ninguém lembrou: esta aba lembra.
+      vi.advanceTimersByTime(REMINDER_INTERVAL_MS);
+      expect(soundManager.play).toHaveBeenCalledTimes(2);
+    });
+
+    it("pedido visto em outra aba para o lembrete desta", async () => {
+      triggerOrderAlert({ id: "t2", orderNumber: 302 }, { role: "manager" });
+      expect(isOrderUnacknowledged("t2")).toBe(true);
+
+      const outraAba = new BroadcastChannel("bear:order-alerts");
+      outraAba.postMessage({ type: "order-seen", orderId: "t2" });
+      await vi.waitFor(() => expect(isOrderUnacknowledged("t2")).toBe(false));
+      outraAba.close();
+
+      expect(toast.dismiss).toHaveBeenCalledWith(NEW_ORDER_TOAST_ID);
     });
   });
 
