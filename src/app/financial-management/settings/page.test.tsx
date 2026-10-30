@@ -72,6 +72,41 @@ describe("Configurações do financeiro", () => {
     expect(toastSuccess).toHaveBeenCalledWith("Salvo", expect.any(Object));
   });
 
+  it("customização por operação: fixa método e voltar pro padrão limpa o override (LDMF-463)", () => {
+    render(<SettingsPage />);
+    fireEvent.click(
+      screen.getByRole("button", { name: /Customização por operação/ }),
+    );
+
+    // Fixa PIX no Suprimento.
+    fireEvent.keyDown(screen.getByRole("combobox", { name: "Suprimento" }), {
+      key: "Enter",
+    });
+    fireEvent.click(screen.getByRole("option", { name: "PIX" }));
+    expect(
+      useFinancialPreferencesStore.getState().paymentMethodByOperation,
+    ).toEqual({ deposit: PaymentMethod.PIX });
+
+    // Voltar pro padrão remove o override (não fica método preso).
+    fireEvent.keyDown(screen.getByRole("combobox", { name: "Suprimento" }), {
+      key: "Enter",
+    });
+    fireEvent.click(screen.getByRole("option", { name: "Seguir o padrão" }));
+    expect(
+      useFinancialPreferencesStore.getState().paymentMethodByOperation,
+    ).toEqual({});
+  });
+
+  it("mostra o contador de customizadas quando a seção está recolhida (LDMF-463)", () => {
+    useFinancialPreferencesStore.setState({
+      paymentMethodByOperation: { sale: "PIX", deposit: "none" },
+    } as never);
+    render(<SettingsPage />);
+
+    // Seção começa recolhida: o contador evita override escondido.
+    expect(screen.getByText(/2 customizadas/)).toBeInTheDocument();
+  });
+
   it("Transferência salva antes desta tela aparece como sem seleção, sem reescrever o store", () => {
     useFinancialPreferencesStore.setState({
       defaultPaymentMethod: PaymentMethod.BANK_TRANSFER,

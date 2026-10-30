@@ -173,6 +173,32 @@ describe("Controle de Caixa - métodos de pagamento (LDMF-391)", () => {
     expect(movementMethodSelect(dialog)).toHaveValue("");
   });
 
+  it("override por operação pré-seleciona o método daquela operação (LDMF-463)", () => {
+    useFinancialPreferencesStore.setState({
+      paymentMethodByOperation: { sale: "PIX" },
+    } as never);
+    render(<CashRegisterPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Entrada" }));
+    const dialog = screen.getByRole("dialog", { name: "Registrar entrada" });
+
+    // Entrada pré-seleciona Venda; o override da venda vence o global.
+    expect(movementMethodSelect(dialog)).toHaveValue("PIX");
+  });
+
+  it("override 'none' abre sem método mesmo com global definido (LDMF-463)", () => {
+    useFinancialPreferencesStore.setState({
+      defaultPaymentMethod: "CASH",
+      paymentMethodByOperation: { sale: "none" },
+    } as never);
+    render(<CashRegisterPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Entrada" }));
+    const dialog = screen.getByRole("dialog", { name: "Registrar entrada" });
+
+    expect(movementMethodSelect(dialog)).toHaveValue("");
+  });
+
   it("movimento antigo com Transferência continua aparecendo pelo nome", () => {
     h.movements.data = {
       items: [

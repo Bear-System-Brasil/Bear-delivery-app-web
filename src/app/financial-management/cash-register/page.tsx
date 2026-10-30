@@ -85,8 +85,14 @@ const INITIAL_MOVEMENT_TYPE: MovementType = "withdrawal";
  */
 function initialPaymentMethod(
   type: MovementType,
-  preferred?: string,
+  preferred: string | undefined,
+  overrides: Partial<Record<MovementType, PaymentMethod | "none">>,
 ): PaymentMethod | "" {
+  // Customização por operação (LDMF-463) tem prioridade: método fixo ou
+  // "none" (sem método). Sem override, cai na regra padrão.
+  const override = overrides[type];
+  if (override === "none") return "";
+  if (override) return toPaymentMethod(override);
   return type === "withdrawal" ? "" : toPaymentMethod(preferred);
 }
 
@@ -358,8 +364,11 @@ function FieldLabel({ children }: { children: ReactNode }) {
 
 export default function CashRegisterPage() {
   const { user } = useAuthStore();
-  const { defaultPaymentMethod, confirmBeforeCloseRegister } =
-    useFinancialPreferencesStore();
+  const {
+    defaultPaymentMethod,
+    paymentMethodByOperation,
+    confirmBeforeCloseRegister,
+  } = useFinancialPreferencesStore();
   const {
     data: register,
     isLoading: registerLoading,
@@ -392,7 +401,11 @@ export default function CashRegisterPage() {
   const [closeObs, setCloseObs] = useState("");
   const [amount, setAmount] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | "">(() =>
-    initialPaymentMethod(INITIAL_MOVEMENT_TYPE, defaultPaymentMethod),
+    initialPaymentMethod(
+      INITIAL_MOVEMENT_TYPE,
+      defaultPaymentMethod,
+      paymentMethodByOperation,
+    ),
   );
   const [description, setDescription] = useState("");
   const [closeConfirmed, setCloseConfirmed] = useState(false);
@@ -472,7 +485,9 @@ export default function CashRegisterPage() {
   const resetMovementForm = (type: MovementType) => {
     setAmount("");
     setDescription("");
-    setPaymentMethod(initialPaymentMethod(type, defaultPaymentMethod));
+    setPaymentMethod(
+      initialPaymentMethod(type, defaultPaymentMethod, paymentMethodByOperation),
+    );
   };
 
   const closeDialog = () => {
@@ -523,7 +538,9 @@ export default function CashRegisterPage() {
   // para a sangria por um clique no seletor.
   const switchMovementType = (type: MovementType) => {
     setMovementType(type);
-    setPaymentMethod(initialPaymentMethod(type, defaultPaymentMethod));
+    setPaymentMethod(
+      initialPaymentMethod(type, defaultPaymentMethod, paymentMethodByOperation),
+    );
   };
 
   const missingPaymentMethod = !paymentMethod;

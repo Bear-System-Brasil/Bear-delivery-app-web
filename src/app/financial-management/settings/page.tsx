@@ -11,9 +11,22 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useFinancialPreferencesStore } from "@/stores";
+import type {
+  CashMovementOperation,
+  OperationMethodOverride,
+} from "@/stores/financial-preferences-store";
 import { PaymentMethod } from "@/services/api";
-import { Check, Monitor, RotateCcw, Settings, Wallet } from "lucide-react";
-import type { ReactNode } from "react";
+import {
+  Check,
+  ChevronDown,
+  ChevronUp,
+  Monitor,
+  RotateCcw,
+  Settings,
+  SlidersHorizontal,
+  Wallet,
+} from "lucide-react";
+import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
 
 /**
@@ -26,6 +39,21 @@ const DEFAULT_METHOD_OPTIONS: { value: PaymentMethod; label: string }[] = [
   { value: PaymentMethod.PIX, label: "PIX" },
   { value: PaymentMethod.DEBIT_CARD, label: "Cartão de Débito" },
   { value: PaymentMethod.CREDIT_CARD, label: "Cartão de Crédito" },
+];
+
+/**
+ * Operações do caixa que pré-selecionam método, na ordem da tela (LDMF-463).
+ * `isWithdrawal` = sangria: por padrão abre sem método (não segue o global).
+ */
+const CUSTOM_OPERATIONS: {
+  op: CashMovementOperation;
+  label: string;
+  isWithdrawal?: boolean;
+}[] = [
+  { op: "deposit", label: "Suprimento" },
+  { op: "sale", label: "Venda manual" },
+  { op: "refund", label: "Reembolso" },
+  { op: "withdrawal", label: "Sangria", isWithdrawal: true },
 ];
 
 /**
@@ -79,11 +107,19 @@ function PreferenceRow({
 export default function SettingsPage() {
   const {
     defaultPaymentMethod,
+    paymentMethodByOperation,
     confirmBeforeCloseRegister,
     setDefaultPaymentMethod,
+    setOperationMethod,
     setConfirmBeforeCloseRegister,
     resetFinancialPreferences,
   } = useFinancialPreferencesStore();
+
+  // A customização por operação começa recolhida. Recolher é só visual: não
+  // mexe no estado. Pra não esconder override ativo, o cabeçalho mostra quantas
+  // operações estão customizadas quando está fechada (LDMF-463).
+  const [customOpen, setCustomOpen] = useState(false);
+  const customCount = Object.keys(paymentMethodByOperation).length;
 
   // Valor salvo fora da lista (ex.: BANK_TRANSFER de antes desta tela, ainda
   // no localStorage) aparece como "sem seleção" em vez de um select em branco
@@ -161,7 +197,7 @@ export default function SettingsPage() {
           <PreferenceRow
             id="default-payment-method"
             title="Método de pagamento padrão"
-            description="Pré-selecionado em suprimento, venda manual e reembolso. A sangria sempre abre sem método."
+            description="Vale pras operações sem customização. A sangria sempre abre sem método por padrão."
             control={
               <Select
                 value={selectedMethod}
@@ -187,6 +223,92 @@ export default function SettingsPage() {
               </Select>
             }
           />
+
+          {/* Customização por operação (LDMF-463): recolhível, começa fechada.
+              Recolher é só visual. "Seguir o padrão" remove o override (volta
+              pro global), então nunca fica método preso escondido. */}
+          <div className="border-b border-border">
+            <button
+              type="button"
+              onClick={() => setCustomOpen((open) => !open)}
+              aria-expanded={customOpen}
+              className="flex w-full items-center gap-2 px-4 py-3 text-left transition-colors hover:bg-muted sm:px-5"
+            >
+              <SlidersHorizontal className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <span className="text-[13px] font-semibold text-foreground">
+                Customização por operação
+              </span>
+              {!customOpen && customCount > 0 && (
+                <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-bold text-brand-600 dark:bg-brand-950/40 dark:text-brand-400">
+                  {customCount} customizada{customCount === 1 ? "" : "s"}
+                </span>
+              )}
+              {customOpen ? (
+                <ChevronUp className="ml-auto h-4 w-4 shrink-0 text-muted-foreground" />
+              ) : (
+                <ChevronDown className="ml-auto h-4 w-4 shrink-0 text-muted-foreground" />
+              )}
+            </button>
+
+            {customOpen && (
+              <div className="border-t border-border">
+                <p className="px-4 pt-3 text-xs text-muted-foreground sm:px-5">
+                  Cada operação segue o método padrão (a sangria abre sem
+                  método). Aqui você fixa um método ou deixa sem método por
+                  operação.
+                </p>
+                {CUSTOM_OPERATIONS.map(({ op, label, isWithdrawal }) => {
+                  const override = paymentMethodByOperation[op];
+                  const value = override ?? "default";
+                  return (
+                    <div
+                      key={op}
+                      className="grid grid-cols-1 gap-2.5 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_240px] sm:items-center sm:gap-6 sm:px-5"
+                    >
+                      <div
+                        id={`op-${op}-label`}
+                        className="text-[13px] font-semibold text-foreground"
+                      >
+                        {label}
+                      </div>
+                      <Select
+                        value={value}
+                        onValueChange={(v) => {
+                          setOperationMethod(
+                            op,
+                            v as OperationMethodOverride | "default",
+                          );
+                          notifySaved();
+                        }}
+                      >
+                        <SelectTrigger
+                          aria-labelledby={`op-${op}-label`}
+                          className="w-full rounded-lg"
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="default">
+                            {isWithdrawal
+                              ? "Sem método (padrão)"
+                              : "Seguir o padrão"}
+                          </SelectItem>
+                          {!isWithdrawal && (
+                            <SelectItem value="none">Sem método</SelectItem>
+                          )}
+                          {DEFAULT_METHOD_OPTIONS.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
 
           <PreferenceRow
             id="confirm-before-close"
