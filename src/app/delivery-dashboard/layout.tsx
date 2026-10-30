@@ -28,8 +28,7 @@ import { ROUTE_PERMISSIONS } from "@/utils/permissions";
  *
  * A lista sai do mapa de permissões em vez de ser repetida aqui, pelo mesmo
  * motivo do layout de /financial-management: enquanto era literal
- * `["delivery"]`, este guard e o middleware podiam discordar em silêncio - e
- * quem administra o restaurante agora também entra aqui.
+ * `["delivery"]`, este guard e o middleware podiam discordar em silêncio.
  */
 const DELIVERY_ROLES = ROUTE_PERMISSIONS["/delivery-dashboard"] ?? [
   "delivery",
