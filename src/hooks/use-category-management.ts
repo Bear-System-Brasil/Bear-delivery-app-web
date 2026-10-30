@@ -461,6 +461,10 @@ export const useCategoryManagement = () => {
   return {
     categories: displayCategories,
     allCategories: categories,
+    // Lista completa na ordem do rascunho (reflete as setas antes de salvar).
+    // A prévia usa esta pra atualizar ao vivo; ao cancelar, o efeito acima
+    // ressincroniza com a ordem do back e a prévia volta sozinha.
+    orderedCategories: localOrder,
     isLoading,
 
     isModalOpen,

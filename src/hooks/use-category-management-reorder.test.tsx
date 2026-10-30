@@ -183,4 +183,31 @@ describe("useCategoryManagement - reordenar categorias (LDMF-345)", () => {
     // Falha mantém o modo "Ordenar" aberto pra retry (LDMF-453).
     expect(saved).toBe(false);
   });
+
+  it("orderedCategories reflete o rascunho ao vivo e volta no cancelar (prévia)", () => {
+    const { result } = renderHook(() => useCategoryManagement(), { wrapper });
+
+    expect(result.current.orderedCategories.map((c) => c.id)).toEqual([
+      "a",
+      "b",
+      "c",
+    ]);
+
+    // Mover reflete na hora (a prévia do app usa orderedCategories).
+    act(() => result.current.handleMoveCategoryDown("a"));
+    expect(result.current.orderedCategories.map((c) => c.id)).toEqual([
+      "b",
+      "a",
+      "c",
+    ]);
+
+    // Descartar volta pra ordem do back, sem deixar a prévia mostrando o que
+    // foi descartado (LDMF-453).
+    act(() => result.current.handleCancelReorder());
+    expect(result.current.orderedCategories.map((c) => c.id)).toEqual([
+      "a",
+      "b",
+      "c",
+    ]);
+  });
 });

@@ -145,6 +145,7 @@ function CategoryManagementContent() {
   const {
     categories: filteredCategories,
     allCategories,
+    orderedCategories,
     isLoading: loading,
     isModalOpen,
     editingCategory,
@@ -203,14 +204,15 @@ function CategoryManagementContent() {
   };
 
   // A prévia espelha o que o cliente vê: só as categorias ativas (com item
-  // disponível). Enquanto os produtos não chegam, mostra todas pra não piscar
-  // vazio.
+  // disponível), na ordem do rascunho (reflete as setas ao vivo, antes de
+  // salvar; ao cancelar, volta pra ordem do back). Enquanto os produtos não
+  // chegam, mostra todas pra não piscar vazio.
   const previewCategories = useMemo(() => {
-    if (!hasCategoryProductData) return allCategories.slice(0, 10);
-    return allCategories
+    if (!hasCategoryProductData) return orderedCategories.slice(0, 10);
+    return orderedCategories
       .filter((category) => categoryStatusMap[category.id]?.active)
       .slice(0, 10);
-  }, [allCategories, categoryStatusMap, hasCategoryProductData]);
+  }, [orderedCategories, categoryStatusMap, hasCategoryProductData]);
 
   const activeCount = useMemo(
     () =>
@@ -275,22 +277,25 @@ function CategoryManagementContent() {
             <span className="rounded-xl border border-border bg-card px-2.5 py-1 text-[11.5px] font-bold text-foreground">
               {allCategories.length} categorias
             </span>
-            {hasCategoryProductData && (
-              <span className="rounded-xl bg-emerald-50 px-2.5 py-1 text-[11.5px] font-bold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
-                {activeCount} ativas
+            {isSearching && (
+              <span className="rounded-xl bg-muted px-2.5 py-1 text-[11.5px] font-bold text-muted-foreground">
+                {filteredCategories.length} encontradas
               </span>
             )}
-            <span className="rounded-xl border border-border bg-card px-2.5 py-1 text-[11.5px] font-bold text-foreground">
-              {filteredCategories.length} exibidas
-            </span>
-            <span className="rounded-xl bg-muted px-2.5 py-1 text-[11.5px] font-bold text-muted-foreground">
-              {previewCategories.length} na prévia
-            </span>
           </div>
         </div>
 
         {canReorder && isReorderMode && (
-          <div className="mb-3 flex flex-col gap-2 rounded-xl border border-brand-200 bg-brand-50 px-3.5 py-2.5 dark:border-brand-800 dark:bg-brand-950/40 sm:flex-row sm:items-center sm:justify-between">
+          <div
+            className={cn(
+              "z-40 flex flex-col gap-2 rounded-xl border border-brand-200 bg-brand-50 px-3.5 py-2.5 shadow-lg dark:border-brand-800 dark:bg-brand-950/40 sm:flex-row sm:items-center sm:justify-between",
+              // No celular a barra fica fixa logo acima da nav de baixo, pra
+              // Salvar/Cancelar estarem sempre ao alcance sem rolar pro topo.
+              // Some junto com o modo, então não rouba espaço no uso normal.
+              "fixed inset-x-4 bottom-[calc(4rem+env(safe-area-inset-bottom)+0.5rem)]",
+              "md:static md:inset-x-auto md:bottom-auto md:mb-3 md:shadow-none",
+            )}
+          >
             <p className="text-[12.5px] font-bold text-brand-700 dark:text-brand-300">
               {isSearching
                 ? "Limpe a busca para mover as categorias."
@@ -529,6 +534,12 @@ function CategoryManagementContent() {
             </div>
           </aside>
         </div>
+
+        {/* Respiro pra a barra fixa de ordenar não cobrir a última linha no
+            celular (no desktop a barra é estática, não precisa). */}
+        {isReorderMode && (
+          <div className="h-20 md:hidden" aria-hidden="true" />
+        )}
       </div>
 
       <Dialog open={isModalOpen} onOpenChange={handleCloseModal}>
