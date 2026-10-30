@@ -689,7 +689,9 @@ export default function CashRegisterPage() {
                   </span>
                 </span>
               </div>
-              <div className="flex gap-2 sm:ml-auto">
+              {/* No mobile essas ações vão pra barra fixa do rodapé (LDMF-455);
+                  aqui ficam só no desktop, no cabeçalho. */}
+              <div className="hidden gap-2 md:ml-auto md:flex">
                 <Button
                   onClick={() => openMovementDialog("sale")}
                   className="h-[34px] gap-1.5 rounded-md border border-border bg-card px-3 text-[13px] font-semibold text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/40"
@@ -1200,6 +1202,10 @@ export default function CashRegisterPage() {
                 </div>
               )}
             </SectionCard>
+
+            {/* Respiro pra a barra fixa de Entrada/Saída não cobrir a última
+                linha do extrato no celular (no desktop não há barra fixa). */}
+            <div className="h-20 md:hidden" aria-hidden="true" />
           </div>
         ) : (
           // Coluna única de seções: uma seção de caixas anteriores, se vier,
@@ -1257,6 +1263,28 @@ export default function CashRegisterPage() {
           </div>
         )}
       </div>
+
+      {/* Barra fixa de Entrada/Saída no mobile (LDMF-455): as ações principais
+          ficam ao alcance do polegar, acima da nav. Só no celular e com o
+          caixa aberto; no desktop os botões seguem no cabeçalho. */}
+      {isRegisterOpen && register && (
+        <div className="fixed inset-x-4 bottom-[calc(4rem+env(safe-area-inset-bottom)+0.5rem)] z-40 flex gap-2 md:hidden">
+          <Button
+            onClick={() => openMovementDialog("sale")}
+            className="h-12 flex-1 gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 text-sm font-bold text-emerald-700 shadow-lg hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 dark:hover:bg-emerald-950"
+          >
+            <Plus className="h-4 w-4" />
+            Entrada
+          </Button>
+          <Button
+            onClick={() => openMovementDialog("refund")}
+            className="h-12 flex-1 gap-1.5 rounded-xl border border-red-200 bg-red-50 text-sm font-bold text-red-600 shadow-lg hover:bg-red-100 dark:border-red-800 dark:bg-red-950/60 dark:text-red-300 dark:hover:bg-red-950"
+          >
+            <Minus className="h-4 w-4" />
+            Saída
+          </Button>
+        </div>
+      )}
 
       {/* Modal: Fechar caixa */}
       <Dialog

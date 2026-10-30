@@ -141,7 +141,7 @@ describe("Controle de Caixa - métodos de pagamento (LDMF-391)", () => {
   it("o modal de movimento oferece os 4 métodos, sem Transferência", () => {
     render(<CashRegisterPage />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Entrada" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Entrada" })[0]);
     const dialog = screen.getByRole("dialog", { name: "Registrar entrada" });
 
     expect(optionLabels(movementMethodSelect(dialog))).toEqual([
@@ -167,7 +167,7 @@ describe("Controle de Caixa - métodos de pagamento (LDMF-391)", () => {
     });
     render(<CashRegisterPage />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Entrada" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Entrada" })[0]);
     const dialog = screen.getByRole("dialog", { name: "Registrar entrada" });
 
     expect(movementMethodSelect(dialog)).toHaveValue("");
@@ -282,7 +282,7 @@ describe("Controle de Caixa - caixa aberto", () => {
   it("Entrada abre em Venda e Saída em Reembolso, cada um só com seu grupo", () => {
     render(<CashRegisterPage />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Entrada" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Entrada" })[0]);
     let dialog = screen.getByRole("dialog", { name: "Registrar entrada" });
     expect(within(dialog).getByRole("button", { name: "Venda" })).toHaveClass(
       "bg-selected",
@@ -296,7 +296,9 @@ describe("Controle de Caixa - caixa aberto", () => {
     ).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole("button", { name: "Cancelar" }));
 
-    fireEvent.click(screen.getByRole("button", { name: "Saída" }));
+    // Dois botões "Entrada"/"Saída" (cabeçalho no desktop + barra fixa no
+    // mobile, LDMF-455); ambos abrem o mesmo diálogo, usamos o do cabeçalho.
+    fireEvent.click(screen.getAllByRole("button", { name: "Saída" })[0]);
     dialog = screen.getByRole("dialog", { name: "Registrar saída" });
     expect(within(dialog).getByRole("button", { name: "Reembolso" })).toHaveClass(
       "bg-selected",
