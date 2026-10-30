@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 
-import { DeliveryAppHeader } from "@/components/delivery-dashboard/delivery-app-header";
 import { DeliveryTabBar } from "@/components/delivery-dashboard/delivery-tab-bar";
 import ProtectedRoute from "@/components/protected-route";
 import { ROUTE_PERMISSIONS } from "@/utils/permissions";
@@ -16,10 +15,6 @@ import { ROUTE_PERMISSIONS } from "@/utils/permissions";
  * O padding é daqui, não do `AppFrame`: a BottomBar do cliente se esconde
  * nestas rotas, então o layout raiz não reserva nada e quem reserva a altura
  * da própria barra é esta camada.
- *
- * O `DeliveryAppHeader` só aparece para quem não é entregador - a área é
- * standalone e deixava quem administra o restaurante sem saída para as outras
- * áreas de trabalho. Para o entregador ele não renderiza nada.
  */
 
 /**
@@ -42,7 +37,6 @@ export default function DeliveryAreaLayout({
   return (
     <ProtectedRoute allowedRoles={DELIVERY_ROLES}>
       <div className="min-h-screen bg-muted pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))]">
-        <DeliveryAppHeader />
         {children}
       </div>
       <DeliveryTabBar />
