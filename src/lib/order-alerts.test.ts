@@ -3,6 +3,7 @@ import {
   getOrderManagementRoute,
   getUnacknowledgedOrdersCount,
   isOrderUnacknowledged,
+  NEW_ORDER_TOAST_ID,
   REMINDER_INTERVAL_MS,
   stopOrderAlerts,
   triggerOrderAlert,
@@ -84,7 +85,7 @@ describe("order-alerts", () => {
       expect(toast.info).toHaveBeenCalledWith(
         "Novo pedido recebido #101",
         expect.objectContaining({
-          id: "new-order-order-1",
+          id: NEW_ORDER_TOAST_ID,
           action: expect.objectContaining({
             label: "Ver pedido",
           }),
@@ -188,6 +189,57 @@ describe("order-alerts", () => {
 
       vi.advanceTimersByTime(REMINDER_INTERVAL_MS * 2);
       expect(soundManager.play).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("rajada de pedidos (LDMF-461)", () => {
+    const ultimoToast = () => vi.mocked(toast.info).mock.calls.at(-1)!;
+
+    it("um toast só, que passa a dizer quantos pedidos esperam", () => {
+      triggerOrderAlert({ id: "r1", orderNumber: 201 }, { role: "manager" });
+      triggerOrderAlert({ id: "r2", orderNumber: 202 }, { role: "manager" });
+      triggerOrderAlert({ id: "r3", orderNumber: 203 }, { role: "manager" });
+
+      const ids = vi.mocked(toast.info).mock.calls.map(([, o]) => o?.id);
+      expect(new Set(ids)).toEqual(new Set([NEW_ORDER_TOAST_ID]));
+
+      const [titulo, opcoes] = ultimoToast();
+      expect(titulo).toBe("3 pedidos novos");
+      expect(opcoes?.description).toBe("O último é o pedido #203.");
+      expect((opcoes?.action as { label: string }).label).toBe("Ver pedidos");
+    });
+
+    it("a notificação do SO diz o total; o sino continua com uma por pedido", () => {
+      triggerOrderAlert({ id: "r1", orderNumber: 201 }, { role: "manager" });
+      triggerOrderAlert({ id: "r2", orderNumber: 202 }, { role: "manager" });
+
+      expect(vi.mocked(notify).mock.calls[0][0].system).toBeUndefined();
+      expect(vi.mocked(notify).mock.calls[1][0]).toEqual(
+        expect.objectContaining({
+          orderId: "r2",
+          system: { title: "2 pedidos novos", body: "O último é o pedido #202." },
+        }),
+      );
+    });
+
+    it("Ver pedidos reconhece todos e para o lembrete", () => {
+      vi.useFakeTimers();
+      triggerOrderAlert({ id: "r1", orderNumber: 201 }, { role: "manager", router: { push: vi.fn() } });
+      triggerOrderAlert({ id: "r2", orderNumber: 202 }, { role: "manager", router: { push: vi.fn() } });
+
+      (ultimoToast()[1]?.action as { onClick: () => void }).onClick();
+
+      expect(getUnacknowledgedOrdersCount()).toBe(0);
+      vi.advanceTimersByTime(REMINDER_INTERVAL_MS * 2);
+      expect(soundManager.play).toHaveBeenCalledTimes(2);
+    });
+
+    it("pedido sozinho continua com o texto e a ação de antes", () => {
+      triggerOrderAlert({ id: "r1", orderNumber: 201 }, { role: "manager" });
+
+      const [titulo, opcoes] = ultimoToast();
+      expect(titulo).toBe("Novo pedido recebido #201");
+      expect((opcoes?.action as { label: string }).label).toBe("Ver pedido");
     });
   });
 

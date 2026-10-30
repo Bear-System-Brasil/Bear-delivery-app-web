@@ -20,6 +20,7 @@ import { useNotificationsStore } from "@/stores/notifications-store";
 import { toast } from "sonner";
 
 export const REMINDER_INTERVAL_MS = 30_000;
+export const NEW_ORDER_TOAST_ID = "new-order";
 
 const unacknowledgedOrders = new Set<string>();
 let reminderInterval: ReturnType<typeof setInterval> | null = null;
@@ -100,23 +101,39 @@ export function triggerOrderAlert(
   const targetRoute = getOrderManagementRoute(options.role);
   const label = getOrderLabel(order);
 
-  // 4. Alimenta o sino global e notificação nativa do SO/navegador
+  // Pedidos ainda não vistos, contando este. Numa rajada, o aviso fala de
+  // todos de uma vez em vez de empilhar um por pedido (LDMF-461).
+  const pendentes = unacknowledgedOrders.size;
+  const resumo =
+    pendentes > 1
+      ? { title: `${pendentes} pedidos novos`, body: `O último é o pedido #${label}.` }
+      : null;
+
+  // 4. Alimenta o sino global (uma notificação por pedido, pra cada uma
+  //    poder ser marcada como lida) e a notificação nativa do SO/navegador
+  //    (que usa uma tag só: a nova substitui a anterior, então ela diz o total)
   notify({
     audience: "management",
     title: "Novo pedido recebido",
     body: `Pedido #${label} acabou de chegar.`,
     href: targetRoute,
     orderId: order.id,
+    system: resumo ?? undefined,
   });
 
-  // 5. Toast com ação explícita de "Ver pedido"
-  toast.info(`Novo pedido recebido #${label}`, {
-    id: `new-order-${order.id}`,
-    description: `Pedido #${label} acabou de chegar.`,
+  // 5. Toast com ação explícita. Um só, com id fixo: o pedido seguinte
+  //    atualiza o mesmo toast em vez de criar outro na pilha.
+  const verPedidos = () => {
+    for (const id of [...unacknowledgedOrders]) acknowledgeOrder(id);
+  };
+  toast.info(resumo ? resumo.title : `Novo pedido recebido #${label}`, {
+    id: NEW_ORDER_TOAST_ID,
+    description: resumo ? resumo.body : `Pedido #${label} acabou de chegar.`,
     action: {
-      label: "Ver pedido",
+      label: resumo ? "Ver pedidos" : "Ver pedido",
       onClick: () => {
-        acknowledgeOrder(order.id);
+        if (resumo) verPedidos();
+        else acknowledgeOrder(order.id);
         if (options.router) {
           options.router.push(targetRoute);
         } else if (typeof window !== "undefined") {
@@ -125,8 +142,10 @@ export function triggerOrderAlert(
       },
     },
     duration: 15_000,
+    // Fechar na mão conta como ter visto o que o toast anunciava.
     onDismiss: () => {
-      acknowledgeOrder(order.id);
+      if (resumo) verPedidos();
+      else acknowledgeOrder(order.id);
     },
   });
 }
