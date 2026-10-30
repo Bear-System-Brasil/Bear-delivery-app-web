@@ -16,6 +16,7 @@
 
 import { notify } from "@/lib/notify";
 import { soundManager } from "@/lib/sound";
+import { useNotificationsStore } from "@/stores/notifications-store";
 import { toast } from "sonner";
 
 export const REMINDER_INTERVAL_MS = 30_000;
@@ -54,6 +55,9 @@ function startReminderTimer() {
 
 export function acknowledgeOrder(orderId: string): void {
   unacknowledgedOrders.delete(orderId);
+  // Ver o pedido também tira o "não lida" dele do sino (LDMF-460): sem isso o
+  // sino acumulava pedido já visto e as pessoas paravam de olhar pra ele.
+  useNotificationsStore.getState().markOrderAsRead(orderId);
   if (unacknowledgedOrders.size === 0) {
     stopReminderTimer();
   }

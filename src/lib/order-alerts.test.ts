@@ -9,6 +9,7 @@ import {
 } from "./order-alerts";
 import { notify } from "@/lib/notify";
 import { soundManager } from "@/lib/sound";
+import { useNotificationsStore } from "@/stores/notifications-store";
 import { toast } from "sonner";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -187,6 +188,18 @@ describe("order-alerts", () => {
 
       vi.advanceTimersByTime(REMINDER_INTERVAL_MS * 2);
       expect(soundManager.play).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("sino (LDMF-460)", () => {
+    it("ver o pedido marca a notificação dele como lida no sino", () => {
+      const markOrderAsRead = vi.spyOn(useNotificationsStore.getState(), "markOrderAsRead");
+      triggerOrderAlert({ id: "order-8", orderNumber: 108 }, { role: "manager" });
+
+      acknowledgeOrder("order-8");
+
+      expect(markOrderAsRead).toHaveBeenCalledWith("order-8");
+      markOrderAsRead.mockRestore();
     });
   });
 

@@ -32,6 +32,22 @@ describe("useNotificationsStore", () => {
     expect(new Date(item.createdAt).toString()).not.toBe("Invalid Date");
   });
 
+  it("markOrderAsRead marca como lidas só as notificações daquele pedido (LDMF-460)", () => {
+    act(() => {
+      const { addNotification } = useNotificationsStore.getState();
+      addNotification({ audience: "management", title: "Novo pedido", body: "nº 12", orderId: "o12" });
+      addNotification({ audience: "management", title: "Novo pedido", body: "nº 13", orderId: "o13" });
+      addNotification({ audience: "management", title: "Pedido cancelado", body: "nº 9" });
+    });
+
+    act(() => useNotificationsStore.getState().markOrderAsRead("o12"));
+
+    const lidas = Object.fromEntries(
+      useNotificationsStore.getState().items.map((i) => [i.body, i.read]),
+    );
+    expect(lidas).toEqual({ "nº 12": true, "nº 13": false, "nº 9": false });
+  });
+
   it("notificações novas entram sempre na frente (mais recente primeiro)", () => {
     act(() => {
       useNotificationsStore.getState().addNotification({
