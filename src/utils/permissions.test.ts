@@ -48,7 +48,6 @@ describe("areas de trabalho das roles de gestao", () => {
   const AREAS = [
     "/menu-management",
     "/kitchen",
-    "/delivery-dashboard",
     "/financial-management/dashboard",
   ];
 
@@ -61,6 +60,15 @@ describe("areas de trabalho das roles de gestao", () => {
   it("a area de entregas continua aberta pro entregador", () => {
     expect(hasRoutePermission("/delivery-dashboard", "delivery")).toBe(true);
   });
+
+  it.each(["owner", "admin", "manager"])(
+    "%s nao alcanca a area de entregas",
+    (role) => {
+      // LDMF-324: a tela lista as entregas do entregador logado - a gerencia
+      // nao pega entrega por ali.
+      expect(hasRoutePermission("/delivery-dashboard", role)).toBe(false);
+    },
+  );
 
   it("nao abre as demais areas pra quem faz uma coisa so", () => {
     // Estas roles continuam com um destino unico no menu, e o mapa tem de

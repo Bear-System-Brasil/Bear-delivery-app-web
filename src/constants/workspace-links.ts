@@ -14,9 +14,12 @@ import {
  * primeiro cliente e uma pessoa so, que e dono, cozinheiro e entregador, e
  * enxergava apenas Gestao.
  *
- * Quem administra o restaurante (owner, admin, manager) passa a ver todas as
- * areas; as demais roles continuam com a sua. Nada de tela nova: sao as
- * mesmas rotas que as outras roles ja usam.
+ * Quem administra o restaurante (owner, admin, manager) passa a ver as areas
+ * do restaurante; as demais roles continuam com a sua. Nada de tela nova: sao
+ * as mesmas rotas que as outras roles ja usam.
+ *
+ * Entregas fica de fora da gerencia (LDMF-324): a tela lista as entregas do
+ * entregador logado, e a gerencia nao pega entrega por ela.
  *
  * A lista tem de ser subconjunto do que a role alcanca em ROUTE_PERMISSIONS e
  * no middleware - item apontando pra rota negada leva direto pro "Acesso
@@ -57,17 +60,12 @@ const FINANCIAL: WorkspaceLink = {
  * (ver `getPrimaryWorkspaceLink`), entao cada role comeca pela area onde ela
  * de fato trabalha.
  */
-const ALL_AREAS: WorkspaceLink[] = [
-  MANAGEMENT,
-  KITCHEN,
-  DELIVERIES,
-  FINANCIAL,
-];
+const MANAGEMENT_AREAS: WorkspaceLink[] = [MANAGEMENT, KITCHEN, FINANCIAL];
 
 export const WORKSPACE_LINKS_BY_ROLE: Record<string, WorkspaceLink[]> = {
-  owner: ALL_AREAS,
-  admin: ALL_AREAS,
-  manager: ALL_AREAS,
+  owner: MANAGEMENT_AREAS,
+  admin: MANAGEMENT_AREAS,
+  manager: MANAGEMENT_AREAS,
   cook: [KITCHEN],
   delivery: [DELIVERIES],
   financial: [FINANCIAL],

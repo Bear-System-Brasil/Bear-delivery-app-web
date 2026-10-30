@@ -30,12 +30,9 @@ import {
   pluralizeAvailable,
 } from "@/lib/delivery";
 import { checkAcceptDistance } from "@/lib/accept-distance";
-import { buildPaymentMethodUpdate } from "@/lib/payment-update";
 import { cn } from "@/lib/utils";
 import type { Delivery, PaymentMethod } from "@/services/api";
 import { PAYMENT_CHANGE_REQUEST_ENABLED } from "@/services/manager-requests";
-import { useAuthStore } from "@/stores";
-import { isManagementRole } from "@/utils/role-helpers";
 
 type Filter = "all" | "inRoute" | "toPickUp" | "available";
 
@@ -140,7 +137,6 @@ export default function DeliveryDashboardPage() {
     returnDelivery,
     returningId,
     isReturning,
-    changePaymentMethod,
     requestPaymentChange,
     changingPaymentId,
     isChangingPayment,
@@ -148,12 +144,10 @@ export default function DeliveryDashboardPage() {
     counts,
   } = useDeliveryDriver();
 
-  // A tela também é usada pela gerência (owner, admin, manager), que altera a
-  // forma de pagamento direto. O entregador só avisa a gerência - e esse
-  // botão fica escondido até o backend ter a rota (LDMF-284).
-  const role = useAuthStore((state) => state.user?.role);
-  const isManagement = isManagementRole(role);
-  const canTouchPayment = isManagement || PAYMENT_CHANGE_REQUEST_ENABLED;
+  // O entregador não altera a forma de pagamento: só avisa a gerência, que
+  // troca em Finanças. O botão fica escondido até o backend ter a rota do
+  // aviso (LDMF-284).
+  const canTouchPayment = PAYMENT_CHANGE_REQUEST_ENABLED;
   const [paymentTarget, setPaymentTarget] = useState<Delivery | null>(null);
 
   const { shouldConfirm, setSkipConfirm } = useAcceptConfirmation();
@@ -335,19 +329,13 @@ export default function DeliveryDashboardPage() {
     if (!paymentTarget || !payment) return false;
 
     try {
-      const response = isManagement
-        ? await changePaymentMethod({
-            deliveryId: paymentTarget.id,
-            paymentId: payment.id,
-            update: buildPaymentMethodUpdate(payment, method),
-          })
-        : await requestPaymentChange({
-            deliveryId: paymentTarget.id,
-            orderId: paymentTarget.orderId,
-            paymentId: payment.id,
-            paymentMethod: method,
-            note: note || undefined,
-          });
+      const response = await requestPaymentChange({
+        deliveryId: paymentTarget.id,
+        orderId: paymentTarget.orderId,
+        paymentId: payment.id,
+        paymentMethod: method,
+        note: note || undefined,
+      });
       return response.success;
     } catch {
       // O toast de erro já sai do onError da mutation.
@@ -363,11 +351,7 @@ export default function DeliveryDashboardPage() {
       onAdvance={handleAdvance}
       onReturn={setReturnTarget}
       onChangePayment={canTouchPayment ? setPaymentTarget : undefined}
-      changePaymentLabel={
-        isManagement
-          ? "Alterar forma de pagamento"
-          : "Pagou de outro jeito? Avisar o gerente"
-      }
+      changePaymentLabel="Pagou de outro jeito? Avisar o gerente"
       busy={
         advancingId === delivery.id ||
         returningId === delivery.id ||
@@ -565,14 +549,10 @@ export default function DeliveryDashboardPage() {
             : undefined
         }
         onConfirm={handleConfirmPayment}
-        title={isManagement ? "Alterar forma de pagamento" : "Avisar o gerente"}
-        description={
-          isManagement
-            ? `Pedido #${paymentTarget?.orderId.slice(0, 8) ?? ""}`
-            : "O cliente pagou com outra forma? A gerência confirma a troca."
-        }
-        confirmLabel={isManagement ? "Salvar forma" : "Enviar aviso"}
-        withNote={!isManagement}
+        title="Avisar o gerente"
+        description="O cliente pagou com outra forma? A gerência confirma a troca."
+        confirmLabel="Enviar aviso"
+        withNote
         isLoading={isChangingPayment}
       />
     </>

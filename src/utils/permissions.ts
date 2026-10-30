@@ -37,11 +37,10 @@ export const ROUTE_PERMISSIONS: { [key: string]: string[] } = {
   // Kitchen
   "/kitchen": ["owner", "admin", "manager", "cook"],
 
-  // Delivery - a area de entregas tambem e alcancavel por quem administra o
-  // restaurante, que no cliente pequeno e a mesma pessoa que entrega. A rota
-  // nao estava mapeada aqui, e rota nao mapeada e bloqueada por padrao em
-  // hasRoutePermission.
-  "/delivery-dashboard": ["delivery", "owner", "admin", "manager"],
+  // Delivery - so o entregador (LDMF-324). A gerencia entrava aqui, mas a
+  // tela lista as entregas do entregador logado e ela nao pega entrega por
+  // ali: a tela ficava vazia pra ela.
+  "/delivery-dashboard": ["delivery"],
 
   // Financial management - o role financial enxerga TODAS as telas de
   // /financial-management/*. Tela nova ali dentro entra nesta lista junto

@@ -28,11 +28,10 @@ const ACCEPTED: Delivery = {
 } as unknown as Delivery;
 
 // Referências estáveis: identidade nova a cada render causa laço infinito.
-const { driver, confirmation, position, auth, flags } = vi.hoisted(() => ({
+const { driver, confirmation, position, flags } = vi.hoisted(() => ({
   driver: { current: {} as Record<string, unknown> },
   confirmation: { shouldConfirm: false, setSkipConfirm: () => {} },
   position: { position: null, resolvePosition: async () => ({ ok: false }) },
-  auth: { user: { role: "manager" } as { role: string } | null },
   flags: { requestEnabled: false },
 }));
 
@@ -44,9 +43,6 @@ vi.mock("@/hooks/use-accept-confirmation", () => ({
 }));
 vi.mock("@/hooks/use-courier-position", () => ({
   useCourierPosition: () => position,
-}));
-vi.mock("@/stores", () => ({
-  useAuthStore: (selector: (state: typeof auth) => unknown) => selector(auth),
 }));
 vi.mock("@/services/manager-requests", () => ({
   get PAYMENT_CHANGE_REQUEST_ENABLED() {
@@ -63,7 +59,6 @@ vi.mock("@/components/delivery-dashboard/location-dialog", () => ({
   LocationDialog: () => null,
 }));
 
-const changePaymentMethod = vi.fn();
 const requestPaymentChange = vi.fn();
 
 function setDriver() {
@@ -83,7 +78,6 @@ function setDriver() {
     returnDelivery: vi.fn(),
     returningId: null,
     isReturning: false,
-    changePaymentMethod,
     requestPaymentChange,
     changingPaymentId: null,
     isChangingPayment: false,
@@ -94,44 +88,12 @@ function setDriver() {
 
 describe("DeliveryDashboardPage - forma de pagamento", () => {
   beforeEach(() => {
-    changePaymentMethod.mockReset();
     requestPaymentChange.mockReset();
-    auth.user = { role: "manager" };
     flags.requestEnabled = false;
     setDriver();
   });
 
-  it.each(["owner", "admin", "manager"])(
-    "%s altera a forma direto, sem passar pelo aviso",
-    async (role) => {
-      auth.user = { role };
-      changePaymentMethod.mockResolvedValue({ success: true });
-      const user = userEvent.setup();
-      render(<DeliveryDashboardPage />);
-
-      await user.click(screen.getByRole("button", { name: "Alterar forma de pagamento" }));
-      const dialog = screen.getByRole("dialog");
-      await user.click(within(dialog).getByRole("button", { name: /Crédito/ }));
-      await user.click(within(dialog).getByRole("button", { name: "Salvar forma" }));
-
-      expect(changePaymentMethod).toHaveBeenCalledWith({
-        deliveryId: "del-1",
-        paymentId: "pay-1",
-        update: {
-          orderId: "order-aaaaaaaa",
-          customerId: "cus-1",
-          amount: 35.9,
-          paymentMethod: "CREDIT_CARD",
-          status: "PENDING",
-        },
-      });
-      expect(requestPaymentChange).not.toHaveBeenCalled();
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    },
-  );
-
   it("o entregador não vê botão enquanto o aviso ao gerente está desligado", () => {
-    auth.user = { role: "delivery" };
     render(<DeliveryDashboardPage />);
 
     expect(screen.queryByRole("button", { name: /forma de pagamento/ })).toBeNull();
@@ -139,7 +101,6 @@ describe("DeliveryDashboardPage - forma de pagamento", () => {
   });
 
   it("com o aviso ligado, o entregador avisa o gerente e não altera nada", async () => {
-    auth.user = { role: "delivery" };
     flags.requestEnabled = true;
     requestPaymentChange.mockResolvedValue({ success: true });
     const user = userEvent.setup();
@@ -158,20 +119,20 @@ describe("DeliveryDashboardPage - forma de pagamento", () => {
       paymentMethod: "PIX",
       note: "pagou no pix",
     });
-    expect(changePaymentMethod).not.toHaveBeenCalled();
   });
 
   it("mantém a janela aberta quando o backend recusa", async () => {
-    changePaymentMethod.mockResolvedValue({ success: false, message: "Sem permissão" });
+    flags.requestEnabled = true;
+    requestPaymentChange.mockResolvedValue({ success: false, message: "Sem permissão" });
     const user = userEvent.setup();
     render(<DeliveryDashboardPage />);
 
-    await user.click(screen.getByRole("button", { name: "Alterar forma de pagamento" }));
+    await user.click(screen.getByRole("button", { name: /Avisar o gerente/ }));
     const dialog = screen.getByRole("dialog");
     await user.click(within(dialog).getByRole("button", { name: /Dinheiro/ }));
-    await user.click(within(dialog).getByRole("button", { name: "Salvar forma" }));
+    await user.click(within(dialog).getByRole("button", { name: "Enviar aviso" }));
 
-    expect(changePaymentMethod).toHaveBeenCalled();
+    expect(requestPaymentChange).toHaveBeenCalled();
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 });

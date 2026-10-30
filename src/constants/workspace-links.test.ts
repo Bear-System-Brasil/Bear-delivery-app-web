@@ -16,14 +16,10 @@ const labels = (role?: string) =>
 
 describe("getWorkspaceLinks", () => {
   it.each(["owner", "admin", "manager"])(
-    "%s enxerga as quatro areas",
+    "%s enxerga as areas do restaurante, sem Entregas",
     (role) => {
-      expect(labels(role)).toEqual([
-        "Gestão",
-        "Cozinha",
-        "Entregas",
-        "Financeiro",
-      ]);
+      // Entregas e so do entregador (LDMF-324).
+      expect(labels(role)).toEqual(["Gestão", "Cozinha", "Financeiro"]);
     },
   );
 
