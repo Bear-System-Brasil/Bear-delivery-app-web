@@ -1,0 +1,85 @@
+{
+  "_origem": "orderCreated real do back de teste (like-delivery-backend.onrender.com), capturado em 30/10/2026, com dados pessoais trocados por valores neutros",
+  "ackJoinCompanyOrders": {
+    "ok": true,
+    "companyId": "10314073-7c38-4b57-909a-ffc0314e5648"
+  },
+  "orderCreated": {
+    "id": "00000000-0000-4000-8000-0000000000aa",
+    "customerId": "00000000-0000-4000-8000-000000000001",
+    "companyId": "10314073-7c38-4b57-909a-ffc0314e5648",
+    "orderNumber": 1,
+    "fulfillmentType": "PICKUP",
+    "discount": 0,
+    "totalShipping": 0,
+    "totalValue": 20,
+    "changeFor": null,
+    "status": "ORDERED",
+    "observations": null,
+    "cancelReason": null,
+    "created_at": "2026-10-30T17:16:28.297Z",
+    "updated_at": "2026-10-30T17:16:28.297Z",
+    "statusChangedAt": "2026-10-30T17:16:28.296Z",
+    "customer": {
+      "id": "00000000-0000-4000-8000-000000000001",
+      "name": "Cliente de Teste",
+      "phone": "11900000000",
+      "photoUrl": null
+    },
+    "orderedItems": [
+      {
+        "id": "00000000-0000-4000-8000-0000000000bb",
+        "orderId": "00000000-0000-4000-8000-0000000000aa",
+        "quantity": 1,
+        "productId": "8cd7ae9e-72b4-49e9-aa24-fa68b49960cb",
+        "deleted_at": null,
+        "unitPrice": 20,
+        "costPriceSnapshot": 0.05,
+        "created_at": "2026-10-30T17:16:28.297Z",
+        "updated_at": "2026-10-30T17:16:28.297Z",
+        "product": {
+          "id": "8cd7ae9e-72b4-49e9-aa24-fa68b49960cb",
+          "name": "Salsichão Grosso",
+          "salePrice": 20,
+          "imageURL": []
+        },
+        "addOns": [],
+        "variations": [
+          {
+            "id": "00000000-0000-4000-8000-0000000000cc",
+            "orderItemId": "00000000-0000-4000-8000-0000000000bb",
+            "productVariationId": "d92d5a30-9449-47e8-be3f-969fb76da449",
+            "priceSnapshot": 0,
+            "observations": null,
+            "created_at": "2026-10-30T17:16:28.297Z",
+            "updated_at": "2026-10-30T17:16:28.297Z",
+            "productVariation": {
+              "id": "d92d5a30-9449-47e8-be3f-969fb76da449",
+              "name": "Pequeno",
+              "priceModifier": 0,
+              "isAvailable": true,
+              "stockQuantity": 9963,
+              "productId": "8cd7ae9e-72b4-49e9-aa24-fa68b49960cb",
+              "created_at": "2026-10-03T22:36:38.261Z",
+              "updated_at": "2026-10-03T22:36:38.261Z"
+            }
+          }
+        ]
+      }
+    ],
+    "payments": [],
+    "pickup": {
+      "id": "00000000-0000-4000-8000-0000000000dd",
+      "orderId": "00000000-0000-4000-8000-0000000000aa",
+      "status": "PENDING",
+      "pickedUpAt": null,
+      "completedAt": null,
+      "canceledAt": null,
+      "cancelReason": null,
+      "observations": null,
+      "created_at": "2026-10-30T17:16:30.727Z",
+      "updated_at": "2026-10-30T17:16:30.727Z"
+    },
+    "delivery": null
+  }
+}
