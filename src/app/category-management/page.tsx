@@ -26,6 +26,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useCategoryManagement } from "@/hooks";
 import { cn } from "@/lib/utils";
 import {
+  ArrowUpDown,
   CalendarDays,
   ChevronDown,
   ChevronUp,
@@ -38,7 +39,7 @@ import {
   Trash2,
   TriangleAlert,
 } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 function formatDate(date: string) {
   return new Date(date).toLocaleDateString("pt-BR");
@@ -97,8 +98,9 @@ function CategoryStatusToggle({
 }
 
 /**
- * Setas de subir/descer (LDMF-345). Funcionam bem no celular; arrastar fica
- * como melhoria futura. Mexem só no estado local até "Salvar ordem".
+ * Setas de subir/descer (LDMF-345/453). Aparecem só no modo "Ordenar". Dois
+ * botões separados com alvo de toque confortável pra não errar o sentido no
+ * celular. Mexem só no estado local até "Salvar ordem".
  */
 function ReorderControl({
   name,
@@ -114,16 +116,16 @@ function ReorderControl({
   onMoveDown: () => void;
 }) {
   return (
-    <div className="flex flex-col overflow-hidden rounded-[7px] border border-border">
+    <div className="flex items-center gap-1.5">
       <button
         type="button"
         onClick={onMoveUp}
         disabled={isFirst}
         aria-label={`Mover ${name} para cima`}
         title="Mover para cima"
-        className="flex h-[15px] w-6 items-center justify-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30"
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px] border border-border bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30 md:h-7 md:w-7"
       >
-        <ChevronUp className="h-3 w-3" />
+        <ChevronUp className="h-4 w-4 md:h-3.5 md:w-3.5" />
       </button>
       <button
         type="button"
@@ -131,9 +133,9 @@ function ReorderControl({
         disabled={isLast}
         aria-label={`Mover ${name} para baixo`}
         title="Mover para baixo"
-        className="flex h-[15px] w-6 items-center justify-center border-t border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30"
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px] border border-border bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30 md:h-7 md:w-7"
       >
-        <ChevronDown className="h-3 w-3" />
+        <ChevronDown className="h-4 w-4 md:h-3.5 md:w-3.5" />
       </button>
     </div>
   );
@@ -143,6 +145,7 @@ function CategoryManagementContent() {
   const {
     categories: filteredCategories,
     allCategories,
+    orderedCategories,
     isLoading: loading,
     isModalOpen,
     editingCategory,
@@ -175,19 +178,41 @@ function CategoryManagementContent() {
     handleCancelReorder,
   } = useCategoryManagement();
 
-  // Setas aparecem só quando dá pra reordenar de fato: papel permitido e
-  // sem busca ativa (com busca, enviar a lista filtrada bagunçaria o resto).
-  const showReorder = canReorder && !isSearching;
+  // Reordenar agora é um modo, disparado pelo botão "Ordenar" (Painel 3): fora
+  // dele a linha fica limpa (toggle + editar + excluir). As setas só aparecem
+  // no modo e sem busca ativa — com busca, enviar a lista filtrada bagunçaria
+  // o resto.
+  const [isReorderMode, setIsReorderMode] = useState(false);
+  const showReorder = canReorder && isReorderMode && !isSearching;
+
+  const toggleReorderMode = () => {
+    setIsReorderMode((prev) => {
+      // Ao sair do modo com mudança não salva, descarta o rascunho.
+      if (prev && isReorderDirty) handleCancelReorder();
+      return !prev;
+    });
+  };
+
+  const handleSaveOrderAndExit = async () => {
+    const saved = await handleSaveOrder();
+    if (saved) setIsReorderMode(false);
+  };
+
+  const handleCancelReorderAndExit = () => {
+    handleCancelReorder();
+    setIsReorderMode(false);
+  };
 
   // A prévia espelha o que o cliente vê: só as categorias ativas (com item
-  // disponível). Enquanto os produtos não chegam, mostra todas pra não piscar
-  // vazio.
+  // disponível), na ordem do rascunho (reflete as setas ao vivo, antes de
+  // salvar; ao cancelar, volta pra ordem do back). Enquanto os produtos não
+  // chegam, mostra todas pra não piscar vazio.
   const previewCategories = useMemo(() => {
-    if (!hasCategoryProductData) return allCategories.slice(0, 10);
-    return allCategories
+    if (!hasCategoryProductData) return orderedCategories.slice(0, 10);
+    return orderedCategories
       .filter((category) => categoryStatusMap[category.id]?.active)
       .slice(0, 10);
-  }, [allCategories, categoryStatusMap, hasCategoryProductData]);
+  }, [orderedCategories, categoryStatusMap, hasCategoryProductData]);
 
   const activeCount = useMemo(
     () =>
@@ -213,51 +238,83 @@ function CategoryManagementContent() {
     >
       <div className="mx-auto max-w-7xl">
         <div className="mb-3 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex h-9 w-full max-w-[340px] items-center gap-2 rounded-xl border border-border bg-card px-3">
-            <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
-            <Input
-              placeholder="Buscar categorias..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-auto min-w-0 border-0 bg-transparent p-0 text-[12.5px] font-medium text-foreground shadow-none placeholder:text-muted-foreground focus-visible:ring-0"
-            />
+          <div className="flex w-full items-center gap-2 lg:max-w-[460px]">
+            <div className="flex h-9 w-full items-center gap-2 rounded-xl border border-border bg-card px-3 lg:max-w-[340px]">
+              <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <Input
+                placeholder="Buscar categorias..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-auto min-w-0 border-0 bg-transparent p-0 text-[12.5px] font-medium text-foreground shadow-none placeholder:text-muted-foreground focus-visible:ring-0"
+              />
+            </div>
+
+            {canReorder && (
+              <button
+                type="button"
+                onClick={toggleReorderMode}
+                disabled={isSearching && !isReorderMode}
+                title={
+                  isSearching && !isReorderMode
+                    ? "Limpe a busca para ordenar"
+                    : undefined
+                }
+                aria-pressed={isReorderMode}
+                className={cn(
+                  "flex h-9 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-[12.5px] font-extrabold transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+                  isReorderMode
+                    ? "border-brand-500 bg-brand-500 text-white hover:bg-brand-600"
+                    : "border-border bg-card text-foreground hover:bg-muted",
+                )}
+              >
+                <ArrowUpDown className="h-4 w-4" />
+                {isReorderMode ? "Concluir" : "Ordenar"}
+              </button>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="rounded-xl border border-border bg-card px-2.5 py-1 text-[11.5px] font-bold text-foreground">
               {allCategories.length} categorias
             </span>
-            {hasCategoryProductData && (
-              <span className="rounded-xl bg-emerald-50 px-2.5 py-1 text-[11.5px] font-bold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
-                {activeCount} ativas
+            {isSearching && (
+              <span className="rounded-xl bg-muted px-2.5 py-1 text-[11.5px] font-bold text-muted-foreground">
+                {filteredCategories.length} encontradas
               </span>
             )}
-            <span className="rounded-xl border border-border bg-card px-2.5 py-1 text-[11.5px] font-bold text-foreground">
-              {filteredCategories.length} exibidas
-            </span>
-            <span className="rounded-xl bg-muted px-2.5 py-1 text-[11.5px] font-bold text-muted-foreground">
-              {previewCategories.length} na prévia
-            </span>
           </div>
         </div>
 
-        {canReorder && isReorderDirty && (
-          <div className="mb-3 flex flex-col gap-2 rounded-xl border border-brand-200 bg-brand-50 px-3.5 py-2.5 dark:border-brand-800 dark:bg-brand-950/40 sm:flex-row sm:items-center sm:justify-between">
+        {canReorder && isReorderMode && (
+          <div
+            className={cn(
+              "z-40 flex flex-col gap-2 rounded-xl border border-brand-200 bg-brand-50 px-3.5 py-2.5 shadow-lg dark:border-brand-800 dark:bg-brand-950/40 sm:flex-row sm:items-center sm:justify-between",
+              // No celular a barra fica fixa logo acima da nav de baixo, pra
+              // Salvar/Cancelar estarem sempre ao alcance sem rolar pro topo.
+              // Some junto com o modo, então não rouba espaço no uso normal.
+              "fixed inset-x-4 bottom-[calc(4rem+env(safe-area-inset-bottom)+0.5rem)]",
+              "md:static md:inset-x-auto md:bottom-auto md:mb-3 md:shadow-none",
+            )}
+          >
             <p className="text-[12.5px] font-bold text-brand-700 dark:text-brand-300">
-              Ordem alterada. Salve para o cardápio do cliente refletir.
+              {isSearching
+                ? "Limpe a busca para mover as categorias."
+                : isReorderDirty
+                  ? "Ordem alterada. Salve para o cardápio do cliente refletir."
+                  : "Use as setas para reordenar e salve ao terminar."}
             </p>
             <div className="flex gap-2">
               <Button
                 variant="outline"
-                onClick={handleCancelReorder}
+                onClick={handleCancelReorderAndExit}
                 disabled={isSavingOrder}
                 className="h-8 cursor-pointer rounded-lg border-border text-xs"
               >
                 Cancelar
               </Button>
               <Button
-                onClick={handleSaveOrder}
-                disabled={isSavingOrder}
+                onClick={handleSaveOrderAndExit}
+                disabled={!isReorderDirty || isSavingOrder || isSearching}
                 className="h-8 cursor-pointer rounded-lg bg-brand-500 text-xs font-bold text-white hover:bg-brand-600"
               >
                 {isSavingOrder ? (
@@ -271,12 +328,6 @@ function CategoryManagementContent() {
               </Button>
             </div>
           </div>
-        )}
-
-        {canReorder && isSearching && (
-          <p className="mb-3 text-[11.5px] font-medium text-muted-foreground">
-            Limpe a busca para reordenar as categorias.
-          </p>
         )}
 
         <div className="grid min-h-0 items-start gap-3 md:h-[calc(100vh-165px)] xl:grid-cols-[minmax(0,1fr)_320px]">
@@ -334,8 +385,8 @@ function CategoryManagementContent() {
                     className="grid gap-3 p-3.5 md:grid-cols-[44px_minmax(0,1fr)_112px_112px_92px_108px] md:items-center md:gap-2"
                   >
                     <div className="flex items-center justify-between gap-3 md:block">
-                      <span className="text-[11px] font-extrabold text-muted-foreground">
-                        #{String(index + 1).padStart(2, "0")}
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted text-[11px] font-extrabold text-muted-foreground">
+                        {index + 1}
                       </span>
                       <div className="md:hidden">
                         <CategoryStatusToggle
@@ -380,7 +431,7 @@ function CategoryManagementContent() {
                     </div>
 
                     <div className="flex items-center justify-end gap-1.5">
-                      {showReorder && (
+                      {showReorder ? (
                         <ReorderControl
                           name={category.name}
                           isFirst={index === 0}
@@ -388,28 +439,31 @@ function CategoryManagementContent() {
                           onMoveUp={() => handleMoveCategoryUp(category.id)}
                           onMoveDown={() => handleMoveCategoryDown(category.id)}
                         />
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleOpenEditModal(category)}
-                        className="h-7 w-7 cursor-pointer rounded-[7px] bg-muted text-foreground hover:bg-muted"
-                        aria-label={`Editar ${category.name}`}
-                        title="Editar"
-                      >
-                        <Edit className="h-3.5 w-3.5" />
-                      </Button>
-                      {canDelete && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleRequestDelete(category)}
-                          className="h-7 w-7 cursor-pointer rounded-[7px] bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 hover:text-red-600 dark:hover:text-red-400"
-                          aria-label={`Remover ${category.name}`}
-                          title="Remover"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
+                      ) : (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleOpenEditModal(category)}
+                            className="h-7 w-7 cursor-pointer rounded-[7px] bg-muted text-foreground hover:bg-muted"
+                            aria-label={`Editar ${category.name}`}
+                            title="Editar"
+                          >
+                            <Edit className="h-3.5 w-3.5" />
+                          </Button>
+                          {canDelete && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleRequestDelete(category)}
+                              className="h-7 w-7 cursor-pointer rounded-[7px] bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 hover:text-red-600 dark:hover:text-red-400"
+                              aria-label={`Remover ${category.name}`}
+                              title="Remover"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                        </>
                       )}
                     </div>
                   </div>
@@ -432,6 +486,16 @@ function CategoryManagementContent() {
                 </p>
               </div>
             )}
+
+            {!loading &&
+              hasCategoryProductData &&
+              filteredCategories.length > 0 && (
+                <div className="flex shrink-0 items-center gap-1.5 border-t border-border px-3.5 py-2.5 text-[11px] font-semibold text-muted-foreground">
+                  <Eye className="h-3.5 w-3.5 shrink-0" />
+                  {activeCount} de {allCategories.length} visíveis no app · use o
+                  interruptor para ocultar.
+                </div>
+              )}
           </section>
 
           <aside className="rounded-xl border border-border bg-card p-3.5 md:max-h-full md:overflow-y-auto">
@@ -470,6 +534,12 @@ function CategoryManagementContent() {
             </div>
           </aside>
         </div>
+
+        {/* Respiro pra a barra fixa de ordenar não cobrir a última linha no
+            celular (no desktop a barra é estática, não precisa). */}
+        {isReorderMode && (
+          <div className="h-20 md:hidden" aria-hidden="true" />
+        )}
       </div>
 
       <Dialog open={isModalOpen} onOpenChange={handleCloseModal}>
