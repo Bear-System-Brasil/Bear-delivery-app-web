@@ -458,19 +458,20 @@ export function CustomizeOrder({
         hideClose
         className="flex w-[calc(100%-2rem)] max-h-[86dvh] max-w-[440px] flex-col gap-0 overflow-hidden rounded-2xl border-0 p-0 shadow-2xl sm:w-full sm:rounded-2xl"
       >
-        {/* Header image */}
-        <div className="relative h-[118px] shrink-0 bg-muted">
+        {/* Header image. object-contain + altura maior pra não cortar/dar
+            zoom na foto do prato; o bg-muted preenche as sobras (LDMF-454). */}
+        <div className="relative h-[160px] shrink-0 bg-muted">
           {images.length > 1 ? (
             <Carousel setApi={setImageApi} className="h-full" opts={{ loop: true }}>
-              <CarouselContent className="ml-0 h-[118px]">
+              <CarouselContent className="ml-0 h-[160px]">
                 {images.map((image, index) => (
                   <CarouselItem key={index} className="h-full pl-0">
                     <Image
                       width={440}
-                      height={118}
+                      height={160}
                       src={image.url || "/placeholder.svg"}
                       alt={`${productData.name} - foto ${index + 1}`}
-                      className="h-full w-full object-cover"
+                      className="h-full w-full object-contain"
                     />
                   </CarouselItem>
                 ))}
@@ -479,10 +480,10 @@ export function CustomizeOrder({
           ) : (
             <Image
               width={440}
-              height={118}
+              height={160}
               src={images[0].url || "/placeholder.svg"}
               alt={productData.name}
-              className="absolute inset-0 h-full w-full object-cover"
+              className="absolute inset-0 h-full w-full object-contain"
             />
           )}
 

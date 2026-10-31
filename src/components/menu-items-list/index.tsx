@@ -121,7 +121,7 @@ export function MenuItemsList({
                           src={getImageUrl(item)}
                           alt={item.name}
                           className={cn(
-                            "h-full w-full rounded-[10px] bg-muted object-cover",
+                            "h-full w-full rounded-[10px] bg-muted object-contain",
                             !isAvailable && "opacity-60",
                           )}
                         />
