@@ -487,4 +487,29 @@ describe("CustomizeOrder - checagem de estoque (LDMF-273)", () => {
   });
 });
 
+describe("CustomizeOrder - modo prévia (LDMF-465)", () => {
+  beforeEach(() => {
+    addToCart.mockReset();
+    variationsResult = DEFAULT_VARIATIONS_RESULT;
+  });
+
+  it("mostra a nota read-only e não oferece 'Adicionar'", () => {
+    render(
+      <CustomizeOrder
+        preview
+        productData={product}
+        isModalOpen
+        setIsModalOpen={vi.fn()}
+      />,
+    );
+
+    // Sem botão de adicionar ao carrinho na prévia.
+    expect(
+      screen.queryByRole("button", { name: /Adicionar/ }),
+    ).not.toBeInTheDocument();
+    // A nota de prévia aparece no lugar.
+    expect(screen.getByText("Prévia")).toBeInTheDocument();
+  });
+});
+
 

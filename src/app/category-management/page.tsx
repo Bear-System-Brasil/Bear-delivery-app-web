@@ -23,10 +23,12 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { CustomizeOrder } from "@/components/customize-order/customize-order";
 import { MenuItemsList } from "@/components/menu-items-list";
 import { useCategoryManagement, useCompanyProducts } from "@/hooks";
 import { groupMenuByCategory } from "@/lib/menu-grouping";
 import { cn } from "@/lib/utils";
+import type { Product } from "@/services/api";
 import { useAuthStore } from "@/stores";
 import {
   CalendarDays,
@@ -206,6 +208,8 @@ function CategoryManagementContent() {
   const companyId = user?.companyId || user?.id || null;
   const { data: previewProducts = [] } = useCompanyProducts(companyId);
   const [selectedPreviewCat, setSelectedPreviewCat] = useState("");
+  // Prato aberto na prévia (modal read-only do cliente, LDMF-465).
+  const [previewItem, setPreviewItem] = useState<Product | null>(null);
 
   const previewCategoryMap = useMemo(
     () =>
@@ -519,6 +523,7 @@ function CategoryManagementContent() {
                   className="mt-3"
                   categories={previewListCategories}
                   groupedItems={previewGrouped}
+                  onSelectItem={setPreviewItem}
                 />
               </>
             )}
@@ -657,6 +662,19 @@ function CategoryManagementContent() {
           </div>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Prato aberto na prévia: modal do cliente em modo read-only, pra o
+          lojista ver tamanhos/complementos como o cliente vê (LDMF-465). */}
+      {previewItem && (
+        <CustomizeOrder
+          preview
+          productData={previewItem}
+          isModalOpen
+          setIsModalOpen={(open) => {
+            if (!open) setPreviewItem(null);
+          }}
+        />
+      )}
     </AdminPageLayout>
   );
 }

@@ -34,6 +34,11 @@ type Props = {
   setIsModalOpen: (val: boolean) => void;
   isRestaurantOpen?: boolean;
   closedReason?: string;
+  /**
+   * Modo prévia (admin): mostra tamanhos/complementos/preço como o cliente vê,
+   * mas sem "Adicionar"/carrinho — é só pra o lojista conferir (LDMF-465).
+   */
+  preview?: boolean;
 };
 
 export type ExtraOption = {
@@ -70,6 +75,7 @@ export function CustomizeOrder({
   setIsModalOpen,
   isRestaurantOpen: isRestaurantOpenProp,
   closedReason: closedReasonProp,
+  preview = false,
 }: Props) {
   const [isAddingToCart, setIsAddingToCart] = useState(false);
   const [quantity, setQuantity] = useState(1);
@@ -560,7 +566,7 @@ export function CustomizeOrder({
           </div>
         </div>
 
-        {!isStoreOpen && (
+        {!preview && !isStoreOpen && (
           <div
             role="alert"
             className="border-t border-orange-200 bg-orange-50 px-4 py-2.5 text-center text-xs font-semibold text-orange-800 dark:border-orange-800 dark:bg-orange-950/40 dark:text-orange-300"
@@ -606,19 +612,26 @@ export function CustomizeOrder({
             </button>
           </div>
 
-          <Button
-            onClick={handleConfirmAddToCart}
-            disabled={
-              !isStoreOpen ||
-              isProductOutOfStock ||
-              isAddingToCart ||
-              isCustomizationLoading ||
-              !!pendingRequiredGroup ||
-              hasNoSellableVariation
-            }
-            className="h-10 flex-1 rounded-[10px] bg-brand-500 text-[13.5px] font-extrabold text-white shadow-[0_4px_12px_var(--tw-shadow-color)] shadow-brand-500/30 hover:bg-brand-600 disabled:opacity-60"
-          >
-            {isCustomizationLoading ? (
+          {preview ? (
+            <div className="flex h-10 flex-1 items-center justify-center gap-2 rounded-[10px] border border-dashed border-border bg-muted text-[13px] font-bold text-muted-foreground">
+              <span>Prévia</span>
+              <span className="opacity-60">•</span>
+              <span>{formatCurrency(totalPrice)}</span>
+            </div>
+          ) : (
+            <Button
+              onClick={handleConfirmAddToCart}
+              disabled={
+                !isStoreOpen ||
+                isProductOutOfStock ||
+                isAddingToCart ||
+                isCustomizationLoading ||
+                !!pendingRequiredGroup ||
+                hasNoSellableVariation
+              }
+              className="h-10 flex-1 rounded-[10px] bg-brand-500 text-[13.5px] font-extrabold text-white shadow-[0_4px_12px_var(--tw-shadow-color)] shadow-brand-500/30 hover:bg-brand-600 disabled:opacity-60"
+            >
+              {isCustomizationLoading ? (
               <span className="flex items-center justify-center gap-2">
                 <span className="h-4 w-4 animate-spin rounded-full border-b-2 border-white" />
                 Carregando...
@@ -643,7 +656,8 @@ export function CustomizeOrder({
                 <span>{formatCurrency(totalPrice)}</span>
               </span>
             )}
-          </Button>
+            </Button>
+          )}
         </div>
       </DialogContent>
     </Dialog>
