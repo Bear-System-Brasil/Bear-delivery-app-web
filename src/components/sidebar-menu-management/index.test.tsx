@@ -62,39 +62,17 @@ const visibleHrefs = () =>
 
 describe("Sidebar da gestao - Entregas", () => {
   it.each(["owner", "admin", "manager"])(
-    "%s tem link direto pra area de entregas",
+    "%s nao tem link pra area de entregas",
     (currentRole) => {
+      // LDMF-324: a area de entregas e so do entregador.
       role = currentRole;
       render(<Sidebar isOpen onClose={() => {}} />);
 
       expect(
-        screen.getByRole("link", { name: "Entregas" }),
-      ).toHaveAttribute("href", "/delivery-dashboard");
+        screen.queryByRole("link", { name: "Entregas" }),
+      ).not.toBeInTheDocument();
     },
   );
-
-  it("fica junto da operacao do dia a dia, e nao no fim da lista", () => {
-    render(<Sidebar isOpen onClose={() => {}} />);
-
-    const hrefs = visibleHrefs();
-
-    // Cozinha e Entregas em sequencia - é a operação do dia a dia.
-    expect(hrefs.indexOf("/kitchen")).toBe(
-      hrefs.indexOf("/category-management") + 1,
-    );
-    expect(hrefs.indexOf("/delivery-dashboard")).toBe(
-      hrefs.indexOf("/kitchen") + 1,
-    );
-  });
-
-  it("nao aparece pra quem nao alcanca a area", () => {
-    role = "cook";
-    render(<Sidebar isOpen onClose={() => {}} />);
-
-    expect(
-      screen.queryByRole("link", { name: "Entregas" }),
-    ).not.toBeInTheDocument();
-  });
 });
 
 describe("Sidebar da gestao - Financeiro", () => {
