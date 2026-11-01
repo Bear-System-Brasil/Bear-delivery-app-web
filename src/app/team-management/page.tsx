@@ -70,6 +70,7 @@ function TeamManagementContent() {
     searchQuery,
     setSearchQuery,
     isLoadingStaff,
+    isFetchingStaff,
     isStaffError,
     staffError,
     refetchStaff,
@@ -92,15 +93,12 @@ function TeamManagementContent() {
       title="Equipe"
       icon={UserCog}
       mainClassName="p-4 pb-20 sm:p-6 md:pb-10 lg:pl-[17rem] lg:pr-8"
-      actions={
-        <Button
-          onClick={handleOpenInviteModal}
-          className="h-[34px] w-full cursor-pointer rounded-xl bg-brand-500 px-4 text-[12.5px] font-extrabold text-white shadow-[0_4px_12px_var(--tw-shadow-color)] shadow-brand-500/25 hover:bg-brand-600 sm:w-auto"
-        >
-          <UserPlus className="h-4 w-4" />
-          Convidar Membro
-        </Button>
-      }
+      action={{
+        label: "Atualizar",
+        busyLabel: "Atualizando...",
+        onClick: () => refetchStaff(),
+        busy: isFetchingStaff,
+      }}
     >
       <div className="mx-auto max-w-7xl">
         <div className="mb-3 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
@@ -122,6 +120,14 @@ function TeamManagementContent() {
                 {allStaff.length} {allStaff.length === 1 ? "membro" : "membros"}
               </span>
             )}
+            {/* Desceu do header (LDMF-393): lá fica só o botão único. */}
+            <Button
+              onClick={handleOpenInviteModal}
+              className="h-[34px] w-full cursor-pointer rounded-xl bg-brand-500 px-4 text-[12.5px] font-extrabold text-white shadow-[0_4px_12px_var(--tw-shadow-color)] shadow-brand-500/25 hover:bg-brand-600 sm:ml-1 sm:w-auto"
+            >
+              <UserPlus className="h-4 w-4" />
+              Convidar Membro
+            </Button>
           </div>
         </div>
 

@@ -40,7 +40,6 @@ import {
   type LucideIcon,
   Minus,
   Plus,
-  RefreshCw,
   Scale,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -642,20 +641,10 @@ export default function CashRegisterPage() {
       title="Controle de Caixa"
       icon={Banknote}
       mainClassName="p-4 pb-20 sm:p-6 md:pb-10 lg:pl-64 lg:pr-8"
-      actions={
-        <Button
-          onClick={handleRefresh}
-          className="flex h-9 shrink-0 items-center gap-1.5 rounded-[9px] border border-border bg-card px-3.5 text-xs font-bold text-brand-500 transition-colors hover:bg-brand-50 dark:hover:bg-brand-950/40"
-        >
-          <RefreshCw className="h-3.5 w-3.5" />
-          Atualizar
-        </Button>
-      }
+      subtitle="Abertura, fechamento e movimentos financeiros"
+      action={{ label: "Atualizar", onClick: handleRefresh }}
     >
       <div className="mx-auto max-w-7xl">
-        <p className="mb-3.5 text-[12.5px] font-medium text-muted-foreground">
-          Abertura, fechamento e movimentos financeiros
-        </p>
 
         {registerLoading ? (
           <Skeleton className="h-24 w-full rounded-lg" />

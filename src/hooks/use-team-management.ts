@@ -147,6 +147,7 @@ export const useTeamManagement = () => {
   const {
     data: staff = [],
     isLoading,
+    isFetching,
     isError,
     error,
     refetch,
@@ -265,6 +266,7 @@ export const useTeamManagement = () => {
     setSearchQuery,
 
     isLoadingStaff: isLoading,
+    isFetchingStaff: isFetching,
     isStaffError: isError,
     staffError: error instanceof Error ? error.message : null,
     refetchStaff: refetch,
