@@ -74,18 +74,7 @@ vi.mock("@/components/protected-route", () => ({
 }));
 
 vi.mock("@/components/admin-page-layout", () => ({
-  AdminPageLayout: ({
-    children,
-    actions,
-  }: {
-    children: ReactNode;
-    actions: ReactNode;
-  }) => (
-    <div>
-      <div>{actions}</div>
-      <div>{children}</div>
-    </div>
-  ),
+  AdminPageLayout: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
 
 vi.mock("@/hooks", () => ({

@@ -201,15 +201,6 @@ function CategoryManagementContent() {
       title="Categorias"
       icon={LayoutGrid}
       mainClassName="p-4 pb-20 sm:p-6 md:pb-10 lg:pl-[17rem] lg:pr-8"
-      actions={
-        <Button
-          onClick={handleOpenCreateModal}
-          className="h-[34px] w-full cursor-pointer rounded-xl bg-brand-500 px-4 text-[12.5px] font-extrabold text-white shadow-[0_4px_12px_var(--tw-shadow-color)] shadow-brand-500/25 hover:bg-brand-600 sm:w-auto"
-        >
-          <Plus className="h-4 w-4" />
-          Adicionar Categoria
-        </Button>
-      }
     >
       <div className="mx-auto max-w-7xl">
         <div className="mb-3 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
@@ -238,6 +229,14 @@ function CategoryManagementContent() {
             <span className="rounded-xl bg-muted px-2.5 py-1 text-[11.5px] font-bold text-muted-foreground">
               {previewCategories.length} na prévia
             </span>
+            {/* Desceu do header (LDMF-393): lá fica só o botão único. */}
+            <Button
+              onClick={handleOpenCreateModal}
+              className="h-[34px] w-full cursor-pointer rounded-xl bg-brand-500 px-4 text-[12.5px] font-extrabold text-white shadow-[0_4px_12px_var(--tw-shadow-color)] shadow-brand-500/25 hover:bg-brand-600 sm:ml-1 sm:w-auto"
+            >
+              <Plus className="h-4 w-4" />
+              Adicionar Categoria
+            </Button>
           </div>
         </div>
 
