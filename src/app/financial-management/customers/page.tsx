@@ -148,7 +148,7 @@ export default function CustomersPage() {
   // `response.data.data` e o total em `response.data.meta.total`. Ler
   // `response.data` como array é o que deixa a tela vazia - `toPaginated`
   // resolve os dois formatos.
-  const { data, isLoading, isFetching, isError } = useQuery({
+  const { data, isLoading, isFetching, isError, refetch } = useQuery({
     queryKey: ["financial", "customers", page, statusFilter],
     queryFn: async () => {
       // "Todos" é a ausência do param, não um valor - a rota devolve ativos
@@ -204,11 +204,13 @@ export default function CustomersPage() {
       title="Clientes"
       icon={Users}
       mainClassName="p-4 pb-20 sm:p-6 md:pb-10 lg:pl-64 lg:pr-8"
-      actions={
-        <span className="rounded-[8px] border border-border bg-card px-2.5 py-1 text-[11.5px] font-bold text-foreground">
-          {total} cliente{total !== 1 ? "s" : ""}
-        </span>
-      }
+      // O contador que ficava aqui já aparece no cartão "Total de clientes".
+      action={{
+        label: "Atualizar",
+        busyLabel: "Atualizando...",
+        onClick: () => refetch(),
+        busy: isFetching,
+      }}
     >
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Summary */}

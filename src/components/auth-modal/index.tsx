@@ -14,8 +14,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuthModal } from "@/hooks/useAuthModal";
-import { PASSWORD_RECOVERY_UNAVAILABLE } from "@/constants/password-change";
-import { LEGAL_CONTACT_EMAIL } from "@/components/legal-page";
 import type { RawAuthUser } from "@/services/api";
 import { getBirthDateError } from "@/utils";
 import { BirthDateInput } from "@/components/birth-date-input";
@@ -49,6 +47,7 @@ export default function AuthModal({
     step, setStep,
     isLoading,
     loginData,
+    forgotPasswordData, setForgotPasswordData,
     resetPasswordData, setResetPasswordData,
     registerData,
     birthDateServerError,
@@ -58,11 +57,11 @@ export default function AuthModal({
     passwordErrors,
     passwordMatch,
     submitMessage, setSubmitMessage,
-    formatPhone,
     handleInputChange,
     isFormValid,
     handleSubmit,
     handleOTPSubmit,
+    handleForgotPasswordSubmit,
     handleResetPasswordSubmit,
     handleClose,
   } = useAuthModal({ isOpen, onClose, onAuthSuccess, defaultTab });
@@ -77,7 +76,7 @@ export default function AuthModal({
                 <LogIn className="w-5 h-5 text-white" />
               </div>
               <DialogTitle className="text-lg sm:text-xl font-bold text-foreground">
-                {step === "otp" ? "Verificação SMS" : "Autenticação"}
+                {step === "otp" ? "Verificação de e-mail" : "Autenticação"}
               </DialogTitle>
             </div>
           </div>
@@ -362,10 +361,10 @@ export default function AuthModal({
             <div className="space-y-4 sm:space-y-6">
               <div className="text-center">
                 <div className="w-16 h-16 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Phone className="h-8 w-8 text-green-600 dark:text-green-400" />
+                  <Mail className="h-8 w-8 text-green-600 dark:text-green-400" />
                 </div>
                 <p className="text-muted-foreground">Enviamos um código de verificação para</p>
-                <p className="font-semibold text-foreground">{otpData.phone}</p>
+                <p className="font-semibold text-foreground break-all">{otpData.email}</p>
               </div>
 
               <div className="space-y-2">
@@ -409,27 +408,53 @@ export default function AuthModal({
               </Button>
             </div>
           ) : step === "forgot-password" ? (
-            // Sem envio de código no backend, o formulário prometia um código
-            // que nunca chegava. Fica só o aviso até a recuperação voltar.
             <div className="space-y-4 sm:space-y-6">
               <div className="text-center">
                 <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center mx-auto mb-4">
                   <Lock className="h-8 w-8 text-blue-600 dark:text-blue-400" />
                 </div>
                 <h3 className="text-lg font-semibold text-foreground mb-2">Esqueceu sua senha?</h3>
-                <p className="text-sm text-muted-foreground">{PASSWORD_RECOVERY_UNAVAILABLE}</p>
-                {/* mailto é link externo: <a>, não <Link>. */}
-                <p className="mt-3 text-sm text-muted-foreground">
-                  Precisa entrar agora? Mande um e-mail para{" "}
-                  <a
-                    href={`mailto:${LEGAL_CONTACT_EMAIL}`}
-                    className="font-medium text-brand-600 dark:text-brand-400 underline break-all"
-                  >
-                    {LEGAL_CONTACT_EMAIL}
-                  </a>{" "}
-                  com o telefone da sua conta que a gente ajuda.
-                </p>
+                <p className="text-sm text-muted-foreground">Digite o e-mail da sua conta e enviaremos um código para redefinir a senha.</p>
               </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="forgot-email" className="text-sm font-semibold text-foreground">Email</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                  <Input
+                    id="forgot-email"
+                    type="email"
+                    placeholder="email@email.com"
+                    value={forgotPasswordData.email}
+                    onChange={(e) => setForgotPasswordData({ email: e.target.value.toLowerCase() })}
+                    className="pl-10 rounded-xl border-2 border-border focus:border-brand-400"
+                  />
+                </div>
+              </div>
+
+              {submitMessage && (
+                <div className={`p-3 rounded-xl text-sm font-medium ${submitMessage.type === "success" ? "bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800" : "bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800"}`}>
+                  {submitMessage.text}
+                </div>
+              )}
+
+              <Button
+                onClick={handleForgotPasswordSubmit}
+                disabled={isLoading || !forgotPasswordData.email.trim()}
+                className="w-full h-12 rounded-xl bg-linear-to-r from-brand-500 to-brand-500 hover:from-brand-600 hover:to-brand-600 text-white font-semibold shadow-lg hover:shadow-xl transition-all cursor-pointer"
+              >
+                {isLoading ? (
+                  <div className="flex items-center space-x-2">
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>Enviando...</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center space-x-2">
+                    <Mail className="h-4 w-4" />
+                    <span>Enviar Código</span>
+                  </div>
+                )}
+              </Button>
 
               <Button
                 variant="ghost"
@@ -446,7 +471,7 @@ export default function AuthModal({
                   <CheckCircle className="h-8 w-8 text-green-600 dark:text-green-400" />
                 </div>
                 <h3 className="text-lg font-semibold text-foreground mb-2">Redefinir Senha</h3>
-                <p className="text-sm text-muted-foreground">Digite o código enviado para <strong>{formatPhone(resetPasswordData.phone)}</strong></p>
+                <p className="text-sm text-muted-foreground">Digite o código enviado para <strong className="break-all">{resetPasswordData.email}</strong></p>
               </div>
 
               <div className="space-y-4">
