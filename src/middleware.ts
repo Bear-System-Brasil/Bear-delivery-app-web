@@ -25,13 +25,8 @@ const PROTECTED: { prefix: string; roles?: string[]; guestAllowed?: boolean }[] 
   },
   { prefix: "/reports", roles: ["owner", "admin", "financial"] },
   { prefix: "/team-management", roles: ["owner", "admin", "manager"] },
-  // Quem administra o restaurante tambem entra na area de entregas: o
-  // primeiro cliente e uma pessoa so, que e dono, cozinheiro e entregador.
-  // Sem isto o item "Entregas" do menu levaria direto pro "Acesso Negado".
-  {
-    prefix: "/delivery-dashboard",
-    roles: ["delivery", "owner", "admin", "manager"],
-  },
+  // So o entregador (LDMF-324): a gerencia nao pega entrega por esta tela.
+  { prefix: "/delivery-dashboard", roles: ["delivery"] },
 ];
 
 export function middleware(request: NextRequest) {
