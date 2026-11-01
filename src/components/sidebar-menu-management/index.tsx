@@ -3,7 +3,6 @@
 import { cn } from "@/lib/utils";
 import * as SheetPrimitive from "@radix-ui/react-dialog";
 import {
-  Bike,
   ChefHat,
   ClipboardList,
   House,
@@ -68,17 +67,6 @@ const navGroups: { label: string; links: NavLink[] }[] = [
         label: "Cozinha",
         icon: ChefHat,
         roles: ["owner", "admin", "manager", "cook"],
-      },
-      // Operacao do dia a dia, junto de Pedidos e Cozinha - nao categoria
-      // propria. Sem este item, quem administra o restaurante estava em
-      // /menu-management e nao tinha caminho direto pra area de entregas: no
-      // desktop a BottomBar e `md:hidden`, entao era voltar ao Inicio pelo
-      // logo e abrir o menu do app.
-      {
-        href: "/delivery-dashboard",
-        label: "Entregas",
-        icon: Bike,
-        roles: ["owner", "admin", "manager", "delivery"],
       },
       {
         href: "/team-management",
