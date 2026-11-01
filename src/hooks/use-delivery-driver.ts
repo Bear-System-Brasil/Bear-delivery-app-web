@@ -22,7 +22,6 @@ import {
   MAX_PAGE_LIMIT,
   toPaginated,
   type Delivery,
-  type UpdatePaymentRequest,
   type PaginationParams,
 } from "@/services/api";
 import { useAuthStore } from "@/stores";
@@ -313,30 +312,9 @@ export const useDeliveryDriver = () => {
     onError: () => toast.error("Erro de conexão"),
   });
 
-  // Forma de pagamento trocada na porta. A gerência altera direto; o
-  // entregador só avisa a gerência (LDMF-284 - desligado até o backend ter a
-  // rota, ver services/manager-requests.ts).
-  const changePaymentMutation = useMutation({
-    mutationFn: ({
-      paymentId,
-      update,
-    }: {
-      deliveryId: string;
-      paymentId: string;
-      /** Corpo inteiro do PATCH - ver lib/payment-update.ts. */
-      update: UpdatePaymentRequest;
-    }) => apiService.payments.update(paymentId, update),
-    onSuccess: (response) => {
-      invalidate();
-      if (response.success) {
-        toast.success("Forma de pagamento alterada");
-      } else {
-        toast.error(response.message || "Erro ao alterar a forma de pagamento");
-      }
-    },
-    onError: () => toast.error("Erro de conexão"),
-  });
-
+  // Forma de pagamento trocada na porta: o entregador só avisa a gerência,
+  // que altera em Finanças (LDMF-284 - desligado até o backend ter a rota,
+  // ver services/manager-requests.ts).
   const requestPaymentChangeMutation = useMutation({
     mutationFn: (request: PaymentChangeRequest) =>
       requestPaymentMethodChange(request),
@@ -361,11 +339,9 @@ export const useDeliveryDriver = () => {
   const returningId = returnMutation.isPending
     ? (returnMutation.variables?.id ?? null)
     : null;
-  const changingPaymentId = changePaymentMutation.isPending
-    ? (changePaymentMutation.variables?.deliveryId ?? null)
-    : requestPaymentChangeMutation.isPending
-      ? (requestPaymentChangeMutation.variables?.deliveryId ?? null)
-      : null;
+  const changingPaymentId = requestPaymentChangeMutation.isPending
+    ? (requestPaymentChangeMutation.variables?.deliveryId ?? null)
+    : null;
 
   return {
     isLoading,
@@ -386,11 +362,9 @@ export const useDeliveryDriver = () => {
     returningId,
     isReturning: returnMutation.isPending,
     /** Resolve com a resposta; quem chama decide se fecha a janela. */
-    changePaymentMethod: changePaymentMutation.mutateAsync,
     requestPaymentChange: requestPaymentChangeMutation.mutateAsync,
     changingPaymentId,
-    isChangingPayment:
-      changePaymentMutation.isPending || requestPaymentChangeMutation.isPending,
+    isChangingPayment: requestPaymentChangeMutation.isPending,
     /** Envelope da rota - `total` e `totalPages` da página pedida. */
     meta: data?.meta,
     /** Há entrega além desta página: a tela avisa em vez de truncar calada. */
