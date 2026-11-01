@@ -113,7 +113,7 @@ export interface UpdateUserRequest {
 }
 
 export interface VerifyOtpRequest {
-  phone: string;
+  email: string;
   code: string;
 }
 
@@ -1535,16 +1535,16 @@ export const apiService = {
   completeLogin: (data: { phone: string; code: string }) =>
     apiRequest<LoginResponse>("POST", "/auth/login/complet", data),
 
-  // Password recovery endpoints - o backend identifica o usuário por
-  // telefone (não email) nesses dois endpoints.
-  forgotPassword: (data: { phone: string }) =>
+  // Recuperação de senha - o backend identifica o usuário pelo e-mail e
+  // manda o código por e-mail (LDMF-294).
+  forgotPassword: (data: { email: string }) =>
     apiRequest<{ message: string }>("POST", "/auth/forgot-password", data),
 
   // reset-password devolve um token novo (login automático) - por isso,
   // diferente de forgotPassword, passa pelo BFF de auth (como login/register)
   // pra virar cookie de sessão httpOnly, em vez do proxy genérico.
   resetPassword: async (data: {
-    phone: string;
+    email: string;
     code: string;
     newPassword: string;
   }): Promise<ApiResponse<AuthBffResponse>> => {

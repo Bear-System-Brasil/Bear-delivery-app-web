@@ -202,10 +202,12 @@ export const useCategoryManagement = () => {
     setIsReorderDirty(false);
   };
 
-  const handleSaveOrder = async () => {
-    if (!canReorder || !isReorderDirty || isSavingOrder) return;
+  // Retorna true só quando a ordem foi salva de fato, pra a tela poder sair
+  // do modo "Ordenar" apenas no sucesso (no erro, mantém o modo pra retry).
+  const handleSaveOrder = async (): Promise<boolean> => {
+    if (!canReorder || !isReorderDirty || isSavingOrder) return false;
     const ids = localOrder.map((category) => category.id);
-    if (ids.length === 0) return;
+    if (ids.length === 0) return false;
 
     setIsSavingOrder(true);
     try {
@@ -221,7 +223,7 @@ export const useCategoryManagement = () => {
         } else {
           toast.error(response.message || "Erro ao salvar a ordem.");
         }
-        return;
+        return false;
       }
 
       // Resposta já vem ordenada e sem paginação: grava no cache e invalida
@@ -236,9 +238,11 @@ export const useCategoryManagement = () => {
       });
       setIsReorderDirty(false);
       toast.success("Ordem das categorias salva!");
+      return true;
     } catch (error) {
       console.error("Erro ao salvar a ordem das categorias:", error);
       toast.error("Erro ao salvar a ordem das categorias.");
+      return false;
     } finally {
       setIsSavingOrder(false);
     }
@@ -457,6 +461,10 @@ export const useCategoryManagement = () => {
   return {
     categories: displayCategories,
     allCategories: categories,
+    // Lista completa na ordem do rascunho (reflete as setas antes de salvar).
+    // A prévia usa esta pra atualizar ao vivo; ao cancelar, o efeito acima
+    // ressincroniza com a ordem do back e a prévia volta sozinha.
+    orderedCategories: localOrder,
     isLoading,
 
     isModalOpen,
