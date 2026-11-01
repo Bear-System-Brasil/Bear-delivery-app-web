@@ -243,9 +243,14 @@ function CategoryManagementContent() {
       ),
     [allCategories],
   );
+  // Combina com o modo "Ordenar" (#236): a prévia segue a ordem do rascunho
+  // (orderedCategories) pra refletir a reordenação ao vivo, antes de salvar.
   const { groupedItems: previewGrouped, categories: previewCats } = useMemo(
-    () => groupMenuByCategory(previewProducts, previewCategoryMap),
-    [previewProducts, previewCategoryMap],
+    () =>
+      groupMenuByCategory(previewProducts, previewCategoryMap, {
+        categoryOrder: orderedCategories.map((category) => category.name),
+      }),
+    [previewProducts, previewCategoryMap, orderedCategories],
   );
   const previewListCategories =
     selectedPreviewCat && previewCats.includes(selectedPreviewCat)
