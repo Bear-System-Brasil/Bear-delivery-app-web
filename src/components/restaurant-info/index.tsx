@@ -97,7 +97,9 @@ export default function RestaurantPage() {
     data: menuItems = [],
     isLoading: loadingProducts,
     error: productsError,
-  } = useCompanyProducts(companyId);
+    // Cardápio do cliente atualiza ao vivo: refaz a busca ao focar a aba /
+    // montar, pra refletir disponibilidade que o restaurante mudou (LDMF-445).
+  } = useCompanyProducts(companyId, { live: true });
   const { data: allCategories } = useAllCategories();
   const { data: companyVariations = [] } =
     usePublicCompanyProductVariations(companyId);
