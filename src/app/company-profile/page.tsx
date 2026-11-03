@@ -3,6 +3,7 @@
 import { AdminPageLayout } from "@/components/admin-page-layout";
 import { CompanyCoverUpload } from "@/components/company-cover-upload";
 import { CompanyLogoUpload } from "@/components/company-logo-upload";
+import { DeliveryForm } from "@/components/profile/delivery-form";
 import { OpeningHoursCopy } from "@/components/opening-hours-copy";
 import ProtectedRoute from "@/components/protected-route";
 import { TimeInput } from "@/components/time-input";
@@ -47,8 +48,6 @@ import {
   Phone,
   Plus,
   Save,
-  Star,
-  Trash2,
   TriangleAlert,
   User,
   UtensilsCrossed,
@@ -216,19 +215,14 @@ function CompanyProfileContent() {
     handleCancelEdit,
     setIsEditing,
     updateFormField,
-    addresses,
-    newAddress,
-    isAddingAddress,
+    storeAddress,
+    isAddressModalOpen,
+    isSavingAddress,
     editingAddressId,
-    setIsAddingAddress,
+    openAddressModal,
+    closeAddressModal,
     handleSaveAddress,
-    handleEditAddress,
-    handleCancelAddressEdit,
-    handleDeleteAddress,
-    handleSearchZipCode,
-    isSearchingZipCode,
-    zipCodeHint,
-    updateAddressField,
+    addressEditor,
     formatZipCode,
     passwordData,
     passwordErrors,
@@ -983,32 +977,17 @@ function CompanyProfileContent() {
               </SectionCard>
             </div>
 
-            {/* Endereço da Empresa */}
+            {/* Endereço da Empresa: um único endereço, editado no mesmo
+                modal do perfil do cliente (LDMF-263). */}
             <SectionCard
               icon={MapPin}
               title="Endereço da Empresa"
-              subtitle="O endereço padrão define o raio de entrega"
+              subtitle="O endereço da loja define o raio de entrega"
               className="mb-4"
-              actions={
-                !isLoadingAddresses && !isAddingAddress ? (
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    className="h-8 rounded-md text-xs font-semibold"
-                    onClick={() => setIsAddingAddress(true)}
-                  >
-                    <span className="flex items-center gap-1">
-                      <Plus className="h-3.5 w-3.5" />
-                      Adicionar
-                    </span>
-                  </Button>
-                ) : null
-              }
             >
               {isLoadingAddresses ? (
                 <Skeleton className="h-14 w-full rounded-md" />
-              ) : (!Array.isArray(addresses) || addresses.length === 0) &&
-                !isAddingAddress ? (
+              ) : !storeAddress ? (
                 <div className="py-6 text-center">
                   <MapPin className="mx-auto mb-2 h-8 w-8 text-muted-foreground/40" />
                   <p className="mb-3 text-[12.5px] text-muted-foreground">
@@ -1018,7 +997,7 @@ function CompanyProfileContent() {
                     variant="secondary"
                     size="sm"
                     className="h-8 rounded-md text-xs font-semibold"
-                    onClick={() => setIsAddingAddress(true)}
+                    onClick={openAddressModal}
                   >
                     <span className="flex items-center gap-1">
                       <Plus className="h-3.5 w-3.5" />
@@ -1027,204 +1006,65 @@ function CompanyProfileContent() {
                   </Button>
                 </div>
               ) : (
-                <div className="space-y-2">
-                  {Array.isArray(addresses) &&
-                    addresses.map((address) => (
-                      <div
-                        key={address.id}
-                        className="flex items-center gap-3 rounded-md border border-border px-3 py-2.5"
-                      >
-                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-brand-50 text-brand-600 dark:bg-brand-950/40 dark:text-brand-400">
-                          <MapPin className="h-[15px] w-[15px]" />
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-[13px] font-semibold text-foreground">
-                              {address.street}, {address.number}
-                            </span>
-                            {address.isDefault && (
-                              <span className="flex shrink-0 items-center gap-1 rounded bg-brand-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-brand-600 dark:bg-brand-950/40 dark:text-brand-400">
-                                <Star className="h-2.5 w-2.5 fill-current" />
-                                Padrão
-                              </span>
-                            )}
-                          </div>
-                          <div className="mt-0.5 truncate text-xs text-muted-foreground">
-                            {address.neighborhood} - {address.city}/
-                            {address.state} · CEP{" "}
-                            {formatZipCode(address.zipCode)}
-                          </div>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 shrink-0 rounded-md"
-                          aria-label="Editar endereço"
-                          onClick={() => handleEditAddress(address)}
-                        >
-                          <Pencil className="h-[13px] w-[13px]" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 shrink-0 rounded-md text-destructive hover:bg-destructive/10 hover:text-destructive"
-                          aria-label="Excluir endereço"
-                          onClick={() => handleDeleteAddress(address.id)}
-                        >
-                          <Trash2 className="h-[13px] w-[13px]" />
-                        </Button>
-                      </div>
-                    ))}
-
-                  {isAddingAddress && (
-                    <div className="rounded-md border border-dashed border-border bg-muted/30 p-4">
-                      <h3 className="mb-3 text-[13px] font-semibold text-foreground">
-                        {editingAddressId ? "Editar Endereço" : "Novo Endereço"}
-                      </h3>
-                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                        <div className="sm:col-span-2">
-                          <IconInput
-                            label="CEP"
-                            icon={MapPin}
-                            value={formatZipCode(newAddress.zipCode)}
-                            onChange={(e) => {
-                              const value = e.target.value.replace(/\D/g, "");
-                              updateAddressField("zipCode", value);
-                              if (value.length === 8)
-                                handleSearchZipCode(value);
-                            }}
-                            placeholder="00000-000"
-                            maxLength={9}
-                          />
-                          {/* Cidade de CEP único volta sem rua e bairro, e a
-                              busca pode falhar: a tela diz o que preencher. */}
-                          {(isSearchingZipCode || zipCodeHint) && (
-                            <p
-                              role="status"
-                              className={cn(
-                                "mt-1.5 text-xs font-semibold",
-                                zipCodeHint && !isSearchingZipCode
-                                  ? "text-amber-700 dark:text-amber-400"
-                                  : "text-muted-foreground",
-                              )}
-                            >
-                              {isSearchingZipCode
-                                ? "Buscando CEP..."
-                                : zipCodeHint}
-                            </p>
-                          )}
-                        </div>
-                        <IconInput
-                          label="Rua"
-                          icon={MapPin}
-                          value={newAddress.street}
-                          onChange={(e) =>
-                            updateAddressField("street", e.target.value)
-                          }
-                          placeholder="Nome da rua"
-                        />
-                        <IconInput
-                          label="Número"
-                          icon={MapPin}
-                          value={newAddress.number}
-                          onChange={(e) =>
-                            updateAddressField("number", e.target.value)
-                          }
-                          placeholder="123"
-                        />
-                        <IconInput
-                          label="Bairro"
-                          icon={MapPin}
-                          value={newAddress.neighborhood}
-                          onChange={(e) =>
-                            updateAddressField("neighborhood", e.target.value)
-                          }
-                          placeholder="Nome do bairro"
-                        />
-                        <IconInput
-                          label="Cidade"
-                          icon={MapPin}
-                          value={newAddress.city}
-                          onChange={(e) =>
-                            updateAddressField("city", e.target.value)
-                          }
-                          placeholder="Nome da cidade"
-                        />
-                        <IconInput
-                          label="Estado"
-                          icon={MapPin}
-                          value={newAddress.state}
-                          onChange={(e) =>
-                            updateAddressField("state", e.target.value)
-                          }
-                          placeholder="UF"
-                          maxLength={2}
-                        />
-                        <IconInput
-                          label="Complemento"
-                          icon={MapPin}
-                          value={newAddress.complement}
-                          onChange={(e) =>
-                            updateAddressField("complement", e.target.value)
-                          }
-                          placeholder="Apto, sala, etc (opcional)"
-                        />
-                        <div className="sm:col-span-2">
-                          <IconInput
-                            label="Referência"
-                            icon={MapPin}
-                            value={newAddress.reference}
-                            onChange={(e) =>
-                              updateAddressField("reference", e.target.value)
-                            }
-                            placeholder="Ponto de referência (opcional)"
-                          />
-                        </div>
-                        <div className="flex items-center gap-2 sm:col-span-2">
-                          <Checkbox
-                            id="isDefault"
-                            checked={newAddress.isDefault}
-                            onCheckedChange={(checked) =>
-                              updateAddressField("isDefault", checked === true)
-                            }
-                            className="h-4 w-4 border-border data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
-                          />
-                          <Label
-                            htmlFor="isDefault"
-                            className="cursor-pointer text-[12.5px] font-semibold text-foreground/80"
-                          >
-                            Definir como endereço padrão
-                          </Label>
-                        </div>
-                      </div>
-                      <div className="mt-4 flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-8 flex-1 rounded-md text-xs font-semibold"
-                          onClick={handleCancelAddressEdit}
-                        >
-                          <span className="flex items-center justify-center gap-1.5">
-                            <X className="h-3.5 w-3.5" />
-                            Cancelar
-                          </span>
-                        </Button>
-                        <GradientButton
-                          onClick={handleSaveAddress}
-                          size="sm"
-                          className="h-8 flex-1 rounded-md text-xs"
-                        >
-                          <Save className="h-3.5 w-3.5" />
-                          {editingAddressId
-                            ? "Atualizar Endereço"
-                            : "Salvar Endereço"}
-                        </GradientButton>
-                      </div>
+                <div className="flex items-center gap-3 rounded-md border border-border px-3 py-2.5">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-brand-50 text-brand-600 dark:bg-brand-950/40 dark:text-brand-400">
+                    <MapPin className="h-[15px] w-[15px]" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <span className="text-[13px] font-semibold text-foreground">
+                      {storeAddress.street}, {storeAddress.number}
+                    </span>
+                    <div className="mt-0.5 truncate text-xs text-muted-foreground">
+                      {storeAddress.neighborhood} - {storeAddress.city}/
+                      {storeAddress.state} · CEP{" "}
+                      {formatZipCode(storeAddress.zipCode)}
                     </div>
-                  )}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 shrink-0 rounded-md"
+                    aria-label="Editar endereço"
+                    onClick={openAddressModal}
+                  >
+                    <Pencil className="h-[13px] w-[13px]" />
+                  </Button>
                 </div>
               )}
             </SectionCard>
+
+            {isAddressModalOpen && (
+              <DeliveryForm
+                handleCloseAddressModal={closeAddressModal}
+                handleAddAddress={handleSaveAddress}
+                applyCoords={addressEditor.applyCoords}
+                addressForm={addressEditor.addressForm}
+                addressCoords={addressEditor.addressCoords}
+                isSavingAddress={isSavingAddress}
+                isLoadingCep={addressEditor.isLoadingCep}
+                isEditing={!!editingAddressId}
+                neighborhoodOptions={addressEditor.neighborhoodOptions}
+                isLocatingPin={addressEditor.isLocatingPin}
+                stateOptions={addressEditor.stateOptions}
+                cityOptions={addressEditor.cityOptions}
+                isLoadingCities={addressEditor.isLoadingCities}
+                citiesError={addressEditor.citiesError}
+                fieldLocks={addressEditor.fieldLocks}
+                onStateChange={addressEditor.changeState}
+                onCityChange={addressEditor.changeCity}
+                onNeighborhoodChange={addressEditor.changeNeighborhood}
+                isOtherNeighborhood={addressEditor.isOtherNeighborhood}
+                onSelectOtherNeighborhood={addressEditor.selectOtherNeighborhood}
+                onOtherNeighborhoodChange={addressEditor.changeOtherNeighborhood}
+                isSearchingAddress={addressEditor.isSearchingAddress}
+                addressNotFound={addressEditor.addressNotFound}
+                pinZoom={addressEditor.pinZoom}
+                pinRecenterKey={addressEditor.pinRecenterKey}
+                showReference
+                showDefaultOption={false}
+                placeLabel="sua loja"
+              />
+            )}
 
             {/* Segurança */}
             <SectionCard

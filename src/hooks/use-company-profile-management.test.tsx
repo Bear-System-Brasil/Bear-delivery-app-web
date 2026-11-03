@@ -1,9 +1,11 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
-import { geocodeAddress } from "@/lib/geocode";
 import { apiService, type Address } from "@/services/api";
 import { useAuthStore } from "@/stores";
+import type { AddressFormData } from "./use-form-validation";
 import { useCompanyProfileManagement } from "./use-company-profile-management";
 
 const { router } = vi.hoisted(() => ({ router: { push: vi.fn() } }));
@@ -13,11 +15,6 @@ vi.mock("next/navigation", () => ({ useRouter: () => router }));
 vi.mock("sonner", () => ({
   toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
 }));
-
-vi.mock("@/lib/geocode", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/geocode")>();
-  return { ...actual, geocodeAddress: vi.fn() };
-});
 
 vi.mock("@/services/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/services/api")>();
@@ -67,21 +64,33 @@ const storeAddress = (id: string, extra: Partial<Address> = {}) =>
     ...extra,
   }) as Address;
 
-const addressForm = {
+/** O que o modal entrega ao salvar (já validado pelo schema). */
+const formData = (extra: Partial<AddressFormData> = {}): AddressFormData => ({
   zipCode: "80420-000",
   state: "PR",
   city: "Curitiba",
   neighborhood: "Batel",
   street: "Av. Sete",
   number: "700",
-};
+  complement: "",
+  reference: "",
+  isDefault: false,
+  ...extra,
+});
+
+const PIN = { lat: -25.44, lng: -49.29 };
 
 let serverAddresses: Address[] = [];
 
 const initialAuthState = useAuthStore.getState();
+let queryClient: QueryClient;
+
+function wrapper({ children }: { children: ReactNode }) {
+  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+}
 
 async function renderCompany() {
-  const hook = renderHook(() => useCompanyProfileManagement());
+  const hook = renderHook(() => useCompanyProfileManagement(), { wrapper });
   await waitFor(() => {
     expect(hook.result.current.isLoadingProfile).toBe(false);
     expect(hook.result.current.isLoadingAddresses).toBe(false);
@@ -91,11 +100,14 @@ async function renderCompany() {
 
 type Hook = Awaited<ReturnType<typeof renderCompany>>["result"];
 
-function fillAddress(result: Hook, fields: Record<string, string | boolean>) {
-  act(() => {
-    for (const [key, value] of Object.entries(fields)) {
-      result.current.updateAddressField(key as never, value);
-    }
+/** Dono toca no mapa: é o que o salvar manda. */
+function placePin(result: Hook, coords = PIN) {
+  act(() => result.current.addressEditor.applyCoords(coords, "manual"));
+}
+
+async function save(result: Hook, data: AddressFormData) {
+  await act(async () => {
+    await result.current.handleSaveAddress(data);
   });
 }
 
@@ -127,7 +139,7 @@ describe("useCompanyProfileManagement", () => {
       success: true,
       data: serverAddresses,
     }));
-    vi.mocked(geocodeAddress).mockResolvedValue({ lat: -25.44, lng: -49.28 });
+    queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     vi.stubGlobal("confirm", vi.fn(() => true));
   });
 
@@ -139,7 +151,7 @@ describe("useCompanyProfileManagement", () => {
     it("sem login, depois de hidratar, manda abrir o login", async () => {
       useAuthStore.setState({ ...initialAuthState, _hasHydrated: true }, true);
 
-      renderHook(() => useCompanyProfileManagement());
+      renderHook(() => useCompanyProfileManagement(), { wrapper });
 
       await waitFor(() => expect(router.push).toHaveBeenCalledWith("/?openAuth=true"));
     });
@@ -147,7 +159,7 @@ describe("useCompanyProfileManagement", () => {
     it("antes de hidratar, nem busca nem redireciona", async () => {
       useAuthStore.setState({ ...initialAuthState, _hasHydrated: false }, true);
 
-      const { result } = renderHook(() => useCompanyProfileManagement());
+      const { result } = renderHook(() => useCompanyProfileManagement(), { wrapper });
 
       await waitFor(() => expect(result.current.isMounted).toBe(true));
       expect(router.push).not.toHaveBeenCalled();
@@ -348,532 +360,301 @@ describe("useCompanyProfileManagement", () => {
     });
   });
 
-  describe("novo endereço", () => {
-    it("exige os campos obrigatórios", async () => {
-      const { result } = await renderCompany();
-      fillAddress(result, { ...addressForm, number: "" });
+  describe("endereço único da loja (LDMF-263)", () => {
+    it("o endereço da loja é o padrão; sem padrão, o primeiro ativo", async () => {
+      serverAddresses = [storeAddress("a1"), storeAddress("a2", { isDefault: true })];
+      const first = await renderCompany();
+      expect(first.result.current.storeAddress?.id).toBe("a2");
+      first.unmount();
 
-      await act(async () => {
-        await result.current.handleSaveAddress();
-      });
-
-      expect(toast.error).toHaveBeenCalledWith("Preencha todos os campos obrigatórios do endereço");
-      expect(api.address.createCompanyAddress).not.toHaveBeenCalled();
+      serverAddresses = [storeAddress("a1"), storeAddress("a2")];
+      const second = await renderCompany();
+      expect(second.result.current.storeAddress?.id).toBe("a1");
     });
 
-    it("sai com CEP limpo, coordenada geocodificada e sem textos opcionais vazios", async () => {
-      api.address.createCompanyAddress.mockResolvedValue({ success: true, data: storeAddress("novo") });
+    it("sem endereço, o modal abre vazio para cadastrar o primeiro", async () => {
       const { result } = await renderCompany();
-      act(() => result.current.setIsAddingAddress(true));
-      fillAddress(result, { ...addressForm, complement: "  ", reference: "Ao lado do mercado" });
 
-      await act(async () => {
-        await result.current.handleSaveAddress();
+      expect(result.current.storeAddress).toBeNull();
+      act(() => result.current.openAddressModal());
+
+      expect(result.current.isAddressModalOpen).toBe(true);
+      expect(result.current.editingAddressId).toBeNull();
+      expect(result.current.addressEditor.addressForm.getValues("street")).toBeFalsy();
+    });
+
+    it("com endereço, o modal abre nele, com o pino na coordenada salva", async () => {
+      serverAddresses = [
+        storeAddress("a1", {
+          isDefault: true,
+          complement: "Sala 2",
+          reference: "Perto da praça",
+          latitude: -25.1,
+          longitude: -49.1,
+        }),
+      ];
+      const { result } = await renderCompany();
+
+      act(() => result.current.openAddressModal());
+
+      expect(result.current.editingAddressId).toBe("a1");
+      expect(result.current.addressEditor.addressForm.getValues()).toMatchObject({
+        street: "Rua A",
+        complement: "Sala 2",
+        reference: "Perto da praça",
       });
+      expect(result.current.addressEditor.addressCoords).toEqual({
+        coords: { lat: -25.1, lng: -49.1 },
+        source: "stored",
+      });
+    });
+
+    it("fechar o modal limpa o estado de edição", async () => {
+      serverAddresses = [storeAddress("a1", { isDefault: true })];
+      const { result } = await renderCompany();
+      act(() => result.current.openAddressModal());
+
+      act(() => result.current.closeAddressModal());
+
+      expect(result.current.isAddressModalOpen).toBe(false);
+      expect(result.current.editingAddressId).toBeNull();
+      expect(result.current.addressEditor.addressCoords).toBeNull();
+    });
+  });
+
+  describe("primeiro endereço", () => {
+    it("sai com CEP só com dígitos, exatamente a posição do pino, como padrão e sem textos vazios", async () => {
+      api.address.createCompanyAddress.mockResolvedValue({ success: true, data: storeAddress("novo") });
+      const fetchMock = vi.fn();
+      vi.stubGlobal("fetch", fetchMock);
+      const { result } = await renderCompany();
+      act(() => result.current.openAddressModal());
+      placePin(result);
+
+      await save(result, formData({ reference: "  Ao lado do posto  " }));
 
       expect(api.address.createCompanyAddress).toHaveBeenCalledWith({
-        ...addressForm,
         zipCode: "80420000",
+        state: "PR",
+        city: "Curitiba",
+        neighborhood: "Batel",
+        street: "Av. Sete",
+        number: "700",
         complement: undefined,
-        reference: "Ao lado do mercado",
-        isDefault: false,
+        reference: "Ao lado do posto",
         latitude: -25.44,
-        longitude: -49.28,
+        longitude: -49.29,
+        isDefault: true,
       });
+      expect(api.address.updateCompanyAddress).not.toHaveBeenCalled();
       expect(toast.success).toHaveBeenCalledWith("Endereço adicionado com sucesso!");
-      expect(result.current.isAddingAddress).toBe(false);
-      expect(result.current.newAddress.street).toBe("");
+      expect(result.current.isAddressModalOpen).toBe(false);
+      // Nenhuma geocodificação escondida no salvar (só o IBGE, ao abrir).
+      const hosts = fetchMock.mock.calls.map(([url]) => new URL(String(url)).hostname);
+      expect(hosts.filter((host) => host !== "servicodados.ibge.gov.br")).toEqual([]);
     });
 
-    it("sem localização no mapa, salva sem coordenada e avisa", async () => {
-      vi.mocked(geocodeAddress).mockResolvedValue(null);
-      api.address.createCompanyAddress.mockResolvedValue({ success: true, data: storeAddress("novo") });
+    it("sem pino no mapa, não salva, avisa e mantém o modal aberto", async () => {
       const { result } = await renderCompany();
-      fillAddress(result, addressForm);
+      act(() => result.current.openAddressModal());
 
-      await act(async () => {
-        await result.current.handleSaveAddress();
-      });
+      await save(result, formData());
 
-      const payload = api.address.createCompanyAddress.mock.calls[0][0];
-      expect(payload).not.toHaveProperty("latitude");
-      expect(toast.warning).toHaveBeenCalledWith(
-        "Nao localizamos esse endereço no mapa",
-        expect.objectContaining({ duration: 6000 }),
+      expect(api.address.createCompanyAddress).not.toHaveBeenCalled();
+      expect(toast.error).toHaveBeenCalledWith(
+        "Marque no mapa onde fica o endereço antes de salvar.",
       );
+      expect(result.current.isAddressModalOpen).toBe(true);
     });
 
-    it("como padrão, desmarca o padrão antigo mandando só a flag", async () => {
-      serverAddresses = [
-        storeAddress("antigo", { isDefault: true, complement: "Loja 2", latitude: -25.1, longitude: -49.1 }),
-        storeAddress("outro"),
-      ];
+    it("pino arrastado: salva a posição final", async () => {
+      api.address.createCompanyAddress.mockResolvedValue({ success: true, data: storeAddress("novo") });
+      const { result } = await renderCompany();
+      act(() => result.current.openAddressModal());
+      placePin(result, { lat: -20.6, lng: -41.2 });
+      placePin(result, { lat: -20.61, lng: -41.21 });
+
+      await save(result, formData());
+
+      expect(api.address.createCompanyAddress.mock.calls[0][0]).toMatchObject({
+        latitude: -20.61,
+        longitude: -41.21,
+      });
+    });
+
+    it("recusa do backend avisa e mantém o modal aberto", async () => {
+      api.address.createCompanyAddress.mockResolvedValue({ success: false, message: "CEP inválido" });
+      const { result } = await renderCompany();
+      act(() => result.current.openAddressModal());
+      placePin(result);
+
+      await save(result, formData());
+
+      expect(toast.error).toHaveBeenCalledWith("CEP inválido");
+      expect(result.current.isAddressModalOpen).toBe(true);
+    });
+
+    it("exceção ao salvar avisa erro genérico", async () => {
+      api.address.createCompanyAddress.mockRejectedValue(new Error("rede"));
+      const { result } = await renderCompany();
+      act(() => result.current.openAddressModal());
+      placePin(result);
+
+      await save(result, formData());
+
+      expect(toast.error).toHaveBeenCalledWith("Erro ao adicionar endereço");
+    });
+  });
+
+  describe("editar endereço", () => {
+    async function editing(addresses: Address[]) {
+      serverAddresses = addresses;
+      const hook = await renderCompany();
+      act(() => hook.result.current.openAddressModal());
+      return hook;
+    }
+
+    it("atualiza o mesmo id por PATCH, como padrão, e nunca cria outro", async () => {
       api.address.updateCompanyAddress.mockResolvedValue({ success: true });
-      api.address.createCompanyAddress.mockResolvedValue({ success: true, data: storeAddress("novo") });
-      const { result } = await renderCompany();
-      fillAddress(result, { ...addressForm, isDefault: true });
+      const { result } = await editing([
+        storeAddress("a1", { isDefault: true, latitude: -25.1, longitude: -49.1 }),
+      ]);
 
-      await act(async () => {
-        await result.current.handleSaveAddress();
-      });
+      await save(result, formData({ complement: "Loja 2B" }));
 
+      expect(api.address.createCompanyAddress).not.toHaveBeenCalled();
       expect(api.address.updateCompanyAddress).toHaveBeenCalledTimes(1);
-      expect(api.address.updateCompanyAddress).toHaveBeenCalledWith("antigo", { isDefault: false });
-      expect(api.address.createCompanyAddress.mock.calls[0][0].isDefault).toBe(true);
-      expect(toast.warning).not.toHaveBeenCalled();
+      expect(api.address.updateCompanyAddress).toHaveBeenCalledWith(
+        "a1",
+        expect.objectContaining({
+          street: "Av. Sete",
+          complement: "Loja 2B",
+          latitude: -25.1,
+          longitude: -49.1,
+          isDefault: true,
+        }),
+      );
+      expect(toast.success).toHaveBeenCalledWith("Endereço atualizado com sucesso!");
     });
 
-    it("se só a flag for recusada, tenta de novo sem reenviar CEP incompleto nem complemento", async () => {
-      serverAddresses = [
-        storeAddress("antigo", { isDefault: true, zipCode: "8000", complement: "301", reference: "Bar" }),
-      ];
-      api.address.updateCompanyAddress
-        .mockResolvedValueOnce({ success: false, message: "recusado" })
-        .mockResolvedValueOnce({ success: true });
-      api.address.createCompanyAddress.mockResolvedValue({ success: true, data: storeAddress("novo") });
-      const { result } = await renderCompany();
-      fillAddress(result, { ...addressForm, isDefault: true });
+    it("loja com dois padrões antigos: desmarca o outro mandando só a flag", async () => {
+      api.address.updateCompanyAddress.mockResolvedValue({ success: true });
+      const { result } = await editing([
+        storeAddress("a1", { isDefault: true, latitude: -25.1, longitude: -49.1 }),
+        storeAddress("a2", { isDefault: true }),
+      ]);
 
-      await act(async () => {
-        await result.current.handleSaveAddress();
-      });
+      await save(result, formData());
 
-      expect(api.address.updateCompanyAddress).toHaveBeenCalledTimes(2);
-      const retry = api.address.updateCompanyAddress.mock.calls[1][1];
-      expect(retry).toMatchObject({ isDefault: false, street: "Rua A", number: "10" });
-      expect(retry.zipCode).toBeUndefined();
-      expect(retry.complement).toBeUndefined();
-      expect(retry.reference).toBeUndefined();
-      expect(toast.warning).not.toHaveBeenCalled();
+      expect(api.address.updateCompanyAddress.mock.calls.map(([id]) => id)).toEqual(["a1", "a2"]);
+      expect(api.address.updateCompanyAddress).toHaveBeenLastCalledWith("a2", { isDefault: false });
     });
 
     it("endereço apagado (isActive: false) não é desmarcado", async () => {
-      serverAddresses = [storeAddress("apagado", { isDefault: true, isActive: false })];
-      api.address.createCompanyAddress.mockResolvedValue({ success: true, data: storeAddress("novo") });
-      const { result } = await renderCompany();
-      fillAddress(result, { ...addressForm, isDefault: true });
+      api.address.updateCompanyAddress.mockResolvedValue({ success: true });
+      const { result } = await editing([
+        storeAddress("a1", { isDefault: true, latitude: -25.1, longitude: -49.1 }),
+        storeAddress("apagado", { isDefault: true, isActive: false }),
+      ]);
 
-      await act(async () => {
-        await result.current.handleSaveAddress();
-      });
+      await save(result, formData());
 
-      expect(api.address.updateCompanyAddress).not.toHaveBeenCalled();
+      expect(api.address.updateCompanyAddress.mock.calls.map(([id]) => id)).toEqual(["a1"]);
     });
 
-    it("se não desmarcar o antigo, salva e avisa", async () => {
-      serverAddresses = [storeAddress("antigo", { isDefault: true })];
-      api.address.updateCompanyAddress.mockResolvedValue({ success: false });
-      api.address.createCompanyAddress.mockResolvedValue({ success: true, data: storeAddress("novo") });
-      const { result } = await renderCompany();
-      fillAddress(result, { ...addressForm, isDefault: true });
+    it("se não desmarcar o outro padrão, salva e avisa", async () => {
+      api.address.updateCompanyAddress
+        .mockResolvedValueOnce({ success: true })
+        .mockResolvedValue({ success: false });
+      const { result } = await editing([
+        storeAddress("a1", { isDefault: true, latitude: -25.1, longitude: -49.1 }),
+        storeAddress("a2", { isDefault: true }),
+      ]);
 
-      await act(async () => {
-        await result.current.handleSaveAddress();
-      });
+      await save(result, formData());
 
-      expect(toast.success).toHaveBeenCalledWith("Endereço adicionado com sucesso!");
+      expect(toast.success).toHaveBeenCalledWith("Endereço atualizado com sucesso!");
       expect(toast.warning).toHaveBeenCalledWith(
         "Não conseguimos desmarcar todos os endereços padrão antigos. Confira a lista de endereços.",
       );
     });
 
-    it("como padrão, desmarca o antigo só depois de criar, e nunca o recém-criado", async () => {
-      serverAddresses = [storeAddress("antigo", { isDefault: true })];
-      api.address.updateCompanyAddress.mockResolvedValue({ success: true });
-      api.address.createCompanyAddress.mockImplementation(async () => {
-        // A listagem depois de criar já traz o novo como padrão.
-        serverAddresses = [...serverAddresses, storeAddress("novo", { isDefault: true })];
-        return { success: true, data: storeAddress("novo", { isDefault: true }) };
-      });
-      const { result } = await renderCompany();
-      fillAddress(result, { ...addressForm, isDefault: true });
+    it("edição recusada não desmarca o outro padrão", async () => {
+      api.address.updateCompanyAddress.mockResolvedValue({ success: false, message: "recusado" });
+      const { result } = await editing([
+        storeAddress("a1", { isDefault: true, latitude: -25.1, longitude: -49.1 }),
+        storeAddress("a2", { isDefault: true }),
+      ]);
 
-      await act(async () => {
-        await result.current.handleSaveAddress();
-      });
+      await save(result, formData());
 
-      expect(api.address.createCompanyAddress.mock.invocationCallOrder[0]).toBeLessThan(
-        api.address.updateCompanyAddress.mock.invocationCallOrder[0],
-      );
-      expect(api.address.updateCompanyAddress.mock.calls.map(([id]) => id)).toEqual(["antigo"]);
+      expect(api.address.updateCompanyAddress).toHaveBeenCalledTimes(1);
+      expect(toast.error).toHaveBeenCalledWith("recusado");
+      expect(result.current.isAddressModalOpen).toBe(true);
     });
 
-    it("criação recusada não mexe no padrão atual", async () => {
-      serverAddresses = [storeAddress("antigo", { isDefault: true })];
-      api.address.createCompanyAddress.mockResolvedValue({ success: false, message: "CEP inválido" });
-      const { result } = await renderCompany();
-      fillAddress(result, { ...addressForm, isDefault: true });
+    it("complemento novo curto é barrado antes do PATCH", async () => {
+      const { result } = await editing([
+        storeAddress("a1", { isDefault: true, latitude: -25.1, longitude: -49.1 }),
+      ]);
 
-      await act(async () => {
-        await result.current.handleSaveAddress();
-      });
+      await save(result, formData({ complement: "301" }));
 
       expect(api.address.updateCompanyAddress).not.toHaveBeenCalled();
-      expect(toast.error).toHaveBeenCalledWith("CEP inválido");
-    });
-
-    it("recusa do backend mantém o formulário aberto", async () => {
-      api.address.createCompanyAddress.mockResolvedValue({ success: false, message: "CEP inválido" });
-      const { result } = await renderCompany();
-      act(() => result.current.setIsAddingAddress(true));
-      fillAddress(result, addressForm);
-
-      await act(async () => {
-        await result.current.handleSaveAddress();
-      });
-
-      expect(toast.error).toHaveBeenCalledWith("CEP inválido");
-      expect(result.current.isAddingAddress).toBe(true);
-      expect(result.current.newAddress.street).toBe("Av. Sete");
-    });
-  });
-
-  describe("editar endereço", () => {
-    async function editing(address: Address) {
-      serverAddresses = [address];
-      const hook = await renderCompany();
-      act(() => hook.result.current.handleEditAddress(hook.result.current.addresses[0]));
-      return hook;
-    }
-
-    it("abre o formulário com o endereço e salva por PATCH no mesmo id", async () => {
-      api.address.updateCompanyAddress.mockResolvedValue({ success: true });
-      const { result } = await editing(storeAddress("a1", { complement: "Loja 2" }));
-
-      expect(result.current.editingAddressId).toBe("a1");
-      expect(result.current.isAddingAddress).toBe(true);
-      expect(result.current.newAddress).toMatchObject({ street: "Rua A", complement: "Loja 2" });
-
-      fillAddress(result, { number: "12" });
-      await act(async () => {
-        await result.current.handleSaveAddress();
-      });
-
-      expect(api.address.updateCompanyAddress).toHaveBeenCalledWith(
-        "a1",
-        expect.objectContaining({ number: "12", complement: "Loja 2", latitude: -25.44 }),
+      expect(toast.error).toHaveBeenCalledWith(
+        "Complemento deve ter pelo menos 5 caracteres (ou ficar vazio)",
       );
-      expect(api.address.createCompanyAddress).not.toHaveBeenCalled();
-      expect(result.current.editingAddressId).toBeNull();
     });
 
-    it.each([
-      ["complement", "Sl 2", "Complemento deve ter pelo menos 5 caracteres (ou ficar vazio)"],
-      ["reference", "Bar", "Referência deve ter pelo menos 5 caracteres (ou ficar vazia)"],
-    ])("%s novo curto é barrado antes do PATCH", async (field, value, message) => {
-      const { result } = await editing(storeAddress("a1"));
-      fillAddress(result, { [field]: value });
+    it("referência nova curta é barrada antes do PATCH", async () => {
+      const { result } = await editing([
+        storeAddress("a1", { isDefault: true, latitude: -25.1, longitude: -49.1 }),
+      ]);
 
-      await act(async () => {
-        await result.current.handleSaveAddress();
-      });
+      await save(result, formData({ reference: "Bar" }));
 
-      expect(toast.error).toHaveBeenCalledWith(message);
       expect(api.address.updateCompanyAddress).not.toHaveBeenCalled();
+      expect(toast.error).toHaveBeenCalledWith(
+        "Referência deve ter pelo menos 5 caracteres (ou ficar vazia)",
+      );
     });
 
     it("complemento e referência curtos herdados e intocados são omitidos do PATCH", async () => {
       api.address.updateCompanyAddress.mockResolvedValue({ success: true });
-      const { result } = await editing(storeAddress("a1", { complement: "301", reference: "Bar" }));
+      const { result } = await editing([
+        storeAddress("a1", {
+          isDefault: true,
+          complement: "301",
+          reference: "Bar",
+          latitude: -25.1,
+          longitude: -49.1,
+        }),
+      ]);
 
-      await act(async () => {
-        await result.current.handleSaveAddress();
-      });
+      await save(result, formData({ complement: "301", reference: "Bar" }));
 
-      const payload = api.address.updateCompanyAddress.mock.calls[0][1];
-      expect(payload.complement).toBeUndefined();
-      expect(payload.reference).toBeUndefined();
+      const patch = api.address.updateCompanyAddress.mock.calls[0][1];
+      expect(patch.complement).toBeUndefined();
+      expect(patch.reference).toBeUndefined();
     });
 
-    it("virar padrão desmarca os outros padrões, não ele mesmo", async () => {
-      serverAddresses = [storeAddress("a1", { isDefault: true }), storeAddress("a2", { isDefault: true })];
+    it("endereço antigo sem coordenada não salva até marcar o pino", async () => {
       api.address.updateCompanyAddress.mockResolvedValue({ success: true });
-      const hook = await renderCompany();
-      act(() => hook.result.current.handleEditAddress(hook.result.current.addresses[0]));
+      const { result } = await editing([storeAddress("a1", { isDefault: true })]);
 
-      await act(async () => {
-        await hook.result.current.handleSaveAddress();
+      await save(result, formData());
+      expect(api.address.updateCompanyAddress).not.toHaveBeenCalled();
+
+      placePin(result);
+      await save(result, formData());
+      expect(api.address.updateCompanyAddress.mock.calls[0][1]).toMatchObject({
+        latitude: -25.44,
+        longitude: -49.29,
       });
-
-      // Salva primeiro; só então desmarca o outro padrão.
-      const ids = api.address.updateCompanyAddress.mock.calls.map(([id]) => id);
-      expect(ids).toEqual(["a1", "a2"]);
-    });
-
-    it("edição recusada não desmarca o outro padrão", async () => {
-      serverAddresses = [storeAddress("a1"), storeAddress("a2", { isDefault: true })];
-      api.address.updateCompanyAddress.mockResolvedValue({ success: false, message: "complement too short" });
-      const hook = await renderCompany();
-      act(() => hook.result.current.handleEditAddress(hook.result.current.addresses[0]));
-      fillAddress(hook.result, { isDefault: true });
-
-      await act(async () => {
-        await hook.result.current.handleSaveAddress();
-      });
-
-      expect(api.address.updateCompanyAddress.mock.calls.map(([id]) => id)).toEqual(["a1"]);
-    });
-
-    it("cancelar limpa a edição", async () => {
-      const { result } = await editing(storeAddress("a1"));
-
-      act(() => result.current.handleCancelAddressEdit());
-
-      expect(result.current.editingAddressId).toBeNull();
-      expect(result.current.isAddingAddress).toBe(false);
-      expect(result.current.newAddress.street).toBe("");
-    });
-  });
-
-  describe("excluir endereço", () => {
-    it("confirmado, remove e tira da lista", async () => {
-      serverAddresses = [storeAddress("a1"), storeAddress("a2")];
-      api.address.deleteCompanyAddress.mockResolvedValue({ success: true });
-      const { result } = await renderCompany();
-
-      await act(async () => {
-        await result.current.handleDeleteAddress("a1");
-      });
-
-      expect(api.address.deleteCompanyAddress).toHaveBeenCalledWith("a1");
-      expect(result.current.addresses.map((a) => a.id)).toEqual(["a2"]);
-    });
-
-    it("sem confirmação não chama a API", async () => {
-      vi.stubGlobal("confirm", vi.fn(() => false));
-      const { result } = await renderCompany();
-
-      await act(async () => {
-        await result.current.handleDeleteAddress("a1");
-      });
-
-      expect(api.address.deleteCompanyAddress).not.toHaveBeenCalled();
-    });
-
-    it("recusa mantém na lista", async () => {
-      serverAddresses = [storeAddress("a1")];
-      api.address.deleteCompanyAddress.mockResolvedValue({ success: false, message: "Endereço padrão" });
-      const { result } = await renderCompany();
-
-      await act(async () => {
-        await result.current.handleDeleteAddress("a1");
-      });
-
-      expect(toast.error).toHaveBeenCalledWith("Endereço padrão");
-      expect(result.current.addresses).toHaveLength(1);
     });
   });
 
   describe("CEP", () => {
-    // Respostas reais da BrasilAPI v2 (medidas em 17/10): cidade de CEP
-    // único volta com rua e bairro null.
-    const brasilApi = (body: Record<string, unknown>, status = 200) =>
-      vi.fn().mockResolvedValue({
-        ok: status >= 200 && status < 300,
-        status,
-        json: async () => body,
-      });
-    const castelo = {
-      cep: "29360000",
-      state: "ES",
-      city: "Castelo",
-      neighborhood: null,
-      street: null,
-      location: { type: "Point", coordinates: { longitude: "-41.18472", latitude: "-20.60361" } },
-    };
-    const alegre = {
-      cep: "29500000",
-      state: "ES",
-      city: "Alegre",
-      neighborhood: null,
-      street: null,
-      location: { type: "Point", coordinates: { longitude: "-41.53306", latitude: "-20.76361" } },
-    };
-
-    async function searchZipCode(result: Hook, zipCode: string) {
-      await act(async () => {
-        await result.current.handleSearchZipCode(zipCode);
-      });
-    }
-
-    it("CEP com rua busca na BrasilAPI e preenche tudo", async () => {
-      const fetchMock = brasilApi({
-        cep: "80020310",
-        state: "PR",
-        city: "Curitiba",
-        neighborhood: "Centro",
-        street: "Rua XV de Novembro",
-      });
-      vi.stubGlobal("fetch", fetchMock);
-      const { result } = await renderCompany();
-
-      await searchZipCode(result, "80020-310");
-
-      expect(fetchMock).toHaveBeenCalledWith("https://brasilapi.com.br/api/cep/v2/80020310");
-      expect(result.current.newAddress).toMatchObject({
-        zipCode: "80020310",
-        street: "Rua XV de Novembro",
-        neighborhood: "Centro",
-        city: "Curitiba",
-        state: "PR",
-      });
-      expect(result.current.zipCodeHint).toBeNull();
-      expect(toast.success).toHaveBeenCalledWith("CEP encontrado!");
-    });
-
-    it.each([
-      ["29360000", "Castelo", castelo],
-      ["29500000", "Alegre", alegre],
-    ])(
-      "CEP único %s (%s) depois de digitar rua e bairro não apaga nada",
-      async (zipCode, city, body) => {
-        vi.stubGlobal("fetch", brasilApi(body));
-        const { result } = await renderCompany();
-        fillAddress(result, { street: "Rua Projetada", number: "45", neighborhood: "Centro" });
-
-        fillAddress(result, { zipCode });
-        await searchZipCode(result, zipCode);
-
-        expect(result.current.newAddress).toMatchObject({
-          zipCode,
-          street: "Rua Projetada",
-          number: "45",
-          neighborhood: "Centro",
-          city,
-          state: "ES",
-        });
-        expect(result.current.zipCodeHint).toBe(
-          "Este CEP vale para a cidade inteira. Preencha rua, número e bairro abaixo.",
-        );
-        expect(toast.success).toHaveBeenCalledWith(
-          "CEP da cidade encontrado. Preencha rua, número e bairro.",
-        );
-      },
-    );
-
-    it("CEP único antes de digitar: rua e bairro ficam vazios para preencher e o endereço sai completo", async () => {
-      vi.stubGlobal("fetch", brasilApi(castelo));
-      api.address.createCompanyAddress.mockResolvedValue({
-        success: true,
-        data: storeAddress("novo"),
-      } as never);
-      const { result } = await renderCompany();
-
-      fillAddress(result, { zipCode: "29360000" });
-      await searchZipCode(result, "29360000");
-      expect(result.current.newAddress).toMatchObject({ street: "", neighborhood: "", city: "Castelo", state: "ES" });
-
-      fillAddress(result, { street: "Rua Projetada", number: "45", neighborhood: "Centro" });
-      await act(async () => {
-        await result.current.handleSaveAddress();
-      });
-
-      expect(api.address.createCompanyAddress).toHaveBeenCalledWith(
-        expect.objectContaining({
-          zipCode: "29360000",
-          street: "Rua Projetada",
-          number: "45",
-          neighborhood: "Centro",
-          city: "Castelo",
-          state: "ES",
-        }),
-      );
-    });
-
-    it("CEP sem bairro mantém o bairro digitado e pede só o bairro", async () => {
-      vi.stubGlobal(
-        "fetch",
-        brasilApi({ cep: "29360001", state: "ES", city: "Castelo", neighborhood: null, street: "Rua Nova" }),
-      );
-      const { result } = await renderCompany();
-      fillAddress(result, { neighborhood: "Aracui" });
-
-      await searchZipCode(result, "29360001");
-
-      expect(result.current.newAddress).toMatchObject({ street: "Rua Nova", neighborhood: "Aracui" });
-      expect(result.current.zipCodeHint).toBe("Este CEP não traz o bairro. Preencha o bairro abaixo.");
-    });
-
-    it("busca falhou: não apaga nada, avisa e o endereço preenchido à mão salva", async () => {
-      vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
-      api.address.createCompanyAddress.mockResolvedValue({
-        success: true,
-        data: storeAddress("novo"),
-      } as never);
-      const { result } = await renderCompany();
-      fillAddress(result, { street: "Rua Projetada", number: "45", neighborhood: "Centro" });
-
-      fillAddress(result, { zipCode: "29360000" });
-      await searchZipCode(result, "29360000");
-
-      expect(result.current.newAddress).toMatchObject({
-        street: "Rua Projetada",
-        neighborhood: "Centro",
-        city: "",
-        state: "",
-      });
-      expect(result.current.isSearchingZipCode).toBe(false);
-      expect(result.current.zipCodeHint).toBe(
-        "Não conseguimos consultar o CEP agora. Preencha cidade, UF, rua, número e bairro à mão.",
-      );
-      expect(toast.error).toHaveBeenCalledWith("Erro ao buscar CEP. Preencha o endereço à mão.");
-
-      fillAddress(result, { city: "Castelo", state: "ES" });
-      await act(async () => {
-        await result.current.handleSaveAddress();
-      });
-
-      expect(api.address.createCompanyAddress).toHaveBeenCalledWith(
-        expect.objectContaining({ zipCode: "29360000", city: "Castelo", state: "ES", street: "Rua Projetada" }),
-      );
-    });
-
-    it("resposta fora do ar (500) também vira preenchimento manual", async () => {
-      vi.stubGlobal("fetch", brasilApi({}, 500));
-      const { result } = await renderCompany();
-      fillAddress(result, { city: "Castelo", state: "ES" });
-
-      await searchZipCode(result, "29360000");
-
-      expect(result.current.newAddress).toMatchObject({ city: "Castelo", state: "ES" });
-      expect(result.current.zipCodeHint).toMatch(/Preencha cidade, UF/);
-    });
-
-    it("CEP inexistente avisa sem apagar", async () => {
-      vi.stubGlobal("fetch", brasilApi({ message: "CEP não encontrado" }, 404));
-      const { result } = await renderCompany();
-      fillAddress(result, { street: "Rua Projetada" });
-
-      await searchZipCode(result, "99999998");
-
-      expect(toast.error).toHaveBeenCalledWith("CEP não encontrado");
-      expect(result.current.newAddress.street).toBe("Rua Projetada");
-      expect(result.current.zipCodeHint).toMatch(/^CEP não encontrado/);
-    });
-
-    it("trocar o CEP limpa o aviso anterior", async () => {
-      vi.stubGlobal("fetch", brasilApi(castelo));
-      const { result } = await renderCompany();
-      await searchZipCode(result, "29360000");
-      expect(result.current.zipCodeHint).not.toBeNull();
-
-      fillAddress(result, { zipCode: "2936" });
-
-      expect(result.current.zipCodeHint).toBeNull();
-    });
-
-    it("CEP incompleto não busca", async () => {
-      const fetchMock = vi.fn();
-      vi.stubGlobal("fetch", fetchMock);
-      const { result } = await renderCompany();
-
-      await act(async () => {
-        await result.current.handleSearchZipCode("8002");
-      });
-
-      expect(fetchMock).not.toHaveBeenCalled();
-    });
-
     it("formatZipCode aplica a máscara e corta no tamanho", async () => {
       const { result } = await renderCompany();
 
