@@ -1,32 +1,57 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { toast } from "sonner";
 
 /**
- * Formulário "Seu endereço" do header. Trava o combinado com o mock: o CEP
- * preenche o que der sem apagar o que o cliente já digitou, "Sem número"
- * dispensa o número, e o que sai pro cookie é coordenada + endereço
- * formatado + etiqueta (Casa/Trabalho/Outro).
+ * Seletor de endereço da home (LDMF-260): usa o núcleo do perfil - CEP
+ * opcional, Estado → Cidade → Bairro → Rua → Número travados em ordem, e o
+ * pino. O que sai para o cookie é a posição do pino + endereço formatado +
+ * etiqueta (Casa/Trabalho/Outro).
  */
 
-const geocodeAddress = vi.fn();
-
-vi.mock("@/lib/geocode", async () => {
-  const actual =
-    await vi.importActual<typeof import("@/lib/geocode")>("@/lib/geocode");
-  return {
-    ...actual,
-    geocodeAddress: (...args: unknown[]) => geocodeAddress(...args),
-  };
-});
+vi.mock("sonner", () => ({
+  toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
+}));
 
 // SheetTitle exige um Dialog por volta; aqui só interessa o texto.
 vi.mock("@/components/ui/sheet", () => ({
-  SheetTitle: ({ children }: { children: React.ReactNode }) => (
-    <h2>{children}</h2>
+  SheetTitle: ({ children }: { children: ReactNode }) => <h2>{children}</h2>,
+}));
+
+vi.mock("@/services/ibge", () => ({
+  getStates: vi.fn(async () => [{ uf: "ES", name: "Espírito Santo" }]),
+  getCities: vi.fn(async () => [{ ibgeCode: "3201407", name: "Castelo" }]),
+}));
+
+vi.mock("@/lib/nominatim", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/nominatim")>();
+  return {
+    ...actual,
+    nominatim: { searchAddress: vi.fn(async () => null) },
+  };
+});
+
+vi.mock("@/services/neighborhoods", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@/services/neighborhoods")>();
+  return { ...actual, getNeighborhoods: vi.fn(actual.getNeighborhoods) };
+});
+
+// Leaflet não roda no jsdom: um botão faz o papel do toque no mapa.
+const MAP_PIN = { lat: -20.6033, lng: -41.1847 };
+vi.mock("@/components/address-map", () => ({
+  AddressMap: ({ onSelect }: { onSelect: (c: typeof MAP_PIN) => void }) => (
+    <button type="button" onClick={() => onSelect(MAP_PIN)}>
+      marcar no mapa
+    </button>
   ),
 }));
 
+const { getNeighborhoods } = await import("@/services/neighborhoods");
+const realGetNeighborhoods = vi.mocked(getNeighborhoods).getMockImplementation();
 const { DeliveryAddressForm, formatDeliveryAddress } = await import(
   "./delivery-address-form"
 );
@@ -40,6 +65,28 @@ function cepResponse(body: unknown, status = 200) {
     json: () => Promise.resolve(body),
   });
 }
+
+function renderForm(onSave = vi.fn()) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  render(
+    <QueryClientProvider client={queryClient}>
+      <DeliveryAddressForm onSave={onSave} />
+    </QueryClientProvider>,
+  );
+  return onSave;
+}
+
+/** Estado e cidade pelas listas do IBGE (simuladas). */
+async function chooseCastelo() {
+  await screen.findByRole("option", { name: "Espírito Santo" });
+  await userEvent.selectOptions(screen.getByLabelText("Estado *"), "ES");
+  await screen.findByRole("option", { name: "Castelo" });
+  await userEvent.selectOptions(screen.getByLabelText("Cidade *"), "Castelo");
+}
+
+const saveButton = () => screen.getByRole("button", { name: "Salvar endereço" });
 
 describe("formatDeliveryAddress", () => {
   it("monta rua, número, bairro e cidade - UF", () => {
@@ -73,10 +120,10 @@ describe("formatDeliveryAddress", () => {
   });
 });
 
-describe("DeliveryAddressForm", () => {
+describe("DeliveryAddressForm (núcleo de endereço)", () => {
   beforeEach(() => {
-    geocodeAddress.mockReset();
-    fetchMock.mockReset();
+    vi.clearAllMocks();
+    vi.mocked(getNeighborhoods).mockImplementation(realGetNeighborhoods!);
     vi.stubGlobal("fetch", fetchMock);
   });
 
@@ -84,113 +131,117 @@ describe("DeliveryAddressForm", () => {
     vi.unstubAllGlobals();
   });
 
-  it("preenche cidade, UF, rua e bairro pelo CEP sem apagar o que já foi digitado", async () => {
-    fetchMock.mockReturnValue(
-      cepResponse({
-        street: "Rua do CEP",
-        neighborhood: "Centro",
-        city: "Castelo",
-        state: "ES",
-        location: { coordinates: {} },
-      }),
-    );
-    render(<DeliveryAddressForm onSave={vi.fn()} />);
+  it("abre com CEP e Estado liberados e o resto travado", async () => {
+    renderForm();
 
-    await userEvent.type(
-      screen.getByLabelText("Rua / avenida"),
-      "R. Machado de Assis",
-    );
-    await userEvent.type(screen.getByLabelText("CEP"), "29360000");
-
-    expect(screen.getByLabelText("CEP")).toHaveValue("29360-000");
-    await waitFor(() =>
-      expect(screen.getByLabelText("Cidade")).toHaveValue("Castelo"),
-    );
-    expect(screen.getByLabelText("Estado")).toHaveValue("ES");
-    expect(screen.getByLabelText("Bairro")).toHaveValue("Centro");
-    // a rua digitada antes do CEP fica
-    expect(screen.getByLabelText("Rua / avenida")).toHaveValue(
-      "R. Machado de Assis",
-    );
-    expect(fetchMock).toHaveBeenCalledWith(
-      "https://brasilapi.com.br/api/cep/v2/29360000",
-    );
-  });
-
-  it("avisa quando o CEP não existe e deixa seguir pela rua", async () => {
-    fetchMock.mockReturnValue(cepResponse({ message: "not found" }, 404));
-    render(<DeliveryAddressForm onSave={vi.fn()} />);
-
-    await userEvent.type(screen.getByLabelText("CEP"), "00000000");
-
+    expect(screen.getByLabelText("CEP")).toBeEnabled();
+    expect(screen.getByLabelText("Estado *")).toBeEnabled();
+    expect(screen.getByLabelText("Cidade *")).toBeDisabled();
+    expect(screen.getByLabelText("Rua *")).toBeDisabled();
+    expect(screen.getByLabelText("Número *")).toBeDisabled();
+    // Complemento e "padrão" não vão para o cookie: não aparecem.
+    expect(screen.queryByLabelText("Complemento")).not.toBeInTheDocument();
     expect(
-      await screen.findByText("CEP não encontrado. Preencha a rua abaixo."),
+      screen.queryByLabelText("Definir como endereço padrão"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("bairro vira lista oficial em Castelo", async () => {
+    renderForm();
+    await chooseCastelo();
+
+    const neighborhood = await screen.findByLabelText("Bairro *");
+    await waitFor(() => expect(neighborhood.tagName).toBe("SELECT"));
+    expect(
+      screen.getByRole("option", { name: /Santo Andrezinho/ }),
     ).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Outro" })).toBeInTheDocument();
   });
 
-  it("não salva sem rua, número, cidade e UF", async () => {
-    const onSave = vi.fn();
-    render(<DeliveryAddressForm onSave={onSave} />);
-
-    await userEvent.click(
-      screen.getByRole("button", { name: "Salvar endereço" }),
+  it("salva sem CEP, com a posição do pino, endereço formatado e etiqueta", async () => {
+    const onSave = renderForm();
+    await chooseCastelo();
+    await waitFor(() =>
+      expect(screen.getByLabelText("Bairro *").tagName).toBe("SELECT"),
     );
-
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "Preencha os campos destacados.",
-    );
-    expect(screen.getByLabelText("Rua / avenida")).toHaveAttribute(
-      "aria-invalid",
-      "true",
-    );
-    expect(onSave).not.toHaveBeenCalled();
-    expect(geocodeAddress).not.toHaveBeenCalled();
-  });
-
-  it("salva coordenada, endereço formatado e etiqueta; 'Sem número' dispensa o número", async () => {
-    geocodeAddress.mockResolvedValue({ lat: -20.6, lng: -41.2 });
-    const onSave = vi.fn();
-    render(<DeliveryAddressForm onSave={onSave} />);
-
-    await userEvent.type(screen.getByLabelText("Rua / avenida"), "Av. Brasil");
+    await userEvent.selectOptions(screen.getByLabelText("Bairro *"), "Centro");
+    await userEvent.type(screen.getByLabelText("Rua *"), "Av. Brasil");
     await userEvent.click(screen.getByLabelText("Sem número"));
-    await userEvent.type(screen.getByLabelText("Bairro"), "Centro");
-    await userEvent.type(screen.getByLabelText("Cidade"), "Castelo");
-    await userEvent.type(screen.getByLabelText("Estado"), "es");
+    await userEvent.click(screen.getByRole("button", { name: "marcar no mapa" }));
     await userEvent.click(screen.getByRole("button", { name: "Trabalho" }));
-    await userEvent.click(
-      screen.getByRole("button", { name: "Salvar endereço" }),
-    );
+    await userEvent.click(saveButton());
 
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
-    expect(geocodeAddress).toHaveBeenCalledWith(
-      expect.objectContaining({ street: "Av. Brasil", number: "", city: "Castelo" }),
-    );
     expect(onSave).toHaveBeenCalledWith({
-      lat: -20.6,
-      lng: -41.2,
+      lat: MAP_PIN.lat,
+      lng: MAP_PIN.lng,
       city: "Castelo",
       address: "Av. Brasil, s/n - Centro, Castelo - ES",
       label: "Trabalho",
     });
+    // CEP vazio não consulta nada.
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("explica quando o endereço não é encontrado no mapa", async () => {
-    geocodeAddress.mockResolvedValue(null);
-    const onSave = vi.fn();
-    render(<DeliveryAddressForm onSave={onSave} />);
+  it("sem pino não salva", async () => {
+    // Cidade sem lista de bairros: nada posiciona o pino sozinho.
+    vi.mocked(getNeighborhoods).mockResolvedValue(null);
+    const onSave = renderForm();
+    await chooseCastelo();
+    await userEvent.type(screen.getByLabelText("Bairro *"), "Centro");
+    await userEvent.type(screen.getByLabelText("Rua *"), "Av. Brasil");
+    await userEvent.type(screen.getByLabelText("Número *"), "10");
+    await userEvent.click(saveButton());
 
-    await userEvent.type(screen.getByLabelText("Rua / avenida"), "Rua X");
-    await userEvent.type(screen.getByLabelText("Número"), "1");
-    await userEvent.type(screen.getByLabelText("Cidade"), "Castelo");
-    await userEvent.type(screen.getByLabelText("Estado"), "ES");
-    await userEvent.click(
-      screen.getByRole("button", { name: "Salvar endereço" }),
-    );
-
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Não encontramos esse endereço no mapa",
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        "Marque no mapa onde fica o endereço antes de salvar.",
+      ),
     );
     expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it("CEP incompleto não salva", async () => {
+    vi.mocked(getNeighborhoods).mockResolvedValue(null);
+    const onSave = renderForm();
+    await userEvent.type(screen.getByLabelText("CEP"), "2936");
+    await chooseCastelo();
+    await userEvent.type(screen.getByLabelText("Bairro *"), "Centro");
+    await userEvent.type(screen.getByLabelText("Rua *"), "Av. Brasil");
+    await userEvent.type(screen.getByLabelText("Número *"), "10");
+    await userEvent.click(screen.getByRole("button", { name: "marcar no mapa" }));
+    await userEvent.click(saveButton());
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("CEP deve ter 8 dígitos"),
+    );
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it("CEP da cidade inteira preenche estado e cidade e mostra o aviso", async () => {
+    fetchMock.mockReturnValue(
+      cepResponse({
+        cep: "29360000",
+        state: "ES",
+        city: "Castelo",
+        neighborhood: "",
+        street: "",
+        location: { coordinates: {} },
+      }),
+    );
+    renderForm();
+    await screen.findByRole("option", { name: "Espírito Santo" });
+
+    await userEvent.type(screen.getByLabelText("CEP"), "29360000");
+
+    expect(
+      await screen.findByText(
+        "Este CEP vale para a cidade inteira. Preencha bairro, rua e número abaixo.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Estado *")).toHaveValue("ES");
+    await waitFor(() =>
+      expect(screen.getByLabelText("Cidade *")).toHaveValue("Castelo"),
+    );
   });
 });
