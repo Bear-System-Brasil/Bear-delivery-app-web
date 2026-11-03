@@ -10,14 +10,12 @@ import {
   Heart,
   MapPin,
   Phone,
-  Plus,
   ShoppingBag,
   Star,
 } from "lucide-react";
 
 import { CustomizeOrder } from "@/components/customize-order/customize-order";
 import { MainHeader } from "@/components/main-header";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { AnimatedBackground } from "@/components/ui/animated-background";
@@ -25,6 +23,8 @@ import { DeliveryBikeIcon } from "@/components/ui/delivery-bike-icon";
 import { GradientButton } from "@/components/ui/gradient-button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
+import { MenuItemsList } from "@/components/menu-items-list";
+import { groupMenuByCategory } from "@/lib/menu-grouping";
 import { withDeliveryDefaults } from "@/constants/delivery-defaults";
 import {
   getTodayKey,
@@ -46,7 +46,7 @@ import { formatCurrency } from "@/utils/format-currency";
 import { formatDeliveryFee } from "@/utils/format-delivery-fee";
 import { toast } from "sonner";
 import type { Category, OpeningHoursResponse, Product } from "@/services/api";
-import type { ProductCategory, Restaurant } from "@/types/restaurant";
+import type { Restaurant } from "@/types/restaurant";
 
 // Função para gerar IDs seguros e sem colisão
 function slugify(text: string) {
@@ -59,24 +59,6 @@ function slugify(text: string) {
     .replace(/(^-|-$)+/g, ""); // Remove hifens sobrando nas pontas
 }
 
-function getProductCategoryName(
-  productCategory: ProductCategory | string | undefined,
-  categoryMap: Record<string, string>,
-) {
-  if (typeof productCategory === "string") {
-    return categoryMap[productCategory] || productCategory;
-  }
-
-  return (
-    categoryMap[productCategory?.categoryId ?? ""] ||
-    productCategory?.category?.name ||
-    ""
-  );
-}
-
-function getImageUrl(item: Product) {
-  return item.imageURL?.[0]?.url || "/placeholder.svg";
-}
 
 export default function RestaurantPage() {
   const router = useRouter();
@@ -142,70 +124,13 @@ export default function RestaurantPage() {
     return byProduct;
   }, [companyVariations]);
 
-  // 1. Em vez de filtrar, agrupamos os itens por categoria
-  const groupedItems = useMemo(() => {
-    const groups: Record<string, Product[]> = {};
-
-    menuItems.forEach((item) => {
-      // Pega a primeira categoria do produto, ou "Outros" se não tiver
-      let catName = "Outros";
-      if (item.productCategories && item.productCategories.length > 0) {
-        const foundName = getProductCategoryName(
-          item.productCategories[0],
-          categoryMap,
-        );
-        if (foundName) catName = foundName;
-      }
-
-      if (!groups[catName]) {
-        groups[catName] = [];
-      }
-      groups[catName].push(item);
-    });
-
-    return groups;
-  }, [categoryMap, menuItems]);
-
-  // Ordem das categorias no cardápio: usa a position que o back manda em
-  // cada produto (LDMF-345). Guarda a menor position vista por nome de
-  // categoria; nome sem position não entra no mapa (vai pro fim, mantendo a
-  // ordem atual) - produção só manda o campo depois do release do back.
-  const categoryPositionByName = useMemo(() => {
-    const positions: Record<string, number> = {};
-    menuItems.forEach((item) => {
-      const first = item.productCategories?.[0];
-      if (!first || typeof first === "string") return;
-      const name = getProductCategoryName(first, categoryMap);
-      const position = first.category?.position;
-      if (name && typeof position === "number") {
-        positions[name] =
-          name in positions ? Math.min(positions[name], position) : position;
-      }
-    });
-    return positions;
-  }, [menuItems, categoryMap]);
-
-  // 2. Extrai as categorias para os botões do menu baseado nos grupos.
-  // Só entra categoria com ao menos um item disponível: o lojista "esconde"
-  // uma categoria deixando todos os produtos dela indisponíveis (LDMF-442),
-  // então categoria 100% indisponível some do app. Item indisponível avulso
-  // dentro de uma categoria visível continua aparecendo esmaecido (abaixo).
-  // A lista sai ordenada pela position do back (LDMF-345).
-  const categories = useMemo(() => {
-    const visible = Object.keys(groupedItems).filter((catName) =>
-      groupedItems[catName].some((item) => item.isAvailable !== false),
-    );
-    return visible.sort((a, b) => {
-      if (a === "Outros") return 1;
-      if (b === "Outros") return -1;
-      const pa = categoryPositionByName[a];
-      const pb = categoryPositionByName[b];
-      if (pa === undefined && pb === undefined) return 0;
-      if (pa === undefined) return 1;
-      if (pb === undefined) return -1;
-      return pa - pb;
-    });
-  }, [groupedItems, categoryPositionByName]);
+  // Agrupa e ordena pelo util compartilhado (LDMF-454): a prévia do admin usa
+  // o mesmo, pros dois não divergirem. Categoria 100% indisponível some
+  // (LDMF-442); ordem pela position do back (LDMF-345).
+  const { groupedItems, categories } = useMemo(
+    () => groupMenuByCategory(menuItems, categoryMap),
+    [menuItems, categoryMap],
+  );
 
   // Define a primeira categoria como selecionada inicialmente
   useEffect(() => {
@@ -505,118 +430,15 @@ export default function RestaurantPage() {
                 })}
               </nav>
 
-              {/* === LISTA DE PRODUTOS AGRUPADOS POR CATEGORIA === */}
-              <section
-                aria-label="Itens do cardápio"
-                className="mt-2 space-y-6"
-              >
-                {categories.length === 0 ? (
-                  <Card className="border-border bg-card p-10 text-center shadow-sm">
-                    <p className="text-sm font-medium text-muted-foreground">
-                      Nenhum produto disponível no momento.
-                    </p>
-                  </Card>
-                ) : (
-                  categories.map((category) => {
-                    const items = groupedItems[category];
-                    return (
-                    <div
-                      key={category}
-                      id={`category-${slugify(category)}`} // Uso do slug
-                      className="scroll-mt-[130px]"
-                    >
-                      <h2 className="mb-2 text-sm font-bold text-foreground sm:mb-3 sm:text-base">
-                        {category}
-                      </h2>
-
-                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                        {items.map((item) => {
-                          const isAvailable = item.isAvailable !== false;
-
-                          // priceModifier é delta sobre o salePrice, então
-                          // o menor total do prato é base + menor delta.
-                          const basePrice = Number(item.salePrice || 0);
-                          const minVariationModifier =
-                            minVariationModifierByProduct.get(item.id);
-                          const hasSellableVariation =
-                            minVariationModifier !== undefined;
-                          const displayPrice = hasSellableVariation
-                            ? basePrice + minVariationModifier
-                            : basePrice;
-
-                          return (
-                            <Card
-                              key={item.id}
-                              onClick={() =>
-                                isAvailable && handleOpenModal(item)
-                              }
-                              className={`group flex min-w-0 min-h-[116px] gap-3 overflow-visible rounded-[13px] border border-border bg-card p-3 shadow-sm transition hover:border-border hover:shadow-md ${
-                                isAvailable
-                                  ? "cursor-pointer"
-                                  : "cursor-default"
-                              }`}
-                            >
-                              <div className="flex min-w-0 flex-1 flex-col">
-                                <h3 className="line-clamp-2 wrap-break-word text-sm font-bold tracking-[-0.01em] text-foreground">
-                                  {item.name}
-                                </h3>
-
-                                {item.description && (
-                                  <p className="mt-1 line-clamp-2 wrap-break-word text-xs font-medium leading-relaxed text-muted-foreground">
-                                    {item.description}
-                                  </p>
-                                )}
-
-                                <div className="mt-auto flex items-center gap-2 pt-3">
-                                  {hasSellableVariation && (
-                                    <span className="text-xs font-medium text-muted-foreground">
-                                      A partir de
-                                    </span>
-                                  )}
-                                  <span className="text-[15px] font-extrabold tracking-[-0.02em] text-foreground">
-                                    {formatCurrency(displayPrice)}
-                                  </span>
-                                </div>
-                              </div>
-
-                              <div className="relative h-[92px] w-[92px] shrink-0">
-                                <Image
-                                  width={184}
-                                  height={184}
-                                  src={getImageUrl(item)}
-                                  alt={item.name}
-                                  className={`h-full w-full rounded-[10px] bg-muted object-cover ${
-                                    !isAvailable ? "opacity-60" : ""
-                                  }`}
-                                />
-
-                                {!isAvailable ? (
-                                  <Badge className="absolute inset-x-1 bottom-1 justify-center border-0 bg-black/70 px-1 py-1 text-[10px] text-white">
-                                    Indisponível
-                                  </Badge>
-                                ) : (
-                                  <Button
-                                    type="button"
-                                    size="icon"
-                                    onClick={(event) => {
-                                      event.stopPropagation();
-                                      handleOpenModal(item);
-                                    }}
-                                    className="absolute -bottom-1 -right-1 h-7 w-7 rounded-lg border-2 border-white bg-brand-500 text-white shadow-md hover:bg-brand-600"
-                                  >
-                                    <Plus className="h-4 w-4" />
-                                  </Button>
-                                )}
-                              </div>
-                            </Card>
-                          );
-                        })}
-                      </div>
-                    </div>
-                    );
-                  })
-                )}
-              </section>
+              {/* Lista de produtos: componente compartilhado com a prévia do
+                  admin (LDMF-454). */}
+              <MenuItemsList
+                className="mt-2"
+                categories={categories}
+                groupedItems={groupedItems}
+                minVariationByProduct={minVariationModifierByProduct}
+                onSelectItem={handleOpenModal}
+              />
             </>
           )}
         </div>

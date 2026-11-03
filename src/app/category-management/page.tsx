@@ -23,8 +23,13 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { useCategoryManagement } from "@/hooks";
+import { CustomizeOrder } from "@/components/customize-order/customize-order";
+import { MenuItemsList } from "@/components/menu-items-list";
+import { useCategoryManagement, useCompanyProducts } from "@/hooks";
+import { groupMenuByCategory } from "@/lib/menu-grouping";
 import { cn } from "@/lib/utils";
+import type { Product } from "@/services/api";
+import { useAuthStore } from "@/stores";
 import {
   ArrowUpDown,
   CalendarDays,
@@ -220,6 +225,37 @@ function CategoryManagementContent() {
         .length,
     [allCategories, categoryStatusMap],
   );
+
+  // Prévia interativa do app (LDMF-454): mesmos cards do cliente, read-only,
+  // com os produtos reais. As abas filtram por categoria. Reflete a
+  // disponibilidade ao vivo (o toggle atualiza o cache de produtos).
+  const { user } = useAuthStore();
+  const companyId = user?.companyId || user?.id || null;
+  const { data: previewProducts = [] } = useCompanyProducts(companyId);
+  const [selectedPreviewCat, setSelectedPreviewCat] = useState("");
+  // Prato aberto na prévia (modal read-only do cliente, LDMF-465).
+  const [previewItem, setPreviewItem] = useState<Product | null>(null);
+
+  const previewCategoryMap = useMemo(
+    () =>
+      Object.fromEntries(
+        allCategories.map((category) => [category.id, category.name]),
+      ),
+    [allCategories],
+  );
+  // Combina com o modo "Ordenar" (#236): a prévia segue a ordem do rascunho
+  // (orderedCategories) pra refletir a reordenação ao vivo, antes de salvar.
+  const { groupedItems: previewGrouped, categories: previewCats } = useMemo(
+    () =>
+      groupMenuByCategory(previewProducts, previewCategoryMap, {
+        categoryOrder: orderedCategories.map((category) => category.name),
+      }),
+    [previewProducts, previewCategoryMap, orderedCategories],
+  );
+  const previewListCategories =
+    selectedPreviewCat && previewCats.includes(selectedPreviewCat)
+      ? [selectedPreviewCat]
+      : previewCats;
 
   return (
     <AdminPageLayout
@@ -516,27 +552,55 @@ function CategoryManagementContent() {
               <Eye className="h-4 w-4 text-muted-foreground" />
             </div>
 
-            <div className="mt-3 rounded-xl border border-border bg-muted p-3">
-              {previewCategories.length === 0 ? (
-                <div className="py-4 text-center text-[11.5px] font-semibold text-muted-foreground">
-                  Nenhuma categoria cadastrada
-                </div>
-              ) : (
-                <div className="flex flex-wrap gap-1.5">
-                  <span className="rounded-full bg-zinc-900 px-3 py-1.5 text-[11.5px] font-bold text-white">
+            {previewCats.length === 0 ? (
+              <div className="mt-3 rounded-xl border border-border bg-muted px-3 py-4 text-center text-[11.5px] font-semibold text-muted-foreground">
+                {hasCategoryProductData
+                  ? "Nenhuma categoria visível no app no momento."
+                  : "Cadastre produtos pra ver a prévia do app."}
+              </div>
+            ) : (
+              <>
+                {/* Abas navegáveis: filtram a prévia por categoria. */}
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPreviewCat("")}
+                    className={cn(
+                      "rounded-full px-3 py-1.5 text-[11.5px] font-bold transition-colors",
+                      selectedPreviewCat === ""
+                        ? "bg-zinc-900 text-white"
+                        : "border border-border bg-card text-foreground hover:bg-muted",
+                    )}
+                  >
                     Todos
-                  </span>
-                  {previewCategories.map((category) => (
-                    <span
-                      key={category.id}
-                      className="rounded-full border border-border bg-card px-3 py-1.5 text-[11.5px] font-semibold text-foreground"
+                  </button>
+                  {previewCats.map((category) => (
+                    <button
+                      key={category}
+                      type="button"
+                      onClick={() => setSelectedPreviewCat(category)}
+                      className={cn(
+                        "rounded-full px-3 py-1.5 text-[11.5px] font-semibold transition-colors",
+                        selectedPreviewCat === category
+                          ? "bg-zinc-900 text-white"
+                          : "border border-border bg-card text-foreground hover:bg-muted",
+                      )}
                     >
-                      {category.name}
-                    </span>
+                      {category}
+                    </button>
                   ))}
                 </div>
-              )}
-            </div>
+
+                {/* Prévia de verdade: os mesmos cards do app do cliente,
+                    read-only (componente compartilhado, LDMF-454). */}
+                <MenuItemsList
+                  className="mt-3"
+                  categories={previewListCategories}
+                  groupedItems={previewGrouped}
+                  onSelectItem={setPreviewItem}
+                />
+              </>
+            )}
           </aside>
         </div>
 
@@ -678,6 +742,19 @@ function CategoryManagementContent() {
           </div>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Prato aberto na prévia: modal do cliente em modo read-only, pra o
+          lojista ver tamanhos/complementos como o cliente vê (LDMF-465). */}
+      {previewItem && (
+        <CustomizeOrder
+          preview
+          productData={previewItem}
+          isModalOpen
+          setIsModalOpen={(open) => {
+            if (!open) setPreviewItem(null);
+          }}
+        />
+      )}
     </AdminPageLayout>
   );
 }
