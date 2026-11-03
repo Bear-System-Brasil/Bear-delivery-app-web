@@ -67,18 +67,6 @@ const STATUS_FILTER_OPTIONS: { value: StatusFilter; label: string }[] = [
   { value: "inactive", label: "Inativos" },
 ];
 
-/**
- * TODO(backend): GET /company/customers aceita ?status= mas ainda ignora o
- * filtro e devolve a lista inteira. Um filtro que parece funcionar e não
- * funciona é pior que filtro nenhum, então o seletor fica desabilitado.
- *
- * Quando o backend subir, trocar para `false` habilita tudo - o estado, a
- * queryKey e o param da requisição já estão ligados.
- */
-const STATUS_FILTER_DISABLED: boolean = true;
-const STATUS_FILTER_PENDING_HINT =
-  "O filtro por status ainda não está disponível: a rota aceita o parâmetro, mas o backend ainda não aplica.";
-
 function CustomerStatusBadge({ status }: { status: CompanyCustomerStatus }) {
   const badge = STATUS_BADGE[status];
   // O tipo diz que sempre acha, mas quem responde é o backend: valor fora do
@@ -254,18 +242,11 @@ export default function CustomersPage() {
             </p>
           </div>
 
-          {/* O title vai no wrapper, não no <select>: elemento de formulário
-              desabilitado não recebe evento de mouse na maioria dos
-              navegadores, e a dica presa nele nunca apareceria. */}
-          <div
-            className="w-full sm:w-44"
-            title={STATUS_FILTER_DISABLED ? STATUS_FILTER_PENDING_HINT : undefined}
-          >
+          <div className="w-full sm:w-44">
             <select
               aria-label="Filtrar por status"
               value={statusFilter}
               onChange={(e) => changeStatusFilter(e.target.value as StatusFilter)}
-              disabled={STATUS_FILTER_DISABLED}
               className="h-9 w-full rounded-xl border border-input bg-transparent px-3 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
             >
               {STATUS_FILTER_OPTIONS.map((opt) => (
@@ -275,9 +256,7 @@ export default function CustomersPage() {
               ))}
             </select>
             <p className="mt-1.5 text-xs text-muted-foreground">
-              {STATUS_FILTER_DISABLED
-                ? "Aguardando o backend aplicar o filtro"
-                : "Filtra a consulta no servidor"}
+              Filtra a consulta no servidor
             </p>
           </div>
         </div>

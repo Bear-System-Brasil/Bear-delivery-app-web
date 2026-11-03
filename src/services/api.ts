@@ -128,6 +128,23 @@ export interface ApiResponse<T> {
 }
 
 /**
+ * Contorno temporário (LDMF-466). O backend aplica o CompanyGuard global e
+ * responde 403 "Usuário sem empresa" em rotas de cliente que ainda não
+ * declaram @AllowNoCompany (carrinho, perfil, logout). Enquanto o back não
+ * ajusta, o front reconhece esse caso por `code` e mostra uma mensagem leve
+ * em vez de quebrar a tela. Remover quando o back aplicar o decorator (ver
+ * company-guard-rotas-cliente.md no backend).
+ */
+export const NO_COMPANY_SCOPE_CODE = "NO_COMPANY_SCOPE";
+export const NO_COMPANY_SCOPE_MESSAGE =
+  "Essa parte ainda está de portas fechadas pro seu login. Já está sendo resolvido. 😅";
+
+/** Reconhece o 403 "sem empresa" do CompanyGuard (ver acima). */
+export function isNoCompanyScopeError(response: { code?: string }): boolean {
+  return response.code === NO_COMPANY_SCOPE_CODE;
+}
+
+/**
  * Erros de data de nascimento do back (contrato do LDMF-302, 16/10): vêm com
  * `code` e `message` em array, e o front mostra `message[0]`.
  */
@@ -585,6 +602,20 @@ async function apiRequest<T>(
         }
       } else {
         errorMessage = `Erro ${response.status}: ${response.statusText}`;
+      }
+
+      // Contorno temporário (LDMF-466): o CompanyGuard global do backend
+      // responde 403 "Usuário sem empresa" em rotas de cliente que ainda não
+      // declaram @AllowNoCompany (carrinho, perfil, logout). Não é falha de
+      // servidor, então não reporta no monitor e degrada com uma mensagem
+      // leve. Some quando o back aplicar o decorator.
+      if (response.status === 403 && /sem empresa/i.test(errorMessage)) {
+        return {
+          success: false,
+          message: NO_COMPANY_SCOPE_MESSAGE,
+          status: 403,
+          code: NO_COMPANY_SCOPE_CODE,
+        };
       }
 
       // Skip 404 logging on viewOrder - expected when no cart exists
@@ -1457,8 +1488,10 @@ export const apiService = {
       true,
     ),
 
-  // /user/me devolve o hash bcrypt da senha no corpo - nunca deixar isso
-  // chegar no Zustand (persiste em localStorage via updateUser).
+  // O back ja sanitiza /user/me (toMeResponse remove password/cpf). Mantemos
+  // a remocao defensiva do password aqui para nunca deixar o hash chegar no
+  // Zustand (persiste em localStorage via updateUser), caso algum retorno
+  // volte a incluir o campo.
   getMe: async (): Promise<ApiResponse<User>> => {
     const response = await apiRequest<User & { password?: string }>(
       "GET",
