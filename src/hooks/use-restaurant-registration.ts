@@ -18,6 +18,10 @@ interface RestaurantFormData {
   confirmPassword: string
   phone: string
   description: string
+  // Raio de atuação/entrega em km (LDMF-467). Só é definido na criação: o
+  // back valida 1-3 dígitos e o mín/máx das configurações. Vazio usa o padrão
+  // do back; "0" significa loja sem entrega.
+  actionRadius: string
   // Data de nascimento do dono (LDMF-422): a conta é de uma pessoa, e o back
   // exige a data e recusa menor de 18. Só usada ao criar conta nova.
   birthDate: string
@@ -49,6 +53,7 @@ export const useRestaurantRegistration = () => {
     confirmPassword: '',
     phone: '',
     description: '',
+    actionRadius: '10',
     birthDate: '',
   })
 
@@ -159,7 +164,7 @@ export const useRestaurantRegistration = () => {
     tradeName: registerData.tradeName,
     legalName: registerData.legalName,
     description: registerData.description || registerData.tradeName,
-    actionRadius: "10",
+    actionRadius: registerData.actionRadius.trim() || "10",
     cnpj: onlyNumbers(registerData.cnpj),
     email: registerData.email,
     phone: onlyNumbers(registerData.phone),
@@ -196,6 +201,17 @@ export const useRestaurantRegistration = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setSubmitMessage(null)
+
+    // Raio de entrega (LDMF-467): o back aceita número inteiro de 1 a 3
+    // dígitos. Vazio usa o padrão do back; "0" = loja sem entrega.
+    const actionRadius = registerData.actionRadius.trim()
+    if (actionRadius && !/^\d{1,3}$/.test(actionRadius)) {
+      setSubmitMessage({
+        type: 'error',
+        text: 'Raio de entrega deve ser um número inteiro de 1 a 3 dígitos (em km).',
+      })
+      return
+    }
 
     if (isLoggedIn) {
       if (!canRegisterOnAccount) {

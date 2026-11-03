@@ -13,6 +13,7 @@ import {
 } from "@/services/api";
 import { toast } from "sonner";
 import { resolveRestaurantOpenStatus } from "@/constants/opening-hours";
+import { PRODUCT_LIMIT_MESSAGE } from "@/lib/order-quantity-limit";
 import {
   getCartRestaurantProblem,
   type CartRestaurantSnapshot,
@@ -666,6 +667,72 @@ describe("useCartActions", () => {
       });
 
       expect(apiService.orderItems.removeProductFromCart).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("teto de quantidade temporário (LDMF-333)", () => {
+    const line = (quantity: number): CartItem => ({
+      id: "linha-1",
+      productId: "prod-1",
+      name: "Pizza",
+      price: 30,
+      quantity,
+      restaurantId: "r1",
+      restaurantName: "Pizzaria",
+    });
+
+    it("não adiciona se passar de 30 unidades do mesmo prato", async () => {
+      login();
+      act(() => {
+        useCartStore.getState().setOrderId("order-1");
+        useCartStore.getState().setRestaurant({ id: "r1", name: "Pizzaria" } as never);
+        useCartStore.getState().setItems([line(29)]);
+      });
+      const { result } = renderCartActions();
+
+      let added: boolean | undefined;
+      await act(async () => {
+        added = await result.current.handleAddToCart({
+          id: "prod-1",
+          name: "Pizza",
+          price: 30,
+          quantity: 2,
+          restaurantId: "r1",
+          restaurantName: "Pizzaria",
+        });
+      });
+
+      expect(added).toBe(false);
+      expect(toast.error).toHaveBeenCalledWith(PRODUCT_LIMIT_MESSAGE);
+      expect(apiService.orderItems.addProductToCart).not.toHaveBeenCalled();
+    });
+
+    it("não aumenta a linha do carrinho acima do teto", async () => {
+      login();
+      act(() => {
+        useCartStore.getState().setOrderId("order-1");
+        useCartStore.getState().setItems([line(30)]);
+      });
+      const { result } = renderCartActions();
+
+      await act(async () => {
+        await result.current.handleUpdateQuantity("linha-1", 31);
+      });
+
+      expect(toast.error).toHaveBeenCalledWith(PRODUCT_LIMIT_MESSAGE);
+      expect(useCartStore.getState().items[0].quantity).toBe(30);
+    });
+
+    it("não vai para o checkout com o carrinho acima do teto", async () => {
+      act(() => {
+        useCartStore.getState().setItems([line(31)]);
+      });
+      const { result } = renderCartActions();
+
+      await act(() => result.current.handleGoToCheckout());
+
+      expect(toast.error).toHaveBeenCalledWith(PRODUCT_LIMIT_MESSAGE);
+      expect(pushMock).not.toHaveBeenCalled();
     });
   });
 

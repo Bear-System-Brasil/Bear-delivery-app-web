@@ -130,7 +130,11 @@ export function useFinancialDashboard() {
     () => ({
       revenueByDay: report?.revenueByDay ?? [],
       topProducts: report?.topProducts ?? [],
-      stockCost: report?.stockCosts?.totalStockCost ?? null,
+      // O back calcula custo x quantidade em estoque, e o prato/tamanho sem
+      // controle de estoque grava um número irreal (lib/unlimited-stock),
+      // o que dava bilhões aqui. Até o back ter estoque de verdade, o capital
+      // em estoque fica em 0 e o custo só considera pedidos já feitos.
+      stockCost: report ? 0 : null,
     }),
     [report],
   );

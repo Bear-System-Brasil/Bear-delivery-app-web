@@ -40,30 +40,24 @@ const h = vi.hoisted(() => {
     handleCancelEdit: vi.fn(),
     setIsEditing: vi.fn(),
     updateFormField: vi.fn(),
-    addresses: [
-      {
-        id: "a1",
-        street: "Rua Machado de Assis",
-        number: "300",
-        neighborhood: "Centro",
-        city: "Castelo",
-        state: "ES",
-        zipCode: "29360000",
-        isDefault: true,
-      },
-    ],
-    newAddress: {},
-    isAddingAddress: false,
-    editingAddressId: null,
-    setIsAddingAddress: vi.fn(),
+    addresses: [] as unknown[],
+    storeAddress: {
+      id: "a1",
+      street: "Rua Machado de Assis",
+      number: "300",
+      neighborhood: "Centro",
+      city: "Castelo",
+      state: "ES",
+      zipCode: "29360000",
+      isDefault: true,
+    } as Record<string, unknown> | null,
+    isAddressModalOpen: false,
+    isSavingAddress: false,
+    editingAddressId: "a1" as string | null,
+    openAddressModal: vi.fn(),
+    closeAddressModal: vi.fn(),
     handleSaveAddress: vi.fn(),
-    handleEditAddress: vi.fn(),
-    handleCancelAddressEdit: vi.fn(),
-    handleDeleteAddress: vi.fn(),
-    handleSearchZipCode: vi.fn(),
-    isSearchingZipCode: false,
-    zipCodeHint: "",
-    updateAddressField: vi.fn(),
+    addressEditor: {} as Record<string, unknown>,
     formatZipCode: (v: string) => v,
     passwordData: { currentPassword: "", newPassword: "", confirmPassword: "" },
     passwordErrors: [] as string[],
@@ -142,6 +136,16 @@ vi.mock("@/components/company-cover-upload", () => ({
 vi.mock("@/components/company-logo-upload", () => ({
   CompanyLogoUpload: () => <div>logo</div>,
 }));
+// O modal tem testes próprios; aqui só importa com que props a tela o abre.
+const deliveryForm = vi.hoisted(() => vi.fn((_props: Record<string, unknown>) => null));
+vi.mock("@/components/profile/delivery-form", () => ({
+  DeliveryForm: (props: Record<string, unknown>) => {
+    deliveryForm(props);
+    return <div role="dialog">modal de endereço</div>;
+  },
+}));
+
+const storeAddressFixture = h.profile.storeAddress;
 
 const sectionOf = (title: string) =>
   screen.getByRole("heading", { name: title }).closest("section") as HTMLElement;
@@ -153,6 +157,9 @@ beforeEach(() => {
   h.profile.companySpecialties = [{ id: "s1", name: "Pizzaria" }];
   h.profile.specialtyDraft = ["s1", "", ""];
   h.profile.hasSpecialtyChanges = false;
+  h.profile.storeAddress = storeAddressFixture;
+  h.profile.isAddressModalOpen = false;
+  h.profile.editingAddressId = "a1";
 });
 
 /** Abre o select do slot (combobox) para que as opções apareçam. */
@@ -170,7 +177,7 @@ describe("Perfil da Empresa - layout novo", () => {
       ["Informações da Empresa", "Dados fiscais e de contato"],
       ["Horário de Funcionamento", "Dias e horários em que a loja aceita pedidos"],
       ["Formas de Pagamento", "O checkout só oferece ao cliente as formas marcadas"],
-      ["Endereço da Empresa", "O endereço padrão define o raio de entrega"],
+      ["Endereço da Empresa", "O endereço da loja define o raio de entrega"],
       ["Segurança", "Alterar sua senha de acesso"],
     ]) {
       const section = sectionOf(title);
@@ -211,26 +218,34 @@ describe("Perfil da Empresa - layout novo", () => {
     expect(h.profile.setSpecialtySlot).toHaveBeenCalledWith(0, "");
   });
 
-  it("só salva quando clica em Salvar; Descartar some sem mudanças", () => {
+  it("sem mudanças, a barra global não aparece e a seção não tem Salvar próprio (LDMF-464)", () => {
     render(<CompanyProfilePage />);
-    const section = sectionOf("Tipo de restaurante");
 
-    // Sem mudanças: Salvar desabilitado e sem Descartar.
-    expect(within(section).getByRole("button", { name: "Salvar" })).toBeDisabled();
+    // A barra global de salvar só aparece quando há mudança pendente.
+    expect(
+      screen.queryByRole("button", { name: "Salvar alterações" }),
+    ).not.toBeInTheDocument();
+    // As 3 seções de campo não têm mais Salvar/Descartar próprios.
+    const section = sectionOf("Tipo de restaurante");
+    expect(
+      within(section).queryByRole("button", { name: "Salvar" }),
+    ).not.toBeInTheDocument();
     expect(
       within(section).queryByRole("button", { name: "Descartar" }),
     ).not.toBeInTheDocument();
   });
 
-  it("com mudanças, Salvar grava e Descartar desfaz", () => {
+  it("com mudança numa seção, a barra global salva e descarta essa seção (LDMF-464)", () => {
     h.profile.hasSpecialtyChanges = true;
     render(<CompanyProfilePage />);
-    const section = sectionOf("Tipo de restaurante");
 
-    fireEvent.click(within(section).getByRole("button", { name: "Salvar" }));
+    // 1 seção suja: a barra aparece com a contagem.
+    expect(screen.getByText("1 alteração não salva")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Salvar alterações" }));
     expect(h.profile.handleSaveSpecialties).toHaveBeenCalledTimes(1);
 
-    fireEvent.click(within(section).getByRole("button", { name: "Descartar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Descartar" }));
     expect(h.profile.discardSpecialtyChanges).toHaveBeenCalledTimes(1);
   });
 
@@ -299,22 +314,20 @@ describe("Perfil da Empresa - layout novo", () => {
     expect(h.profile.handleSaveProfile).toHaveBeenCalledTimes(1);
   });
 
-  it("Salvar do horário e das formas de pagamento seguem separados", () => {
+  it("a barra global dispara cada seção suja de forma independente (LDMF-464)", () => {
+    h.hours.hasChanges = true;
     h.payments.hasChanges = true;
     render(<CompanyProfilePage />);
 
-    fireEvent.click(
-      within(sectionOf("Horário de Funcionamento")).getByRole("button", {
-        name: "Salvar",
-      }),
-    );
-    fireEvent.click(
-      within(sectionOf("Formas de Pagamento")).getByRole("button", {
-        name: "Salvar",
-      }),
-    );
+    // Duas seções sujas: a barra conta as duas.
+    expect(screen.getByText("2 alterações não salvas")).toBeInTheDocument();
+
+    // Um clique dispara os handlers das duas seções (rotas independentes).
+    fireEvent.click(screen.getByRole("button", { name: "Salvar alterações" }));
     expect(h.hours.handleSaveHours).toHaveBeenCalledTimes(1);
     expect(h.payments.handleSave).toHaveBeenCalledTimes(1);
+
+    h.hours.hasChanges = false;
     h.payments.hasChanges = false;
   });
 
@@ -374,16 +387,61 @@ describe("Perfil da Empresa - layout novo", () => {
     expect(h.profile.setIsChangingPassword).toHaveBeenCalledWith(true);
   });
 
-  it("endereço padrão aparece marcado e editar usa o handler de sempre", () => {
-    render(<CompanyProfilePage />);
-    const section = sectionOf("Endereço da Empresa");
+  describe("endereço da loja (LDMF-263)", () => {
+    it("mostra só o endereço da loja, sem Adicionar outro nem Excluir", () => {
+      render(<CompanyProfilePage />);
+      const section = sectionOf("Endereço da Empresa");
 
-    expect(within(section).getByText("Padrão")).toBeInTheDocument();
-    fireEvent.click(
-      within(section).getByRole("button", { name: "Editar endereço" }),
-    );
-    expect(h.profile.handleEditAddress).toHaveBeenCalledWith(
-      h.profile.addresses[0],
-    );
+      expect(within(section).getByText("Rua Machado de Assis, 300")).toBeInTheDocument();
+      expect(within(section).queryByRole("button", { name: /Adicionar/ })).toBeNull();
+      expect(within(section).queryByRole("button", { name: "Excluir endereço" })).toBeNull();
+    });
+
+    it("Editar abre o modal", () => {
+      render(<CompanyProfilePage />);
+
+      fireEvent.click(
+        within(sectionOf("Endereço da Empresa")).getByRole("button", {
+          name: "Editar endereço",
+        }),
+      );
+
+      expect(h.profile.openAddressModal).toHaveBeenCalledTimes(1);
+    });
+
+    it("sem endereço, Adicionar Endereço abre o modal", () => {
+      h.profile.storeAddress = null;
+      render(<CompanyProfilePage />);
+      const section = sectionOf("Endereço da Empresa");
+
+      expect(within(section).getByText("Nenhum endereço cadastrado")).toBeInTheDocument();
+      fireEvent.click(within(section).getByRole("button", { name: /Adicionar Endereço/ }));
+
+      expect(h.profile.openAddressModal).toHaveBeenCalledTimes(1);
+    });
+
+    it("modal fechado não é renderizado", () => {
+      render(<CompanyProfilePage />);
+
+      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(deliveryForm).not.toHaveBeenCalled();
+    });
+
+    it("modal aberto: mesmo modal do cliente, com Referência, sem caixa de padrão e texto de loja", () => {
+      h.profile.isAddressModalOpen = true;
+      render(<CompanyProfilePage />);
+
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+      expect(deliveryForm).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          handleAddAddress: h.profile.handleSaveAddress,
+          handleCloseAddressModal: h.profile.closeAddressModal,
+          isEditing: true,
+          showReference: true,
+          showDefaultOption: false,
+          placeLabel: "sua loja",
+        }),
+      );
+    });
   });
 });

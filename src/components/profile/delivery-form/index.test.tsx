@@ -28,7 +28,17 @@ const IBGE: Record<string, unknown> = {
 const onPreviousFieldChange = vi.fn();
 const handleAddAddress = vi.fn();
 
-function Harness(extra: { isSearchingAddress?: boolean; addressNotFound?: boolean }) {
+type Extra = {
+  isSearchingAddress?: boolean;
+  addressNotFound?: boolean;
+  showReference?: boolean;
+  showDefaultOption?: boolean;
+  placeLabel?: string;
+  zipCodeHint?: string | null;
+  isLoadingCep?: boolean;
+};
+
+function Harness(extra: Extra) {
   const form = useAddressForm();
   const fields = useAddressFields({ form, enabled: true, onPreviousFieldChange });
   const city = form.watch("city");
@@ -69,7 +79,7 @@ function Harness(extra: { isSearchingAddress?: boolean; addressNotFound?: boolea
   );
 }
 
-function renderForm(extra: { isSearchingAddress?: boolean; addressNotFound?: boolean } = {}) {
+function renderForm(extra: Extra = {}) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={queryClient}>
@@ -392,6 +402,71 @@ describe("DeliveryForm: ordem e trava dos campos", () => {
       await pickCity("Castelo");
 
       expect((screen.getByLabelText("Sem número") as HTMLInputElement).disabled).toBe(true);
+    });
+  });
+
+  describe("opções do endereço da loja (LDMF-263)", () => {
+    it("por padrão (cliente): caixa de padrão, sem Referência, texto fala em casa", () => {
+      renderForm({ addressNotFound: true });
+
+      expect(screen.getByLabelText("Definir como endereço padrão")).toBeTruthy();
+      expect(screen.queryByLabelText("Referência")).toBeNull();
+      expect(screen.getByText(/Confira se o pino está na sua casa/)).toBeTruthy();
+      expect(screen.getByRole("alert").textContent).toContain("até a sua casa");
+    });
+
+    it("loja: sem caixa de padrão, com Referência e texto falando em loja", () => {
+      renderForm({
+        showReference: true,
+        showDefaultOption: false,
+        placeLabel: "sua loja",
+        addressNotFound: true,
+      });
+
+      expect(screen.queryByLabelText("Definir como endereço padrão")).toBeNull();
+      expect(screen.getByText(/Confira se o pino está na sua loja/)).toBeTruthy();
+      expect(screen.getByRole("alert").textContent).toContain("até a sua loja");
+    });
+
+    it("Referência fica travada como o Complemento e sai no envio", async () => {
+      renderForm({ showReference: true });
+
+      expect(field(/Referência/).disabled).toBe(true);
+      await fillUntilNumber();
+      expect(field(/Referência/).disabled).toBe(false);
+
+      fireEvent.change(field(/Referência/), { target: { value: "Ao lado da praça" } });
+      fireEvent.change(field(/CEP/), { target: { value: "29360000" } });
+      fireEvent.submit(field(/Rua/).closest("form")!);
+
+      await waitFor(() => expect(handleAddAddress).toHaveBeenCalledTimes(1));
+      expect(handleAddAddress.mock.calls[0][0]).toMatchObject({
+        reference: "Ao lado da praça",
+      });
+    });
+  });
+
+  describe("aviso do CEP", () => {
+    it("sem aviso, mostra a dica de sempre", () => {
+      renderForm();
+
+      expect(screen.getByText("Digite o CEP e os campos serão preenchidos automaticamente")).toBeTruthy();
+      expect(screen.queryByRole("status")).toBeNull();
+    });
+
+    it("com aviso, mostra o aviso no lugar da dica", () => {
+      renderForm({ zipCodeHint: "Este CEP vale para a cidade inteira. Preencha bairro, rua e número abaixo." });
+
+      expect(screen.getByRole("status").textContent).toBe(
+        "Este CEP vale para a cidade inteira. Preencha bairro, rua e número abaixo.",
+      );
+      expect(screen.queryByText("Digite o CEP e os campos serão preenchidos automaticamente")).toBeNull();
+    });
+
+    it("enquanto busca, diz que está buscando", () => {
+      renderForm({ isLoadingCep: true });
+
+      expect(screen.getByText("Buscando CEP...")).toBeTruthy();
     });
   });
 });

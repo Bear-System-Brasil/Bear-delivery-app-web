@@ -18,6 +18,7 @@ import {
   isBaseSizeVariation,
   isSellableVariation,
 } from "@/lib/product-variation";
+import { isUnlimitedStock, UNLIMITED_STOCK } from "@/lib/unlimited-stock";
 import { cn } from "@/lib/utils";
 import {
   useCreateProductVariation,
@@ -171,6 +172,10 @@ export function ProductVariationsPanel({
       `O preço base virou o tamanho "${baseName}". Dá pra renomear na lista.`,
     );
   };
+
+  // Campo vazio é "ainda não preenchido", não "sem controle".
+  const isFormStockUnlimited =
+    form.stockQuantity !== undefined && isUnlimitedStock(form.stockQuantity);
 
   const resetForm = () => {
     setEditingId(null);
@@ -402,36 +407,62 @@ export function ProductVariationsPanel({
             <Label className="text-[11px] font-bold text-foreground">
               Estoque *
             </Label>
-            <StockQuantityInput
-              value={form.stockQuantity}
-              onValueChange={(value) =>
-                setForm((prev) => ({ ...prev, stockQuantity: value }))
-              }
-              placeholder="—"
-              minValue={0}
-              maxValue={9999}
-              disabled={isSalePriceMissing}
-              className={fieldClassName}
-            />
+            {isFormStockUnlimited ? (
+              <p className="flex h-9 items-center rounded-[8px] border border-dashed border-border bg-muted px-2.5 text-[11px] font-semibold text-muted-foreground">
+                Sem controle
+              </p>
+            ) : (
+              <StockQuantityInput
+                value={form.stockQuantity}
+                onValueChange={(value) =>
+                  setForm((prev) => ({ ...prev, stockQuantity: value }))
+                }
+                placeholder="—"
+                minValue={0}
+                maxValue={9999}
+                disabled={isSalePriceMissing}
+                className={fieldClassName}
+              />
+            )}
           </div>
         </div>
 
-        <div className="flex items-center justify-between gap-2">
-          <label className="flex items-center gap-2 text-[11.5px] font-semibold text-foreground">
-            <input
-              type="checkbox"
-              checked={form.isAvailable}
-              disabled={isSalePriceMissing}
-              onChange={(e) =>
-                setForm((prev) => ({
-                  ...prev,
-                  isAvailable: e.target.checked,
-                }))
-              }
-              className="h-3.5 w-3.5 cursor-pointer accent-brand-500"
-            />
-            Disponível
-          </label>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <label className="flex items-center gap-2 text-[11.5px] font-semibold text-foreground">
+              <input
+                type="checkbox"
+                checked={form.isAvailable}
+                disabled={isSalePriceMissing}
+                onChange={(e) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    isAvailable: e.target.checked,
+                  }))
+                }
+                className="h-3.5 w-3.5 cursor-pointer accent-brand-500"
+              />
+              Disponível
+            </label>
+
+            <label className="flex items-center gap-2 text-[11.5px] font-semibold text-foreground">
+              <input
+                type="checkbox"
+                checked={isFormStockUnlimited}
+                disabled={isSalePriceMissing}
+                onChange={(e) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    stockQuantity: e.target.checked
+                      ? UNLIMITED_STOCK
+                      : undefined,
+                  }))
+                }
+                className="h-3.5 w-3.5 cursor-pointer accent-brand-500"
+              />
+              Não controlo estoque
+            </label>
+          </div>
 
           <div className="flex gap-1.5">
             {editingId && (
@@ -547,7 +578,9 @@ export function ProductVariationsPanel({
                 <p className="text-[10.5px] font-semibold text-muted-foreground">
                   {variation.isAvailable ? "Disponível" : "Indisponível"}
                   {variation.stockQuantity !== undefined &&
-                    ` · ${variation.stockQuantity} em estoque`}
+                    (isUnlimitedStock(variation.stockQuantity)
+                      ? " · sem controle de estoque"
+                      : ` · ${variation.stockQuantity} em estoque`)}
                 </p>
               </div>
               <span className="shrink-0 text-[12.5px] font-extrabold text-foreground">
