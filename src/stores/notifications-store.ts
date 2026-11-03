@@ -22,6 +22,11 @@ export interface AppNotification {
   body: string
   /** Rota para onde o clique na notificação deve levar. */
   href?: string
+  /**
+   * Pedido novo que gerou a notificação. Abrir a notificação conta como ver
+   * o pedido e para o lembrete sonoro dele (LDMF-452).
+   */
+  orderId?: string
   createdAt: string
   read: boolean
 }

@@ -179,7 +179,7 @@ describe("Controle de Caixa - métodos de pagamento (LDMF-391)", () => {
     } as never);
     render(<CashRegisterPage />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Entrada" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Entrada" })[0]);
     const dialog = screen.getByRole("dialog", { name: "Registrar entrada" });
 
     // Entrada pré-seleciona Venda; o override da venda vence o global.
@@ -193,7 +193,7 @@ describe("Controle de Caixa - métodos de pagamento (LDMF-391)", () => {
     } as never);
     render(<CashRegisterPage />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Entrada" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Entrada" })[0]);
     const dialog = screen.getByRole("dialog", { name: "Registrar entrada" });
 
     expect(movementMethodSelect(dialog)).toHaveValue("");

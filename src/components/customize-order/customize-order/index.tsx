@@ -17,6 +17,11 @@ import {
 import { resolveRestaurantOpenStatus } from "@/constants/opening-hours";
 import { useAuth } from "@/contexts/auth-provider";
 import { isSellableVariation } from "@/lib/product-variation";
+import {
+  MAX_UNITS_PER_PRODUCT,
+  PRODUCT_LIMIT_MESSAGE,
+} from "@/lib/order-quantity-limit";
+import { isUnlimitedStock } from "@/lib/unlimited-stock";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/utils";
 import { Minus, Plus, X } from "lucide-react";
@@ -34,6 +39,11 @@ type Props = {
   setIsModalOpen: (val: boolean) => void;
   isRestaurantOpen?: boolean;
   closedReason?: string;
+  /**
+   * Modo prévia (admin): mostra tamanhos/complementos/preço como o cliente vê,
+   * mas sem "Adicionar"/carrinho — é só pra o lojista conferir (LDMF-465).
+   */
+  preview?: boolean;
 };
 
 export type ExtraOption = {
@@ -70,6 +80,7 @@ export function CustomizeOrder({
   setIsModalOpen,
   isRestaurantOpen: isRestaurantOpenProp,
   closedReason: closedReasonProp,
+  preview = false,
 }: Props) {
   const [isAddingToCart, setIsAddingToCart] = useState(false);
   const [quantity, setQuantity] = useState(1);
@@ -411,20 +422,27 @@ export function CustomizeOrder({
   const availableStock = useMemo(() => {
     if (variations.length > 0) {
       if (!selectedVariation) return 0;
-      return selectedVariation.stockQuantity ?? 0;
+      const variationStock = selectedVariation.stockQuantity ?? 0;
+      // Estoque não controlado: sem limite de quantidade.
+      return isUnlimitedStock(variationStock) ? undefined : variationStock;
     }
-    return productData.stockQuantity;
+    return isUnlimitedStock(productData.stockQuantity)
+      ? undefined
+      : productData.stockQuantity;
   }, [variations.length, selectedVariation, productData.stockQuantity]);
 
   const isProductOutOfStock =
     !variationsLoading &&
     variations.length === 0 &&
     (productData.isAvailable === false ||
-      (productData.stockQuantity !== undefined &&
-        productData.stockQuantity <= 0));
+      (!isUnlimitedStock(productData.stockQuantity) &&
+        (productData.stockQuantity ?? 0) <= 0));
 
+  // Teto temporário por prato (LDMF-333) vale mesmo sem controle de estoque.
   const maxAllowedQuantity =
-    availableStock !== undefined ? Math.max(0, availableStock) : undefined;
+    availableStock !== undefined
+      ? Math.min(Math.max(0, availableStock), MAX_UNITS_PER_PRODUCT)
+      : MAX_UNITS_PER_PRODUCT;
 
   // Ajusta a quantidade se o tamanho selecionado tiver estoque menor que a quantidade atual
   useEffect(() => {
@@ -452,19 +470,20 @@ export function CustomizeOrder({
         hideClose
         className="flex w-[calc(100%-2rem)] max-h-[86dvh] max-w-[440px] flex-col gap-0 overflow-hidden rounded-2xl border-0 p-0 shadow-2xl sm:w-full sm:rounded-2xl"
       >
-        {/* Header image */}
-        <div className="relative h-[118px] shrink-0 bg-muted">
+        {/* Header image. object-contain + altura maior pra não cortar/dar
+            zoom na foto do prato; o bg-muted preenche as sobras (LDMF-454). */}
+        <div className="relative h-[160px] shrink-0 bg-muted">
           {images.length > 1 ? (
             <Carousel setApi={setImageApi} className="h-full" opts={{ loop: true }}>
-              <CarouselContent className="ml-0 h-[118px]">
+              <CarouselContent className="ml-0 h-[160px]">
                 {images.map((image, index) => (
                   <CarouselItem key={index} className="h-full pl-0">
                     <Image
                       width={440}
-                      height={118}
+                      height={160}
                       src={image.url || "/placeholder.svg"}
                       alt={`${productData.name} - foto ${index + 1}`}
-                      className="h-full w-full object-cover"
+                      className="h-full w-full object-contain"
                     />
                   </CarouselItem>
                 ))}
@@ -473,10 +492,10 @@ export function CustomizeOrder({
           ) : (
             <Image
               width={440}
-              height={118}
+              height={160}
               src={images[0].url || "/placeholder.svg"}
               alt={productData.name}
-              className="absolute inset-0 h-full w-full object-cover"
+              className="absolute inset-0 h-full w-full object-contain"
             />
           )}
 
@@ -560,12 +579,18 @@ export function CustomizeOrder({
           </div>
         </div>
 
-        {!isStoreOpen && (
+        {!preview && !isStoreOpen && (
           <div
             role="alert"
             className="border-t border-orange-200 bg-orange-50 px-4 py-2.5 text-center text-xs font-semibold text-orange-800 dark:border-orange-800 dark:bg-orange-950/40 dark:text-orange-300"
           >
             {closedReasonText}
+          </div>
+        )}
+
+        {quantity >= MAX_UNITS_PER_PRODUCT && (
+          <div className="border-t border-border bg-muted px-4 py-2 text-center text-xs font-semibold text-muted-foreground">
+            {PRODUCT_LIMIT_MESSAGE}
           </div>
         )}
 
@@ -606,19 +631,26 @@ export function CustomizeOrder({
             </button>
           </div>
 
-          <Button
-            onClick={handleConfirmAddToCart}
-            disabled={
-              !isStoreOpen ||
-              isProductOutOfStock ||
-              isAddingToCart ||
-              isCustomizationLoading ||
-              !!pendingRequiredGroup ||
-              hasNoSellableVariation
-            }
-            className="h-10 flex-1 rounded-[10px] bg-brand-500 text-[13.5px] font-extrabold text-white shadow-[0_4px_12px_var(--tw-shadow-color)] shadow-brand-500/30 hover:bg-brand-600 disabled:opacity-60"
-          >
-            {isCustomizationLoading ? (
+          {preview ? (
+            <div className="flex h-10 flex-1 items-center justify-center gap-2 rounded-[10px] border border-dashed border-border bg-muted text-[13px] font-bold text-muted-foreground">
+              <span>Prévia</span>
+              <span className="opacity-60">•</span>
+              <span>{formatCurrency(totalPrice)}</span>
+            </div>
+          ) : (
+            <Button
+              onClick={handleConfirmAddToCart}
+              disabled={
+                !isStoreOpen ||
+                isProductOutOfStock ||
+                isAddingToCart ||
+                isCustomizationLoading ||
+                !!pendingRequiredGroup ||
+                hasNoSellableVariation
+              }
+              className="h-10 flex-1 rounded-[10px] bg-brand-500 text-[13.5px] font-extrabold text-white shadow-[0_4px_12px_var(--tw-shadow-color)] shadow-brand-500/30 hover:bg-brand-600 disabled:opacity-60"
+            >
+              {isCustomizationLoading ? (
               <span className="flex items-center justify-center gap-2">
                 <span className="h-4 w-4 animate-spin rounded-full border-b-2 border-white" />
                 Carregando...
@@ -643,7 +675,8 @@ export function CustomizeOrder({
                 <span>{formatCurrency(totalPrice)}</span>
               </span>
             )}
-          </Button>
+            </Button>
+          )}
         </div>
       </DialogContent>
     </Dialog>

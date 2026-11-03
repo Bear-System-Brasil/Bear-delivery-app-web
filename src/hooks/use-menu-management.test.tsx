@@ -3,6 +3,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
+import { UNLIMITED_STOCK } from "@/lib/unlimited-stock";
 import { apiService, type Product } from "@/services/api";
 import { useAuthStore } from "@/stores";
 import { useMenuManagement } from "./use-menu-management";
@@ -392,6 +393,15 @@ describe("useMenuManagement", () => {
       });
     });
 
+    it("prato sem estoque gravado (null) abre como sem controle, não como 0", async () => {
+      server = [product("p1", { stockQuantity: null as unknown as number })];
+      const { result } = await renderMenu();
+
+      act(() => result.current.handleOpenEditModal(result.current.allProducts[0]));
+
+      expect(result.current.formData.stockQuantity).toBe(UNLIMITED_STOCK);
+    });
+
     it("salva por PUT com todos os campos e não mexe na categoria igual", async () => {
       server = [existing()];
       api.updateProduct.mockResolvedValue({ success: true, data: existing() });
@@ -648,6 +658,36 @@ describe("useMenuManagement", () => {
         stockQuantity: 5,
       });
       await waitFor(() => expect(result.current.allProducts[0].isAvailable).toBe(false));
+    });
+
+    it("prato sem estoque gravado (null) não volta como 0 ao virar a disponibilidade", async () => {
+      server = [product("p1", { isAvailable: true, stockQuantity: null as unknown as number })];
+      api.updateProduct.mockResolvedValue({ success: true, data: product("p1", { isAvailable: false }) });
+      const { result } = await renderMenu();
+
+      await act(async () => {
+        await result.current.handleToggleAvailability(result.current.allProducts[0]);
+      });
+
+      expect(api.updateProduct).toHaveBeenCalledWith(
+        "p1",
+        expect.objectContaining({ stockQuantity: UNLIMITED_STOCK }),
+      );
+    });
+
+    it("prato com estoque 0 continua 0 ao virar a disponibilidade", async () => {
+      server = [product("p1", { isAvailable: false, stockQuantity: 0 })];
+      api.updateProduct.mockResolvedValue({ success: true, data: product("p1") });
+      const { result } = await renderMenu();
+
+      await act(async () => {
+        await result.current.handleToggleAvailability(result.current.allProducts[0]);
+      });
+
+      expect(api.updateProduct).toHaveBeenCalledWith(
+        "p1",
+        expect.objectContaining({ stockQuantity: 0 }),
+      );
     });
 
     it("se o backend recusar, volta ao estado anterior", async () => {
