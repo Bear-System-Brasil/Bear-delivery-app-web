@@ -52,15 +52,29 @@ export const useProducts = () => {
   });
 };
 
-export const useCompanyProducts = (companyId: string | null) => {
+/**
+ * Produtos de uma loja.
+ *
+ * `options.live` (LDMF-445): no cardápio do cliente a disponibilidade precisa
+ * refletir ao vivo o que o restaurante muda (ocultar prato, voltar prato),
+ * então usa `staleTime` curto e refaz a busca ao focar a aba / montar. No
+ * admin (default) segue sem refetch automático, pra não recarregar a lista a
+ * cada foco enquanto o dono edita. A chave da query é a mesma: cliente e admin
+ * compartilham o cache; cada um decide seu próprio refetch (opção por observer).
+ */
+export const useCompanyProducts = (
+  companyId: string | null,
+  options?: { live?: boolean },
+) => {
+  const live = options?.live ?? false;
   return useQuery({
     queryKey: ["products", "company", companyId],
     queryFn: () => getCompanyProducts(companyId!),
     enabled: !!companyId,
-    staleTime: 10 * 60 * 1000,
+    staleTime: live ? 30 * 1000 : 10 * 60 * 1000,
     gcTime: 60 * 60 * 1000,
-    refetchOnMount: false,
-    refetchOnWindowFocus: false,
+    refetchOnMount: live,
+    refetchOnWindowFocus: live,
   });
 };
 
