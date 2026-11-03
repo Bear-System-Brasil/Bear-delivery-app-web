@@ -2,6 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { UNLIMITED_STOCK } from "@/lib/unlimited-stock";
 import type { Product, ProductAddOn, ProductVariation } from "@/services/api";
 
 const {
@@ -225,3 +226,53 @@ describe("MenuManagementPage - Prévia interativa do app (Fase 2, LDMF-454)", ()
   });
 });
 
+
+describe("MenuManagementPage - prato sem controle de estoque", () => {
+  beforeEach(() => {
+    menuHookState.products = [makeProduct("p1", "Pizza Margherita")];
+    menuHookState.allProducts = menuHookState.products;
+    menuHookState.isModalOpen = true;
+    menuHookState.editingProduct = null;
+    menuHookState.activeTab = "details";
+    menuHookState.formData.stockQuantity = 10;
+    menuHookState.updateFormField = vi.fn();
+    variationsState.data = [];
+    addOnsState.data = [];
+  });
+
+  it("marcar 'Não controlo estoque' grava o número irreal no form", async () => {
+    const user = userEvent.setup();
+    render(<MenuManagementPage />);
+
+    await user.click(screen.getByLabelText("Não controlo estoque deste prato"));
+
+    expect(menuHookState.updateFormField).toHaveBeenCalledWith(
+      "stockQuantity",
+      UNLIMITED_STOCK,
+    );
+  });
+
+  it("com o número irreal, esconde a quantidade e deixa marcado", () => {
+    menuHookState.formData.stockQuantity = UNLIMITED_STOCK;
+    render(<MenuManagementPage />);
+
+    expect(screen.getByText("Sem controle de estoque")).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Não controlo estoque deste prato"),
+    ).toBeChecked();
+    expect(screen.queryByLabelText("Qtd. Estoque")).not.toBeInTheDocument();
+  });
+
+  it("desmarcar volta o campo para vazio, não para 0", async () => {
+    menuHookState.formData.stockQuantity = UNLIMITED_STOCK;
+    const user = userEvent.setup();
+    render(<MenuManagementPage />);
+
+    await user.click(screen.getByLabelText("Não controlo estoque deste prato"));
+
+    expect(menuHookState.updateFormField).toHaveBeenCalledWith(
+      "stockQuantity",
+      undefined,
+    );
+  });
+});

@@ -1,3 +1,4 @@
+import { stockForResave } from "@/lib/unlimited-stock";
 import type { Product, ProductAddOn, ProductVariation } from "@/services/api";
 import { apiService } from "@/services/api";
 
@@ -275,7 +276,8 @@ export const useMenuManagement = () => {
           typeof img === "string" ? img : img.url,
         ) || [],
       available: product.isAvailable,
-      stockQuantity: product.stockQuantity || 0,
+      // Vazio no back = sem controle; 0 continua 0 (esgotado).
+      stockQuantity: stockForResave(product.stockQuantity),
     });
     setDraftVariations([]);
     setDraftAddOns([]);
@@ -795,7 +797,7 @@ export const useMenuManagement = () => {
           costPrice: product.costPrice,
           salePrice: product.salePrice,
           isAvailable: !product.isAvailable,
-          stockQuantity: product.stockQuantity || 0,
+          stockQuantity: stockForResave(product.stockQuantity),
         },
       });
       // Confirma que gravou - o toggle sozinho não deixava claro se salvou

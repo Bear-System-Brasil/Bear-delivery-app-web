@@ -421,6 +421,25 @@ describe("CustomizeOrder - checagem de estoque (LDMF-273)", () => {
     expect(addToCart).not.toHaveBeenCalled();
   });
 
+  it("não exibe 'Esgotado' quando o prato simples vem sem estoque gravado (null)", () => {
+    variationsResult = { data: [], isLoading: false };
+    render(
+      <CustomizeOrder
+        productData={{
+          ...product,
+          stockQuantity: null as unknown as number,
+        }}
+        isModalOpen
+        setIsModalOpen={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "Esgotado" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Aumentar quantidade")).toBeEnabled();
+  });
+
   it("limita a quantidade escolhida ao estoque disponível da variação", async () => {
     variationsResult = {
       data: [{ ...VARIATION, stockQuantity: 2 }],

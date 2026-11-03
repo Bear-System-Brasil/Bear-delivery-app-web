@@ -17,6 +17,7 @@ import {
 import { resolveRestaurantOpenStatus } from "@/constants/opening-hours";
 import { useAuth } from "@/contexts/auth-provider";
 import { isSellableVariation } from "@/lib/product-variation";
+import { isUnlimitedStock } from "@/lib/unlimited-stock";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/utils";
 import { Minus, Plus, X } from "lucide-react";
@@ -417,17 +418,21 @@ export function CustomizeOrder({
   const availableStock = useMemo(() => {
     if (variations.length > 0) {
       if (!selectedVariation) return 0;
-      return selectedVariation.stockQuantity ?? 0;
+      const variationStock = selectedVariation.stockQuantity ?? 0;
+      // Estoque não controlado: sem limite de quantidade.
+      return isUnlimitedStock(variationStock) ? undefined : variationStock;
     }
-    return productData.stockQuantity;
+    return isUnlimitedStock(productData.stockQuantity)
+      ? undefined
+      : productData.stockQuantity;
   }, [variations.length, selectedVariation, productData.stockQuantity]);
 
   const isProductOutOfStock =
     !variationsLoading &&
     variations.length === 0 &&
     (productData.isAvailable === false ||
-      (productData.stockQuantity !== undefined &&
-        productData.stockQuantity <= 0));
+      (!isUnlimitedStock(productData.stockQuantity) &&
+        (productData.stockQuantity ?? 0) <= 0));
 
   const maxAllowedQuantity =
     availableStock !== undefined ? Math.max(0, availableStock) : undefined;
