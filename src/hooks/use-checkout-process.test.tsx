@@ -19,6 +19,8 @@ const deleteUserAddress = vi.fn();
 const createUserAddress = vi.fn();
 const toastError = vi.fn();
 const updateCpf = vi.fn();
+/** Lista fresca de produtos da loja, pra conferir disponibilidade (LDMF-444). */
+const getCompanyProducts = vi.fn();
 /** Consulta do status feita na hora de finalizar (LDMF-374). */
 const fetchFreshOpeningHours = vi.fn();
 
@@ -241,6 +243,10 @@ vi.mock("@/services/api", () => ({
   PaymentStatus: { PENDING: "PENDING" },
 }));
 
+vi.mock("@/services/products", () => ({
+  getCompanyProducts,
+}));
+
 const { useCheckoutProcess } = await import("./use-checkout-process");
 
 // Cliente único e estável: um novo a cada render reiniciaria as queries em
@@ -302,6 +308,10 @@ beforeEach(() => {
   fetchFreshOpeningHours.mockImplementation(async () => openingHoursQuery.data);
   viewOrder.mockReset();
   viewOrder.mockResolvedValue(CART_OF_COMP_1);
+  // Por padrao o item do carrinho (p1) segue disponivel, pra nao bloquear os
+  // demais testes de finalizacao (LDMF-444).
+  getCompanyProducts.mockReset();
+  getCompanyProducts.mockResolvedValue([{ id: "p1", isAvailable: true }]);
   AUTH.user = {
     id: "user-1",
     name: "Cliente",
@@ -314,6 +324,52 @@ beforeEach(() => {
     data: { cpf: "12345678900" },
   });
   authStoreUpdateUser.mockClear();
+});
+
+describe("useCheckoutProcess - item indisponível bloqueia finalização (LDMF-444)", () => {
+  beforeEach(() => {
+    finishOrder.mockReset();
+    finishOrder.mockResolvedValue({ success: true, data: { id: "order-1" } });
+    openCart.mockReset();
+    paymentsCreate.mockReset();
+    paymentsCreate.mockResolvedValue({ success: true, data: {} });
+    resetAddressMocks();
+    addressesQuery = ADDRESSES_WITH_DEFAULT;
+    seedAddressBook(ADDRESSES_WITH_DEFAULT);
+  });
+
+  it("não finaliza e avisa quando um item do carrinho ficou indisponível", async () => {
+    getCompanyProducts.mockResolvedValue([{ id: "p1", isAvailable: false }]);
+
+    await submitWith(() => {});
+
+    expect(finishOrder).not.toHaveBeenCalled();
+    expect(toastError).toHaveBeenCalledWith(expect.stringContaining("xTudo"));
+  });
+
+  it("não finaliza quando o produto sumiu da lista (removido)", async () => {
+    getCompanyProducts.mockResolvedValue([{ id: "outro", isAvailable: true }]);
+
+    await submitWith(() => {});
+
+    expect(finishOrder).not.toHaveBeenCalled();
+  });
+
+  it("finaliza normalmente quando os itens seguem disponíveis", async () => {
+    getCompanyProducts.mockResolvedValue([{ id: "p1", isAvailable: true }]);
+
+    await submitWith(() => {});
+
+    expect(finishOrder).toHaveBeenCalledTimes(1);
+  });
+
+  it("não bloqueia quando a busca de produtos falha (fail-open)", async () => {
+    getCompanyProducts.mockRejectedValue(new Error("rede"));
+
+    await submitWith(() => {});
+
+    expect(finishOrder).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("useCheckoutProcess - corpo do finishOrder", () => {
