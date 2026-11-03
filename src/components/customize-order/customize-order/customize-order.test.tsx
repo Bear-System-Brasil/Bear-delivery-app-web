@@ -2,6 +2,11 @@ import type { Product } from "@/services/api";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  MAX_UNITS_PER_PRODUCT,
+  PRODUCT_LIMIT_MESSAGE,
+} from "@/lib/order-quantity-limit";
+import { UNLIMITED_STOCK } from "@/lib/unlimited-stock";
 
 /**
  * O visitante monta o prato, clica em "Adicionar" e só então descobre que
@@ -421,6 +426,25 @@ describe("CustomizeOrder - checagem de estoque (LDMF-273)", () => {
     expect(addToCart).not.toHaveBeenCalled();
   });
 
+  it("não exibe 'Esgotado' quando o prato simples vem sem estoque gravado (null)", () => {
+    variationsResult = { data: [], isLoading: false };
+    render(
+      <CustomizeOrder
+        productData={{
+          ...product,
+          stockQuantity: null as unknown as number,
+        }}
+        isModalOpen
+        setIsModalOpen={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "Esgotado" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Aumentar quantidade")).toBeEnabled();
+  });
+
   it("limita a quantidade escolhida ao estoque disponível da variação", async () => {
     variationsResult = {
       data: [{ ...VARIATION, stockQuantity: 2 }],
@@ -440,6 +464,27 @@ describe("CustomizeOrder - checagem de estoque (LDMF-273)", () => {
     // Tentar clicar com botão desabilitado não ultrapassa o limite
     await user.click(increaseBtn);
     expect(screen.getByText("2")).toBeInTheDocument();
+  });
+
+  it("prato sem controle de estoque para em 30 unidades e avisa (LDMF-333)", async () => {
+    variationsResult = { data: [], isLoading: false };
+    const user = userEvent.setup();
+    render(
+      <CustomizeOrder
+        productData={{ ...product, stockQuantity: UNLIMITED_STOCK }}
+        isModalOpen
+        setIsModalOpen={vi.fn()}
+      />,
+    );
+
+    const increaseBtn = screen.getByLabelText("Aumentar quantidade");
+    for (let i = 1; i < MAX_UNITS_PER_PRODUCT + 3; i++) {
+      await user.click(increaseBtn);
+    }
+
+    expect(screen.getByText(String(MAX_UNITS_PER_PRODUCT))).toBeInTheDocument();
+    expect(increaseBtn).toBeDisabled();
+    expect(screen.getByText(PRODUCT_LIMIT_MESSAGE)).toBeInTheDocument();
   });
 
   it("limita a quantidade escolhida ao estoque disponível de prato simples", async () => {
@@ -484,6 +529,31 @@ describe("CustomizeOrder - checagem de estoque (LDMF-273)", () => {
       expect(screen.getByText("2")).toBeInTheDocument();
     });
     expect(increaseBtn).toBeDisabled();
+  });
+});
+
+describe("CustomizeOrder - modo prévia (LDMF-465)", () => {
+  beforeEach(() => {
+    addToCart.mockReset();
+    variationsResult = DEFAULT_VARIATIONS_RESULT;
+  });
+
+  it("mostra a nota read-only e não oferece 'Adicionar'", () => {
+    render(
+      <CustomizeOrder
+        preview
+        productData={product}
+        isModalOpen
+        setIsModalOpen={vi.fn()}
+      />,
+    );
+
+    // Sem botão de adicionar ao carrinho na prévia.
+    expect(
+      screen.queryByRole("button", { name: /Adicionar/ }),
+    ).not.toBeInTheDocument();
+    // A nota de prévia aparece no lugar.
+    expect(screen.getByText("Prévia")).toBeInTheDocument();
   });
 });
 

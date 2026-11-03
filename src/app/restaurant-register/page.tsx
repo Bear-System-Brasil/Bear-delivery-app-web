@@ -25,6 +25,7 @@ import {
   CheckCircle,
   Lock,
   Mail,
+  MapPin,
   Phone,
   Store,
 } from "lucide-react";
@@ -220,6 +221,34 @@ export default function RestaurantRegisterPage() {
                     className="h-12 rounded-xl border-2 border-border focus:border-brand-400 transition-colors"
                     required
                   />
+                </div>
+
+                <div className="space-y-2">
+                  <Label
+                    htmlFor="actionRadius"
+                    className="flex items-center gap-2 text-sm font-medium text-foreground cursor-pointer"
+                  >
+                    <MapPin className="h-4 w-4 text-brand-500" />
+                    Raio de entrega (km)
+                  </Label>
+                  <Input
+                    id="actionRadius"
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="Ex: 10"
+                    value={registerData.actionRadius}
+                    onChange={(e) =>
+                      handleInputChange(
+                        "actionRadius",
+                        e.target.value.replace(/\D/g, "").slice(0, 3),
+                      )
+                    }
+                    className="h-12 rounded-xl border-2 border-border focus:border-brand-400 transition-colors"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Distância máxima de entrega, em km (1 a 3 dígitos). Vazio usa
+                    o padrão; 0 = loja sem entrega.
+                  </p>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

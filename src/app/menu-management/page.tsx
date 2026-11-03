@@ -28,6 +28,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { StockQuantityInput } from "@/components/ui/stock-quantity-input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { isUnlimitedStock, UNLIMITED_STOCK } from "@/lib/unlimited-stock";
 import {
   useMenuManagement,
   useProductAddOns,
@@ -135,6 +136,11 @@ function MenuManagementContent() {
   const addOnsCount = editingProduct
     ? existingAddOns.length
     : draftAddOns.length;
+
+  // Campo vazio no formulário é "ainda não preenchido", não "sem controle".
+  const isDishStockUnlimited =
+    formData.stockQuantity !== undefined &&
+    isUnlimitedStock(formData.stockQuantity);
 
   const variationsTabLabel = editingProduct
     ? `Tamanhos (${variationsCount})`
@@ -464,39 +470,11 @@ function MenuManagementContent() {
       title="Cardápio"
       icon={UtensilsCrossed}
       mainClassName="px-4 pb-20 pt-5 sm:px-6 md:pb-10 lg:pl-[252px] lg:pr-8 lg:pt-[26px]"
-      actions={
-        <>
-          <Button
-            asChild
-            variant="outline"
-            className="h-[34px] flex-1 cursor-pointer rounded-[9px] border-border bg-card px-3 text-[12.5px] font-bold text-foreground shadow-none transition-colors hover:border-brand-200 dark:hover:border-brand-800 hover:bg-card hover:text-brand-500 sm:flex-none"
-          >
-            <Link href="/company-profile">
-              <Building2 className="h-4 w-4" />
-              Perfil
-            </Link>
-          </Button>
-
-          <Button
-            onClick={() => {
-              resetImageState();
-              handleOpenCreateModal();
-            }}
-            className="h-[34px] flex-1 cursor-pointer rounded-[9px] bg-brand-500 px-4 text-[12.5px] font-extrabold text-white shadow-[0_4px_12px_var(--tw-shadow-color)] shadow-brand-500/25 transition-colors hover:bg-brand-600 sm:flex-none"
-          >
-            <Plus className="h-4 w-4" />
-            Adicionar Prato
-          </Button>
-        </>
-      }
+      subtitle="Pratos e itens que o cliente vê no app"
     >
       <div className="mx-auto max-w-[1180px]">
-        <p className="mb-3 text-[12.5px] font-medium text-muted-foreground">
-          Pratos e itens que o cliente vê no app
-        </p>
-
         <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div className="relative w-full max-w-[420px]">
+          <div className="relative w-full sm:max-w-[420px]">
             <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Buscar pratos..."
@@ -506,6 +484,7 @@ function MenuManagementContent() {
             />
           </div>
 
+          {/* Contadores (LDMF-437) e os botões que desceram do header (LDMF-393). */}
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="rounded-xl border border-border bg-card px-2.5 py-1 text-[11.5px] font-bold text-foreground">
               {dishCount} {dishCount === 1 ? "prato" : "pratos"}
@@ -514,6 +493,27 @@ function MenuManagementContent() {
               {availableCount}{" "}
               {availableCount === 1 ? "disponível" : "disponíveis"}
             </span>
+            <Button
+              asChild
+              variant="outline"
+              className="h-[34px] flex-1 cursor-pointer rounded-[9px] border-border bg-card px-3 text-[12.5px] font-bold text-foreground shadow-none transition-colors hover:border-brand-200 dark:hover:border-brand-800 hover:bg-card hover:text-brand-500 sm:flex-none"
+            >
+              <Link href="/company-profile">
+                <Building2 className="h-4 w-4" />
+                Perfil
+              </Link>
+            </Button>
+
+            <Button
+              onClick={() => {
+                resetImageState();
+                handleOpenCreateModal();
+              }}
+              className="h-[34px] flex-1 cursor-pointer rounded-[9px] bg-brand-500 px-4 text-[12.5px] font-extrabold text-white shadow-[0_4px_12px_var(--tw-shadow-color)] shadow-brand-500/25 transition-colors hover:bg-brand-600 sm:flex-none"
+            >
+              <Plus className="h-4 w-4" />
+              Adicionar Prato
+            </Button>
           </div>
         </div>
 
@@ -923,17 +923,38 @@ function MenuManagementContent() {
                   Qtd. Estoque
                 </Label>
 
-                <StockQuantityInput
-                  id="stockQuantity"
-                  value={formData.stockQuantity}
-                  onValueChange={(value) =>
-                    updateFormField("stockQuantity", value)
-                  }
-                  placeholder="1"
-                  minValue={1}
-                  maxValue={9999}
-                  className={fieldClassName}
-                />
+                {isDishStockUnlimited ? (
+                  <p className="flex h-10 items-center rounded-[10px] border border-dashed border-border bg-muted px-3 text-xs font-semibold text-muted-foreground">
+                    Sem controle de estoque
+                  </p>
+                ) : (
+                  <StockQuantityInput
+                    id="stockQuantity"
+                    value={formData.stockQuantity}
+                    onValueChange={(value) =>
+                      updateFormField("stockQuantity", value)
+                    }
+                    placeholder="1"
+                    minValue={1}
+                    maxValue={9999}
+                    className={fieldClassName}
+                  />
+                )}
+
+                <label className="flex cursor-pointer items-center gap-2 text-xs font-semibold text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={isDishStockUnlimited}
+                    onChange={(e) =>
+                      updateFormField(
+                        "stockQuantity",
+                        e.target.checked ? UNLIMITED_STOCK : undefined,
+                      )
+                    }
+                    className="h-3.5 w-3.5 cursor-pointer accent-brand-500"
+                  />
+                  Não controlo estoque deste prato
+                </label>
               </div>
 
               <div className="flex items-center gap-2 rounded-[10px] border border-border bg-muted px-3 py-2">

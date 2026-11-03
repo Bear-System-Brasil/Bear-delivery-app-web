@@ -63,10 +63,19 @@ type Props = AddressFieldProps & PinStatusProps & {
   addressCoords: SourcedCoords | null;
   isSavingAddress: boolean;
   isLoadingCep: boolean;
+  /** Aviso abaixo do CEP (CEP da cidade inteira, sem bairro, não achado). */
+  zipCodeHint?: string | null;
   isEditing?: boolean;
   /** Bairros oficiais da cidade; `null` = cidade sem lista (campo livre). */
   neighborhoodOptions?: NeighborhoodOption[] | null;
   isLocatingPin?: boolean;
+  /** Mostra o campo "Referência" (endereço da loja). */
+  showReference?: boolean;
+  /** Mostra a caixa "Definir como endereço padrão". A loja não mostra: o
+   *  endereço dela é sempre o padrão (LDMF-263). */
+  showDefaultOption?: boolean;
+  /** Onde o pino deve ficar, nos textos do mapa ("sua casa", "sua loja"). */
+  placeLabel?: string;
 };
 
 const selectClass =
@@ -85,9 +94,13 @@ export function DeliveryForm({
   addressCoords,
   isSavingAddress,
   isLoadingCep,
+  zipCodeHint = null,
   isEditing = false,
   neighborhoodOptions = null,
   isLocatingPin = false,
+  showReference = false,
+  showDefaultOption = true,
+  placeLabel = "sua casa",
   stateOptions,
   cityOptions,
   isLoadingCities = false,
@@ -169,9 +182,22 @@ export function DeliveryForm({
                   {addressForm.formState.errors.zipCode.message}
                 </p>
               )}
-              <p className="text-xs text-muted-foreground">
-                Digite o CEP e os campos serão preenchidos automaticamente
-              </p>
+              {/* CEP de cidade inteira, sem bairro ou que falhou: diz o
+                  que falta preencher. */}
+              {zipCodeHint && !isLoadingCep ? (
+                <p
+                  role="status"
+                  className="text-xs font-semibold text-amber-700 dark:text-amber-400"
+                >
+                  {zipCodeHint}
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  {isLoadingCep
+                    ? "Buscando CEP..."
+                    : "Digite o CEP e os campos serão preenchidos automaticamente"}
+                </p>
+              )}
             </div>
 
             {/* Estado */}
@@ -360,6 +386,21 @@ export function DeliveryForm({
               />
             </div>
 
+            {/* Referência (só endereço da loja) */}
+            {showReference && (
+              <div className="md:col-span-2 space-y-2">
+                <label htmlFor="address-reference" className="text-sm font-medium">
+                  Referência
+                </label>
+                <Input
+                  id="address-reference"
+                  {...addressForm.register("reference")}
+                  placeholder="Ponto de referência (opcional)"
+                  disabled={fieldLocks.rest}
+                />
+              </div>
+            )}
+
             {/* Localização no mapa */}
             <div className="md:col-span-2 space-y-2">
               <div className="flex items-center justify-between gap-2">
@@ -373,7 +414,7 @@ export function DeliveryForm({
                 )}
               </div>
               <p className="text-xs text-muted-foreground">
-                Confira se o pino está na sua casa. Se não estiver, arraste.
+                Confira se o pino está na {placeLabel}. Se não estiver, arraste.
               </p>
               <AddressMap
                 mapHeight={220}
@@ -384,8 +425,8 @@ export function DeliveryForm({
               />
               {addressNotFound && (
                 <p role="alert" className="text-xs font-medium text-amber-700 dark:text-amber-400">
-                  Não encontramos esse endereço no mapa. Arraste o pino até a
-                  sua casa.
+                  Não encontramos esse endereço no mapa. Arraste o pino até a{" "}
+                  {placeLabel}.
                 </p>
               )}
               {!addressCoords && (
@@ -397,20 +438,22 @@ export function DeliveryForm({
             </div>
 
             {/* Checkbox Padrão */}
-            <div className="md:col-span-2 flex items-center space-x-2 pt-2">
-              <input
-                type="checkbox"
-                id="isDefault"
-                {...addressForm.register("isDefault")}
-                className="h-4 w-4 rounded border-border text-brand-500 focus:ring-brand-500"
-              />
-              <label
-                htmlFor="isDefault"
-                className="text-sm font-medium cursor-pointer"
-              >
-                Definir como endereço padrão
-              </label>
-            </div>
+            {showDefaultOption && (
+              <div className="md:col-span-2 flex items-center space-x-2 pt-2">
+                <input
+                  type="checkbox"
+                  id="isDefault"
+                  {...addressForm.register("isDefault")}
+                  className="h-4 w-4 rounded border-border text-brand-500 focus:ring-brand-500"
+                />
+                <label
+                  htmlFor="isDefault"
+                  className="text-sm font-medium cursor-pointer"
+                >
+                  Definir como endereço padrão
+                </label>
+              </div>
+            )}
           </div>
 
           <DialogFooter className="gap-2 sm:gap-0">

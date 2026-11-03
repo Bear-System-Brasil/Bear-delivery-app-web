@@ -10,16 +10,21 @@ const toastSuccess = vi.hoisted(() => vi.fn());
 vi.mock("sonner", () => ({ toast: { success: toastSuccess } }));
 
 vi.mock("@/components/admin-page-layout", () => ({
+  // O botão único do header vira um botão simples: a casca tem teste próprio.
   AdminPageLayout: ({
     children,
-    actions,
+    action,
   }: {
     children: ReactNode;
-    actions?: ReactNode;
+    action?: { label: string; onClick: () => void };
   }) => (
     <div>
-      {actions}
-      {children}
+      {action && (
+        <button type="button" onClick={action.onClick}>
+          {action.label}
+        </button>
+      )}
+      <div>{children}</div>
     </div>
   ),
 }));
@@ -70,6 +75,41 @@ describe("Configurações do financeiro", () => {
     );
     expect(toastSuccess).toHaveBeenCalledTimes(1);
     expect(toastSuccess).toHaveBeenCalledWith("Salvo", expect.any(Object));
+  });
+
+  it("customização por operação: fixa método e voltar pro padrão limpa o override (LDMF-463)", () => {
+    render(<SettingsPage />);
+    fireEvent.click(
+      screen.getByRole("button", { name: /Customização por operação/ }),
+    );
+
+    // Fixa PIX no Suprimento.
+    fireEvent.keyDown(screen.getByRole("combobox", { name: "Suprimento" }), {
+      key: "Enter",
+    });
+    fireEvent.click(screen.getByRole("option", { name: "PIX" }));
+    expect(
+      useFinancialPreferencesStore.getState().paymentMethodByOperation,
+    ).toEqual({ deposit: PaymentMethod.PIX });
+
+    // Voltar pro padrão remove o override (não fica método preso).
+    fireEvent.keyDown(screen.getByRole("combobox", { name: "Suprimento" }), {
+      key: "Enter",
+    });
+    fireEvent.click(screen.getByRole("option", { name: "Seguir o padrão" }));
+    expect(
+      useFinancialPreferencesStore.getState().paymentMethodByOperation,
+    ).toEqual({});
+  });
+
+  it("mostra o contador de customizadas quando a seção está recolhida (LDMF-463)", () => {
+    useFinancialPreferencesStore.setState({
+      paymentMethodByOperation: { sale: "PIX", deposit: "none" },
+    } as never);
+    render(<SettingsPage />);
+
+    // Seção começa recolhida: o contador evita override escondido.
+    expect(screen.getByText(/2 customizadas/)).toBeInTheDocument();
   });
 
   it("Transferência salva antes desta tela aparece como sem seleção, sem reescrever o store", () => {

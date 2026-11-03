@@ -1,3 +1,4 @@
+import { isUnlimitedStock } from "@/lib/unlimited-stock";
 import type { Product, ProductVariation } from "@/services/api";
 import type { CartItem } from "@/stores/cart-store";
 
@@ -40,6 +41,10 @@ export function getCartItemStock(
     }
 
     const stock = variation.stockQuantity ?? 0;
+    if (isUnlimitedStock(stock)) {
+      // Tamanho sem controle de estoque: não limita o carrinho.
+      return { isOutOfStock: false, exceedsStock: false };
+    }
     const isOutOfStock = stock <= 0;
     const exceedsStock = !isOutOfStock && item.quantity > stock;
 
@@ -61,8 +66,8 @@ export function getCartItemStock(
     return { isOutOfStock: true, exceedsStock: false, availableStock: 0 };
   }
 
-  if (product.stockQuantity !== undefined) {
-    const stock = product.stockQuantity;
+  if (!isUnlimitedStock(product.stockQuantity)) {
+    const stock = product.stockQuantity as number;
     const isOutOfStock = stock <= 0;
     const exceedsStock = !isOutOfStock && item.quantity > stock;
 
@@ -73,7 +78,8 @@ export function getCartItemStock(
     };
   }
 
-  // Se stockQuantity for undefined no prato simples, estoque é ilimitado/não controlado
+  // Prato sem estoque gravado (vazio) ou com o número irreal de "sem
+  // controle": estoque ilimitado/não controlado
   return {
     isOutOfStock: false,
     exceedsStock: false,

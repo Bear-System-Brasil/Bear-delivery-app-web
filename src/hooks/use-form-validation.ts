@@ -52,6 +52,8 @@ export const addressSchema = z.object({
       NUMBER_MESSAGE,
     ),
   complement: z.string().optional(),
+  // Só o endereço da loja tem referência (o modal do cliente não mostra).
+  reference: z.string().optional(),
   neighborhood: z.string().min(1, "Bairro é obrigatório"),
   city: z.string().min(1, "Cidade é obrigatória"),
   state: z.string().min(2, "Estado é obrigatório"),

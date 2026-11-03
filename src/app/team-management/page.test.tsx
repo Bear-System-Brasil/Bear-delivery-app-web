@@ -47,15 +47,20 @@ vi.mock("@/components/protected-route", () => ({
 }));
 
 vi.mock("@/components/admin-page-layout", () => ({
+  // O botão único do header vira um botão simples: a casca tem teste próprio.
   AdminPageLayout: ({
     children,
-    actions,
+    action,
   }: {
     children: ReactNode;
-    actions: ReactNode;
+    action?: { label: string; onClick: () => void };
   }) => (
     <div>
-      <div>{actions}</div>
+      {action && (
+        <button type="button" onClick={action.onClick}>
+          {action.label}
+        </button>
+      )}
       <div>{children}</div>
     </div>
   ),

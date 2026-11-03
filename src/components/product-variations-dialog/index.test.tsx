@@ -1,3 +1,4 @@
+import { UNLIMITED_STOCK } from "@/lib/unlimited-stock";
 import type { ProductVariation } from "@/services/api";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -313,5 +314,64 @@ describe("ProductVariationsDialog - prato sem tamanho base", () => {
     await user.click(screen.getByRole("button", { name: "Editar" }));
 
     expect(screen.getByPlaceholderText("Ex: Grande")).toHaveValue("Broto");
+  });
+});
+
+describe("ProductVariationsDialog - tamanho sem controle de estoque", () => {
+  beforeEach(() => {
+    createMutateAsync.mockReset();
+    createMutateAsync.mockResolvedValue({});
+    variationsQuery = settled([
+      variation({ id: "var-base", name: "Pequeno", priceModifier: 0 }),
+    ]);
+  });
+
+  it("envia o número irreal ao marcar 'Não controlo estoque'", async () => {
+    const user = userEvent.setup();
+    renderDialog();
+
+    await user.type(screen.getByPlaceholderText("Ex: Grande"), "Grande");
+    await user.type(screen.getByPlaceholderText("R$ 0,01"), "4000");
+    await user.click(screen.getByLabelText("Não controlo estoque"));
+
+    expect(screen.queryByPlaceholderText("—")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /Adicionar/ }));
+
+    await waitFor(() => expect(createMutateAsync).toHaveBeenCalledTimes(1));
+    expect(createMutateAsync).toHaveBeenCalledWith({
+      productId: "prod-1",
+      data: {
+        name: "Grande",
+        priceModifier: 10,
+        stockQuantity: UNLIMITED_STOCK,
+        isAvailable: true,
+      },
+    });
+  });
+
+  it("desmarcar volta o campo vazio para preencher", async () => {
+    const user = userEvent.setup();
+    renderDialog();
+
+    const toggle = screen.getByLabelText("Não controlo estoque");
+    await user.click(toggle);
+    await user.click(toggle);
+
+    expect(screen.getByPlaceholderText("—")).toHaveValue("");
+  });
+
+  it("não mostra a quantidade irreal na lista", () => {
+    variationsQuery = settled([
+      variation({
+        id: "var-base",
+        name: "Pequeno",
+        priceModifier: 0,
+        stockQuantity: UNLIMITED_STOCK - 3,
+      }),
+    ]);
+    renderDialog();
+
+    expect(screen.getByText(/sem controle de estoque/)).toBeInTheDocument();
+    expect(screen.queryByText(/em estoque/)).not.toBeInTheDocument();
   });
 });

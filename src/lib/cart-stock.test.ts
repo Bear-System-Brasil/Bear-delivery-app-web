@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { getCartItemStock, getCartStockIssues } from "./cart-stock";
+import { UNLIMITED_STOCK } from "./unlimited-stock";
 import type { Product, ProductVariation } from "@/services/api";
 import type { CartItem } from "@/stores/cart-store";
 
@@ -194,3 +195,40 @@ describe("cart-stock - getCartStockIssues", () => {
   });
 });
 
+
+describe("cart-stock - estoque sem controle", () => {
+  it("tamanho com número irreal não limita o carrinho", () => {
+    const item = mockItem({
+      quantity: 50,
+      variations: [{ productVariationId: "var-1" }],
+    });
+    const status = getCartItemStock(
+      item,
+      [mockProduct()],
+      [mockVariation({ stockQuantity: UNLIMITED_STOCK - 10 })],
+    );
+    expect(status).toEqual({ isOutOfStock: false, exceedsStock: false });
+  });
+
+  it("prato com número irreal não limita o carrinho", () => {
+    const item = mockItem({ quantity: 50 });
+    const status = getCartItemStock(item, [
+      mockProduct({ stockQuantity: UNLIMITED_STOCK }),
+    ]);
+    expect(status).toEqual({ isOutOfStock: false, exceedsStock: false });
+  });
+
+  it("prato com estoque null (vazio no back) não aparece esgotado", () => {
+    const item = mockItem();
+    const status = getCartItemStock(item, [
+      mockProduct({ stockQuantity: null as unknown as number }),
+    ]);
+    expect(status.isOutOfStock).toBe(false);
+  });
+
+  it("prato com estoque 0 continua esgotado", () => {
+    const item = mockItem();
+    const status = getCartItemStock(item, [mockProduct({ stockQuantity: 0 })]);
+    expect(status.isOutOfStock).toBe(true);
+  });
+});

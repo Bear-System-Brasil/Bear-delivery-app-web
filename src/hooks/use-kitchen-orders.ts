@@ -252,6 +252,8 @@ export function useKitchenOrders() {
   // ─── Pedido novo: destaque momentâneo + alerta sonoro opcional ─────────────
 
   const orderedIdsKey = columns.ORDERED.orders.map((order) => order.id).join(",");
+  const orderedPageCount = orderedQuery.data?.pages.length ?? 0;
+  const orderedPagesRef = useRef(0);
 
   useEffect(() => {
     const currentIds = orderedIdsKey ? orderedIdsKey.split(",") : [];
@@ -260,8 +262,20 @@ export function useKitchenOrders() {
     if (seenIdsRef.current === null) {
       if (columns.ORDERED.isLoading) return;
       seenIdsRef.current = new Set(currentIds);
+      orderedPagesRef.current = orderedPageCount;
       return;
     }
+
+    // Página seguinte também não é novidade: são pedidos que já estavam lá.
+    // Com mais de uma página de Novos, os da página 2 apitavam e piscavam
+    // como se tivessem acabado de chegar (LDMF-452). Pedido novo de verdade
+    // entra pelo socket ou pelo polling, que não muda o número de páginas.
+    if (orderedPageCount > orderedPagesRef.current) {
+      orderedPagesRef.current = orderedPageCount;
+      seenIdsRef.current = new Set([...seenIdsRef.current, ...currentIds]);
+      return;
+    }
+    orderedPagesRef.current = orderedPageCount;
 
     const fresh = currentIds.filter((id) => !seenIdsRef.current!.has(id));
     seenIdsRef.current = new Set(currentIds);
@@ -276,7 +290,7 @@ export function useKitchenOrders() {
 
     return () => clearTimeout(timeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orderedIdsKey, columns.ORDERED.isLoading, soundEnabled, play]);
+  }, [orderedIdsKey, orderedPageCount, columns.ORDERED.isLoading, soundEnabled, play]);
 
   const toggleSound = useCallback(() => {
     // Destravar o áudio precisa acontecer dentro do gesto do usuário

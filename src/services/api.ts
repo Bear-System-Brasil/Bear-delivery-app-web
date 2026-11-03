@@ -113,7 +113,7 @@ export interface UpdateUserRequest {
 }
 
 export interface VerifyOtpRequest {
-  phone: string;
+  email: string;
   code: string;
 }
 
@@ -125,6 +125,23 @@ export interface ApiResponse<T> {
   status?: number;
   /** Código de erro do back (ex.: `UNDERAGE`), quando o corpo traz `code`. */
   code?: string;
+}
+
+/**
+ * Contorno temporário (LDMF-466). O backend aplica o CompanyGuard global e
+ * responde 403 "Usuário sem empresa" em rotas de cliente que ainda não
+ * declaram @AllowNoCompany (carrinho, perfil, logout). Enquanto o back não
+ * ajusta, o front reconhece esse caso por `code` e mostra uma mensagem leve
+ * em vez de quebrar a tela. Remover quando o back aplicar o decorator (ver
+ * company-guard-rotas-cliente.md no backend).
+ */
+export const NO_COMPANY_SCOPE_CODE = "NO_COMPANY_SCOPE";
+export const NO_COMPANY_SCOPE_MESSAGE =
+  "Essa parte ainda está de portas fechadas pro seu login. Já está sendo resolvido. 😅";
+
+/** Reconhece o 403 "sem empresa" do CompanyGuard (ver acima). */
+export function isNoCompanyScopeError(response: { code?: string }): boolean {
+  return response.code === NO_COMPANY_SCOPE_CODE;
 }
 
 /**
@@ -585,6 +602,20 @@ async function apiRequest<T>(
         }
       } else {
         errorMessage = `Erro ${response.status}: ${response.statusText}`;
+      }
+
+      // Contorno temporário (LDMF-466): o CompanyGuard global do backend
+      // responde 403 "Usuário sem empresa" em rotas de cliente que ainda não
+      // declaram @AllowNoCompany (carrinho, perfil, logout). Não é falha de
+      // servidor, então não reporta no monitor e degrada com uma mensagem
+      // leve. Some quando o back aplicar o decorator.
+      if (response.status === 403 && /sem empresa/i.test(errorMessage)) {
+        return {
+          success: false,
+          message: NO_COMPANY_SCOPE_MESSAGE,
+          status: 403,
+          code: NO_COMPANY_SCOPE_CODE,
+        };
       }
 
       // Skip 404 logging on viewOrder - expected when no cart exists
@@ -1457,8 +1488,10 @@ export const apiService = {
       true,
     ),
 
-  // /user/me devolve o hash bcrypt da senha no corpo - nunca deixar isso
-  // chegar no Zustand (persiste em localStorage via updateUser).
+  // O back ja sanitiza /user/me (toMeResponse remove password/cpf). Mantemos
+  // a remocao defensiva do password aqui para nunca deixar o hash chegar no
+  // Zustand (persiste em localStorage via updateUser), caso algum retorno
+  // volte a incluir o campo.
   getMe: async (): Promise<ApiResponse<User>> => {
     const response = await apiRequest<User & { password?: string }>(
       "GET",
@@ -1535,16 +1568,16 @@ export const apiService = {
   completeLogin: (data: { phone: string; code: string }) =>
     apiRequest<LoginResponse>("POST", "/auth/login/complet", data),
 
-  // Password recovery endpoints - o backend identifica o usuário por
-  // telefone (não email) nesses dois endpoints.
-  forgotPassword: (data: { phone: string }) =>
+  // Recuperação de senha - o backend identifica o usuário pelo e-mail e
+  // manda o código por e-mail (LDMF-294).
+  forgotPassword: (data: { email: string }) =>
     apiRequest<{ message: string }>("POST", "/auth/forgot-password", data),
 
   // reset-password devolve um token novo (login automático) - por isso,
   // diferente de forgotPassword, passa pelo BFF de auth (como login/register)
   // pra virar cookie de sessão httpOnly, em vez do proxy genérico.
   resetPassword: async (data: {
-    phone: string;
+    email: string;
     code: string;
     newPassword: string;
   }): Promise<ApiResponse<AuthBffResponse>> => {
