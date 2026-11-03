@@ -203,7 +203,7 @@ export default function CustomersPage() {
     <AdminPageLayout
       title="Clientes"
       icon={Users}
-      mainClassName="p-4 pb-20 sm:p-6 md:pb-10 lg:pl-64 lg:pr-8"
+      mainClassName="p-4 pb-20 sm:p-6 md:pb-10 lg:px-8"
       // O contador que ficava aqui já aparece no cartão "Total de clientes".
       action={{
         label: "Atualizar",
