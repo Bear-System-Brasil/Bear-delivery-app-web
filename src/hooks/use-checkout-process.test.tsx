@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { PRODUCT_LIMIT_MESSAGE } from "@/lib/order-quantity-limit";
 
 /**
  * O corpo de POST /order/:id (finalizar) é o único lugar por onde o backend
@@ -1085,6 +1086,36 @@ describe("useCheckoutProcess - formas aceitas pelo restaurante (LDMF-251)", () =
     expect(paymentsCreate.mock.calls[0][0]).toMatchObject({
       paymentMethod: "CREDIT_CARD",
     });
+  });
+});
+
+describe("useCheckoutProcess - teto de quantidade temporário (LDMF-333)", () => {
+  beforeEach(() => {
+    openingHoursQuery = { data: undefined, isLoading: false };
+    addressesQuery = ADDRESSES_WITH_DEFAULT;
+    seedAddressBook(ADDRESSES_WITH_DEFAULT);
+    RESTAURANT_QUERY.data = { id: "comp-1", deliveryFee: "0" };
+    finishOrder.mockReset();
+    openCart.mockReset();
+    toastError.mockReset();
+  });
+
+  afterEach(() => {
+    cartStore.items = CART_ITEMS;
+  });
+
+  it("bloqueia finalizar com mais de 30 unidades do mesmo prato", async () => {
+    cartStore.items = [{ ...CART_ITEMS[0], quantity: 31 }];
+
+    const { result } = renderCheckout();
+    await waitFor(() => expect(result.current.selectedAddressId).toBe("addr-1"));
+
+    await act(async () => {
+      await result.current.handleSubmitOrder();
+    });
+
+    expect(toastError).toHaveBeenCalledWith(PRODUCT_LIMIT_MESSAGE);
+    expect(finishOrder).not.toHaveBeenCalled();
   });
 });
 
