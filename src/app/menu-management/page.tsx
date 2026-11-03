@@ -30,13 +30,26 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { isUnlimitedStock, UNLIMITED_STOCK } from "@/lib/unlimited-stock";
 import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { CustomizeOrder } from "@/components/customize-order/customize-order";
+import { MenuItemsList } from "@/components/menu-items-list";
+import {
   useMenuManagement,
   useProductAddOns,
   useProductVariations,
   type MenuModalTab,
 } from "@/hooks";
+import { groupMenuByCategory } from "@/lib/menu-grouping";
+import { cn } from "@/lib/utils";
+import type { Product } from "@/services/api";
 import {
   Building2,
+  Eye,
   GripHorizontal,
   Loader2,
   MoveHorizontal,
@@ -84,6 +97,7 @@ function MenuManagementContent() {
 
   const {
     products,
+    allProducts,
     categories,
     companyId,
     isLoading: loading,
@@ -118,6 +132,30 @@ function MenuManagementContent() {
     draftAddOns,
     setDraftAddOns,
   } = useMenuManagement();
+
+  // Prévia interativa do app (Fase 2, LDMF-454): mesmos cards do cliente,
+  // read-only, num painel que abre/fecha. Usa a lista cheia (allProducts), e
+  // não a filtrada pela busca/aba do admin, pra refletir o que o cliente vê.
+  // O prato abre em modo read-only (CustomizeOrder preview), igual à Categoria.
+  const [showPreview, setShowPreview] = useState(false);
+  const [selectedPreviewCat, setSelectedPreviewCat] = useState("");
+  const [previewItem, setPreviewItem] = useState<Product | null>(null);
+
+  const previewCategoryMap = useMemo(
+    () =>
+      Object.fromEntries(
+        categories.map((category) => [category.id, category.name]),
+      ),
+    [categories],
+  );
+  const { groupedItems: previewGrouped, categories: previewCats } = useMemo(
+    () => groupMenuByCategory(allProducts, previewCategoryMap),
+    [allProducts, previewCategoryMap],
+  );
+  const previewListCategories =
+    selectedPreviewCat && previewCats.includes(selectedPreviewCat)
+      ? [selectedPreviewCat]
+      : previewCats;
 
   const editingProductId = editingProduct?.id ?? null;
   const { data: existingVariations = [] } = useProductVariations(
@@ -493,6 +531,16 @@ function MenuManagementContent() {
               {availableCount}{" "}
               {availableCount === 1 ? "disponível" : "disponíveis"}
             </span>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowPreview(true)}
+              className="h-[34px] flex-1 cursor-pointer rounded-[9px] border-border bg-card px-3 text-[12.5px] font-bold text-foreground shadow-none transition-colors hover:border-brand-200 dark:hover:border-brand-800 hover:bg-card hover:text-brand-500 sm:flex-none"
+            >
+              <Eye className="h-4 w-4" />
+              Prévia
+            </Button>
+
             <Button
               asChild
               variant="outline"
@@ -1099,6 +1147,87 @@ function MenuManagementContent() {
           </div>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Prévia interativa do app (Fase 2, LDMF-454): painel que abre/fecha
+          com os mesmos cards read-only do cliente (componente compartilhado).
+          O prato abre no modal read-only do cliente (CustomizeOrder preview),
+          montado como irmão no topo pra não aninhar diálogos. */}
+      <Sheet open={showPreview} onOpenChange={setShowPreview}>
+        <SheetContent
+          side="right"
+          className="w-full gap-0 overflow-y-auto border-border bg-background p-0 sm:max-w-xl"
+        >
+          <SheetHeader className="sticky top-0 z-10 space-y-1 border-b border-border bg-background px-4 py-4 text-left sm:px-6">
+            <SheetTitle className="flex items-center gap-2 text-[15px] font-extrabold text-foreground">
+              <Eye className="h-4 w-4 text-muted-foreground" />
+              Prévia no app
+            </SheetTitle>
+            <SheetDescription className="text-[12px] font-semibold text-muted-foreground">
+              Como o cliente vê o seu cardápio. Toque num prato pra abrir a
+              visão do cliente.
+            </SheetDescription>
+          </SheetHeader>
+
+          <div className="px-4 py-4 sm:px-6">
+            {previewCats.length === 0 ? (
+              <div className="rounded-xl border border-border bg-muted px-3 py-6 text-center text-[12px] font-semibold text-muted-foreground">
+                Cadastre pratos disponíveis pra ver a prévia do app.
+              </div>
+            ) : (
+              <>
+                {/* Abas navegáveis: filtram a prévia por categoria. */}
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPreviewCat("")}
+                    className={cn(
+                      "rounded-full px-3 py-1.5 text-[11.5px] font-bold transition-colors",
+                      selectedPreviewCat === ""
+                        ? "bg-zinc-900 text-white"
+                        : "border border-border bg-card text-foreground hover:bg-muted",
+                    )}
+                  >
+                    Todos
+                  </button>
+                  {previewCats.map((category) => (
+                    <button
+                      key={category}
+                      type="button"
+                      onClick={() => setSelectedPreviewCat(category)}
+                      className={cn(
+                        "rounded-full px-3 py-1.5 text-[11.5px] font-semibold transition-colors",
+                        selectedPreviewCat === category
+                          ? "bg-zinc-900 text-white"
+                          : "border border-border bg-card text-foreground hover:bg-muted",
+                      )}
+                    >
+                      {category}
+                    </button>
+                  ))}
+                </div>
+
+                <MenuItemsList
+                  className="mt-4"
+                  categories={previewListCategories}
+                  groupedItems={previewGrouped}
+                  onSelectItem={setPreviewItem}
+                />
+              </>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {previewItem && (
+        <CustomizeOrder
+          preview
+          productData={previewItem}
+          isModalOpen
+          setIsModalOpen={(open) => {
+            if (!open) setPreviewItem(null);
+          }}
+        />
+      )}
     </AdminPageLayout>
   );
 }
