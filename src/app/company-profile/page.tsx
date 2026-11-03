@@ -1042,6 +1042,7 @@ function CompanyProfileContent() {
                 addressCoords={addressEditor.addressCoords}
                 isSavingAddress={isSavingAddress}
                 isLoadingCep={addressEditor.isLoadingCep}
+                zipCodeHint={addressEditor.zipCodeHint}
                 isEditing={!!editingAddressId}
                 neighborhoodOptions={addressEditor.neighborhoodOptions}
                 isLocatingPin={addressEditor.isLocatingPin}

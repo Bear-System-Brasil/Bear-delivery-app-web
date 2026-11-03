@@ -1,9 +1,9 @@
 import {
-  parseBrasilApiCoords,
   withCoords,
   type CoordinateSource,
   type SourcedCoords,
 } from "@/lib/address-coordinates";
+import { CepNotFoundError, fetchCepAddress } from "@/lib/cep";
 import { parseCoords } from "@/lib/geocode";
 import { findNeighborhood, neighborhoodLabel } from "@/services/neighborhoods";
 import { Coords } from "@/types/restaurant";
@@ -18,6 +18,18 @@ import {
   type PinSource,
 } from "./use-address-pin";
 import { AddressFormData, useAddressForm } from "./use-form-validation";
+
+// Avisos abaixo do CEP, para cliente e loja. Cidade de CEP único (Castelo
+// 29360-000, Alegre 29500-000) não traz rua nem bairro: o aviso diz o que
+// falta em vez de deixar parecer que o CEP preencheu tudo (LDMF-364).
+export const CITY_WIDE_CEP_HINT =
+  "Este CEP vale para a cidade inteira. Preencha bairro, rua e número abaixo.";
+export const NO_NEIGHBORHOOD_CEP_HINT =
+  "Este CEP não traz o bairro. Preencha o bairro abaixo.";
+export const CEP_NOT_FOUND_HINT =
+  "CEP não encontrado. Confira o número ou preencha estado, cidade, bairro, rua e número à mão.";
+export const CEP_LOOKUP_FAILED_HINT =
+  "Não conseguimos consultar o CEP agora. Preencha estado, cidade, bairro, rua e número à mão.";
 
 /** Endereço salvo que o modal abre para edição. */
 export type EditableAddress = {
@@ -47,6 +59,10 @@ export const useAddressEditor = ({ enabled }: { enabled: boolean }) => {
   // CEP state
   const [isLoadingCep, setIsLoadingCep] = useState(false);
   const [lastFetchedCep, setLastFetchedCep] = useState<string | null>(null);
+  // Orientação abaixo do CEP. null = sem aviso.
+  const [zipCodeHint, setZipCodeHint] = useState<string | null>(null);
+  // Último CEP pedido: resposta atrasada de um CEP anterior não preenche nada.
+  const lastCepRequest = useRef<string | null>(null);
 
   // Posição do pino + de onde ela veio. É exatamente o que vai para o
   // backend ao salvar (LDMF-261): sem pino, não salva. `zoom` e `seq` só
@@ -148,8 +164,14 @@ export const useAddressEditor = ({ enabled }: { enabled: boolean }) => {
    * Auto-fetch CEP when complete (8 digits)
    */
   useEffect(() => {
+    const cleanCep = onlyNumbers(watchedZipCode ?? "");
+    // CEP mudou: o aviso e a busca anteriores não valem mais.
+    if (cleanCep !== lastCepRequest.current) {
+      lastCepRequest.current = null;
+      setZipCodeHint(null);
+      setIsLoadingCep(false);
+    }
     if (watchedZipCode) {
-      const cleanCep = onlyNumbers(watchedZipCode);
       if (cleanCep.length === 8 && cleanCep !== lastFetchedCep) {
         fetchCepData(watchedZipCode);
         setLastFetchedCep(cleanCep);
@@ -183,47 +205,61 @@ export const useAddressEditor = ({ enabled }: { enabled: boolean }) => {
   };
 
   /**
-   * Buscar CEP na BrasilAPI
+   * Buscar CEP na BrasilAPI. Só preenche o que o CEP trouxe: CEP de cidade
+   * inteira não apaga bairro e rua já digitados. Se a busca falhar, nada é
+   * apagado e o aviso diz para preencher à mão.
    */
   const fetchCepData = async (cep: string) => {
     const cleanCep = onlyNumbers(cep);
     if (cleanCep.length !== 8) return;
 
+    lastCepRequest.current = cleanCep;
     setIsLoadingCep(true);
+    setZipCodeHint(null);
     try {
-      const response = await fetch(
-        `https://brasilapi.com.br/api/cep/v2/${cleanCep}`,
-      );
+      const result = await fetchCepAddress(cleanCep);
+      if (lastCepRequest.current !== cleanCep) return;
 
-      if (!response.ok) {
-        if (response.status === 404) {
-          toast.error("CEP não encontrado");
-        } else {
-          toast.error("Erro ao buscar CEP");
-        }
-        return;
-      }
-
-      const data = await response.json();
       // CEP preenche estado e cidade. Se a cidade mudou, os campos seguintes
       // e o pino são limpos como em qualquer troca de campo anterior.
-      if (data.state) addressFields.changeState(data.state);
-      if (data.city) addressFields.changeCity(data.city);
+      if (result.state) addressFields.changeState(result.state);
+      if (result.city) addressFields.changeCity(result.city);
       // CEP de rua (não o de cidade inteira) também traz bairro e rua.
-      if (data.neighborhood) addressForm.setValue("neighborhood", data.neighborhood);
-      if (data.street) addressForm.setValue("street", data.street);
+      if (result.neighborhood) addressForm.setValue("neighborhood", result.neighborhood);
+      if (result.street) addressForm.setValue("street", result.street);
 
       // A BrasilAPI já devolve a coordenada do logradouro - usa como ponto de
       // partida e centra o mapa nela. É a fonte de menor prioridade: cede
       // para a geocodificação do endereço completo e para o clique no mapa.
-      applyCoords(parseBrasilApiCoords(data), "cep");
+      applyCoords(result.coords, "cep");
 
-      toast.success("CEP encontrado! Campos preenchidos automaticamente");
+      setZipCodeHint(
+        !result.street
+          ? CITY_WIDE_CEP_HINT
+          : !result.neighborhood
+            ? NO_NEIGHBORHOOD_CEP_HINT
+            : null,
+      );
+      toast.success(
+        !result.street
+          ? "CEP da cidade encontrado. Preencha bairro, rua e número."
+          : !result.neighborhood
+            ? "CEP encontrado. Preencha o bairro."
+            : "CEP encontrado! Campos preenchidos automaticamente",
+      );
     } catch (error) {
-      console.error("Erro ao buscar CEP:", error);
-      toast.error("Erro ao buscar CEP. Verifique sua conexão.");
+      if (lastCepRequest.current !== cleanCep) return;
+
+      if (error instanceof CepNotFoundError) {
+        setZipCodeHint(CEP_NOT_FOUND_HINT);
+        toast.error("CEP não encontrado");
+      } else {
+        console.error("Erro ao buscar CEP:", error);
+        setZipCodeHint(CEP_LOOKUP_FAILED_HINT);
+        toast.error("Erro ao buscar CEP. Preencha o endereço à mão.");
+      }
     } finally {
-      setIsLoadingCep(false);
+      if (lastCepRequest.current === cleanCep) setIsLoadingCep(false);
     }
   };
 
@@ -279,6 +315,8 @@ export const useAddressEditor = ({ enabled }: { enabled: boolean }) => {
       number: String(address.number ?? ""),
     });
     setLastFetchedCep(onlyNumbers(address.zipCode ?? ""));
+    lastCepRequest.current = null;
+    setZipCodeHint(null);
     addressFields.resetOtherNeighborhood();
   };
 
@@ -286,6 +324,8 @@ export const useAddressEditor = ({ enabled }: { enabled: boolean }) => {
   const resetEditor = () => {
     addressForm.reset();
     setLastFetchedCep(null);
+    lastCepRequest.current = null;
+    setZipCodeHint(null);
     setPin(null);
     addressPin.resetBaseline();
     addressFields.resetOtherNeighborhood();
@@ -342,6 +382,7 @@ export const useAddressEditor = ({ enabled }: { enabled: boolean }) => {
     pinRecenterKey: pin?.seq,
     // CEP
     isLoadingCep,
+    zipCodeHint,
     formatCep,
     watchedZipCode,
   };

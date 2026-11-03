@@ -97,6 +97,7 @@ type Props = {
   isSavingAddress: boolean;
   addresses: Address[];
   isLoadingCep: boolean;
+  zipCodeHint?: string | null;
   editingAddressId?: string | null;
   neighborhoodOptions?: NeighborhoodOption[] | null;
   isLocatingPin?: boolean;
@@ -116,6 +117,7 @@ export function Addresses({
   isLoadingAddresses,
   isSavingAddress,
   isLoadingCep,
+  zipCodeHint = null,
   addressForm,
   addressCoords,
   addresses,
@@ -246,6 +248,7 @@ export function Addresses({
           addressForm={addressForm}
           addressCoords={addressCoords}
           isLoadingCep={isLoadingCep}
+          zipCodeHint={zipCodeHint}
           isEditing={!!editingAddressId}
           neighborhoodOptions={neighborhoodOptions}
           isLocatingPin={isLocatingPin}

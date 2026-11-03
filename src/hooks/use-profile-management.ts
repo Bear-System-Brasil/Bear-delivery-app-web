@@ -566,6 +566,7 @@ export const useProfileManagement = () => {
     pinRecenterKey: addressEditor.pinRecenterKey,
     // CEP
     isLoadingCep: addressEditor.isLoadingCep,
+    zipCodeHint: addressEditor.zipCodeHint,
     formatCep: addressEditor.formatCep,
     watchedZipCode: addressEditor.watchedZipCode,
   };

@@ -34,6 +34,8 @@ type Extra = {
   showReference?: boolean;
   showDefaultOption?: boolean;
   placeLabel?: string;
+  zipCodeHint?: string | null;
+  isLoadingCep?: boolean;
 };
 
 function Harness(extra: Extra) {
@@ -441,6 +443,30 @@ describe("DeliveryForm: ordem e trava dos campos", () => {
       expect(handleAddAddress.mock.calls[0][0]).toMatchObject({
         reference: "Ao lado da praça",
       });
+    });
+  });
+
+  describe("aviso do CEP", () => {
+    it("sem aviso, mostra a dica de sempre", () => {
+      renderForm();
+
+      expect(screen.getByText("Digite o CEP e os campos serão preenchidos automaticamente")).toBeTruthy();
+      expect(screen.queryByRole("status")).toBeNull();
+    });
+
+    it("com aviso, mostra o aviso no lugar da dica", () => {
+      renderForm({ zipCodeHint: "Este CEP vale para a cidade inteira. Preencha bairro, rua e número abaixo." });
+
+      expect(screen.getByRole("status").textContent).toBe(
+        "Este CEP vale para a cidade inteira. Preencha bairro, rua e número abaixo.",
+      );
+      expect(screen.queryByText("Digite o CEP e os campos serão preenchidos automaticamente")).toBeNull();
+    });
+
+    it("enquanto busca, diz que está buscando", () => {
+      renderForm({ isLoadingCep: true });
+
+      expect(screen.getByText("Buscando CEP...")).toBeTruthy();
     });
   });
 });

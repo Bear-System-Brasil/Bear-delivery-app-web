@@ -63,6 +63,8 @@ type Props = AddressFieldProps & PinStatusProps & {
   addressCoords: SourcedCoords | null;
   isSavingAddress: boolean;
   isLoadingCep: boolean;
+  /** Aviso abaixo do CEP (CEP da cidade inteira, sem bairro, não achado). */
+  zipCodeHint?: string | null;
   isEditing?: boolean;
   /** Bairros oficiais da cidade; `null` = cidade sem lista (campo livre). */
   neighborhoodOptions?: NeighborhoodOption[] | null;
@@ -92,6 +94,7 @@ export function DeliveryForm({
   addressCoords,
   isSavingAddress,
   isLoadingCep,
+  zipCodeHint = null,
   isEditing = false,
   neighborhoodOptions = null,
   isLocatingPin = false,
@@ -179,9 +182,22 @@ export function DeliveryForm({
                   {addressForm.formState.errors.zipCode.message}
                 </p>
               )}
-              <p className="text-xs text-muted-foreground">
-                Digite o CEP e os campos serão preenchidos automaticamente
-              </p>
+              {/* CEP de cidade inteira, sem bairro ou que falhou: diz o
+                  que falta preencher. */}
+              {zipCodeHint && !isLoadingCep ? (
+                <p
+                  role="status"
+                  className="text-xs font-semibold text-amber-700 dark:text-amber-400"
+                >
+                  {zipCodeHint}
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  {isLoadingCep
+                    ? "Buscando CEP..."
+                    : "Digite o CEP e os campos serão preenchidos automaticamente"}
+                </p>
+              )}
             </div>
 
             {/* Estado */}
