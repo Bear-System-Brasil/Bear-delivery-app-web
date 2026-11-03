@@ -51,6 +51,7 @@ import {
 import { resolveRestaurantOpenStatus } from "@/constants/opening-hours";
 import { resolveAcceptedPaymentMethods } from "@/lib/accepted-payment-methods";
 import { getCheckoutFieldErrors } from "@/lib/checkout-validation";
+import { getCartLimitError } from "@/lib/order-quantity-limit";
 
 function showCheckoutError(message: string) {
   toast.dismiss?.();
@@ -538,6 +539,14 @@ export const useCheckoutProcess = () => {
       );
       clearCart();
       router.push("/#lojas");
+      return;
+    }
+
+    // Teto de quantidade temporário no front (LDMF-333): o checkout também
+    // pode ser aberto direto pela URL, sem passar pelo carrinho.
+    const limitError = getCartLimitError(cartItems);
+    if (limitError) {
+      showCheckoutError(limitError);
       return;
     }
 
