@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { UNLIMITED_STOCK } from "@/lib/unlimited-stock";
 import { apiService, type Category, type Product } from "@/services/api";
 import { useAuthStore } from "@/stores";
 import { useCategoryManagement } from "./use-category-management";
@@ -160,6 +161,29 @@ describe("useCategoryManagement - visibilidade da categoria (LDMF-442)", () => {
       window.localStorage.getItem(storageKey()) ?? "{}",
     );
     expect(snapshot["cat-1"].sort()).toEqual(["p1", "p2"]);
+  });
+
+  it("esconder: prato sem estoque gravado (null) não volta como 0", async () => {
+    productsState.data = [
+      { ...makeProduct("p1", true), stockQuantity: null as unknown as number },
+      { ...makeProduct("p2", true), stockQuantity: 0 },
+    ];
+    categoriesState.data = [category];
+
+    const { result } = renderHook(() => useCategoryManagement(), { wrapper });
+
+    await act(async () => {
+      await result.current.handleToggleCategoryActive(category);
+    });
+
+    expect(api.updateProduct).toHaveBeenCalledWith(
+      "p1",
+      expect.objectContaining({ stockQuantity: UNLIMITED_STOCK }),
+    );
+    expect(api.updateProduct).toHaveBeenCalledWith(
+      "p2",
+      expect.objectContaining({ stockQuantity: 0 }),
+    );
   });
 
   it("religar (opção B): restaura só quem estava disponível antes", async () => {
