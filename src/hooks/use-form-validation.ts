@@ -83,9 +83,27 @@ export function useProfileForm(defaultValues?: Partial<ProfileFormData>) {
   });
 }
 
-export function useAddressForm(defaultValues?: Partial<AddressFormData>) {
+/**
+ * Mesmo endereço com CEP opcional (seletor da home, LDMF-260): vazio passa,
+ * mas se digitado precisa ter os 8 dígitos.
+ */
+export const optionalZipAddressSchema = addressSchema.extend({
+  zipCode: z
+    .string()
+    .refine(
+      (value) => !value.trim() || value.replace(/\D/g, "").length === 8,
+      "CEP deve ter 8 dígitos",
+    ),
+});
+
+export function useAddressForm(
+  defaultValues?: Partial<AddressFormData>,
+  { zipCodeOptional = false }: { zipCodeOptional?: boolean } = {},
+) {
   return useForm<AddressFormData>({
-    resolver: zodResolver(addressSchema),
+    resolver: zodResolver(
+      zipCodeOptional ? optionalZipAddressSchema : addressSchema,
+    ),
     defaultValues,
     mode: "onChange",
   });
