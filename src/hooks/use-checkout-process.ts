@@ -5,6 +5,7 @@ import {
   type Address,
   type CreateOrderRequest,
 } from "@/services/api";
+import { getCompanyProducts } from "@/services/products";
 import { useAuthStore, useCartStore } from "@/stores";
 import { userHasCpf } from "@/stores/auth-store";
 import { getDeliveryDiscount, getPromoDiscount } from "@/stores/cart-store";
@@ -53,6 +54,7 @@ import {
   getCheckoutFieldErrors,
   type CheckoutFieldErrors,
 } from "@/lib/checkout-validation";
+import { getCartLimitError } from "@/lib/order-quantity-limit";
 import { useAddressEditor } from "./use-address-editor";
 import { addressSchema, NUMBER_MESSAGE } from "./use-form-validation";
 
@@ -128,6 +130,36 @@ function isPersistedOrderId(value: unknown): value is string {
     value.length > 0 &&
     !value.startsWith(CART_KEY_PREFIX)
   );
+}
+
+/**
+ * Nomes dos itens do carrinho que ficaram indisponiveis, cruzando os
+ * `productId` do carrinho com a lista fresca de produtos da loja (LDMF-444).
+ * Um produto que sumiu da lista (removido) tambem conta como indisponivel.
+ * Deduplica por `productId` pra nao repetir o nome quando o carrinho tem
+ * duas linhas do mesmo prato (tamanhos/complementos diferentes).
+ */
+export function getUnavailableCartItemNames(
+  cartItems: { productId: string; name: string }[],
+  freshProducts: { id: string; isAvailable?: boolean }[],
+): string[] {
+  const availableById = new Map(
+    freshProducts.map((product) => [product.id, product.isAvailable !== false]),
+  );
+  const names: string[] = [];
+  const seen = new Set<string>();
+
+  for (const item of cartItems) {
+    if (seen.has(item.productId)) continue;
+    seen.add(item.productId);
+    const available = availableById.get(item.productId);
+    // `undefined` = produto fora da lista fresca = removido = indisponivel.
+    if (available === false || available === undefined) {
+      names.push(item.name);
+    }
+  }
+
+  return names;
 }
 
 function parsePositiveOrderTotal(value: unknown): number | null {
@@ -580,6 +612,14 @@ export const useCheckoutProcess = () => {
       return;
     }
 
+    // Teto de quantidade temporário no front (LDMF-333): o checkout também
+    // pode ser aberto direto pela URL, sem passar pelo carrinho.
+    const limitError = getCartLimitError(cartItems);
+    if (limitError) {
+      showCheckoutError(limitError);
+      return;
+    }
+
     const hasCpf = userHasCpf(user);
     if (!hasCpf && !isValidCpf(deliveryInfo.cpf)) {
       showCheckoutError("Informe um CPF válido para finalizar o pedido.");
@@ -748,6 +788,36 @@ export const useCheckoutProcess = () => {
       if (cartProblem) {
         showCheckoutError(cartProblem);
         return;
+      }
+
+      // Disponibilidade dos itens (LDMF-444): o carrinho local nao sabe se um
+      // produto ficou indisponivel depois de adicionado, e o backend finaliza
+      // mesmo assim. Conferimos agora contra a lista fresca da loja. Se a busca
+      // falhar (ou vier vazia), nao bloqueamos: nao inventamos indisponibilidade
+      // por uma falha de rede - o status fresco da loja ja foi a guarda forte.
+      try {
+        const freshProducts = await getCompanyProducts(restaurant.id);
+        if (freshProducts.length > 0) {
+          const unavailableNames = getUnavailableCartItemNames(
+            cartItems,
+            freshProducts,
+          );
+          if (unavailableNames.length > 0) {
+            showCheckoutError(
+              unavailableNames.length === 1
+                ? `"${unavailableNames[0]}" ficou indisponível. Remova do carrinho para finalizar.`
+                : `Estes itens ficaram indisponíveis: ${unavailableNames.join(
+                    ", ",
+                  )}. Remova-os do carrinho para finalizar.`,
+            );
+            return;
+          }
+        }
+      } catch (availabilityError) {
+        console.error(
+          "Falha ao conferir disponibilidade dos itens:",
+          availabilityError,
+        );
       }
 
       const finishOrderResponse = await apiService.orders.finishOrder(

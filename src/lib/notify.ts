@@ -17,10 +17,11 @@ interface NotifyInput {
   title: string
   body: string
   href?: string
+  orderId?: string
 }
 
-export function notify({ audience, title, body, href }: NotifyInput): void {
-  useNotificationsStore.getState().addNotification({ audience, title, body, href })
+export function notify({ audience, title, body, href, orderId }: NotifyInput): void {
+  useNotificationsStore.getState().addNotification({ audience, title, body, href, orderId })
 
   if (usePreferencesStore.getState().notifications.push) {
     showBrowserNotification(title, { body, href })

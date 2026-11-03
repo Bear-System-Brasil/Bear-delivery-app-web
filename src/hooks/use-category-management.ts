@@ -1,3 +1,4 @@
+import { stockForResave } from "@/lib/unlimited-stock";
 import { apiService, type Category, type Product } from "@/services/api";
 import { useAuthStore } from "@/stores";
 import { useQueryClient } from "@tanstack/react-query";
@@ -407,7 +408,7 @@ export const useCategoryManagement = () => {
               costPrice: product.costPrice,
               salePrice: product.salePrice,
               isAvailable: nextAvailable,
-              stockQuantity: product.stockQuantity || 0,
+              stockQuantity: stockForResave(product.stockQuantity),
             });
             return { id: product.id, ok: !!response.success };
           } catch {

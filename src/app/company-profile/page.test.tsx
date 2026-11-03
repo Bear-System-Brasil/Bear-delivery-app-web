@@ -218,26 +218,34 @@ describe("Perfil da Empresa - layout novo", () => {
     expect(h.profile.setSpecialtySlot).toHaveBeenCalledWith(0, "");
   });
 
-  it("só salva quando clica em Salvar; Descartar some sem mudanças", () => {
+  it("sem mudanças, a barra global não aparece e a seção não tem Salvar próprio (LDMF-464)", () => {
     render(<CompanyProfilePage />);
-    const section = sectionOf("Tipo de restaurante");
 
-    // Sem mudanças: Salvar desabilitado e sem Descartar.
-    expect(within(section).getByRole("button", { name: "Salvar" })).toBeDisabled();
+    // A barra global de salvar só aparece quando há mudança pendente.
+    expect(
+      screen.queryByRole("button", { name: "Salvar alterações" }),
+    ).not.toBeInTheDocument();
+    // As 3 seções de campo não têm mais Salvar/Descartar próprios.
+    const section = sectionOf("Tipo de restaurante");
+    expect(
+      within(section).queryByRole("button", { name: "Salvar" }),
+    ).not.toBeInTheDocument();
     expect(
       within(section).queryByRole("button", { name: "Descartar" }),
     ).not.toBeInTheDocument();
   });
 
-  it("com mudanças, Salvar grava e Descartar desfaz", () => {
+  it("com mudança numa seção, a barra global salva e descarta essa seção (LDMF-464)", () => {
     h.profile.hasSpecialtyChanges = true;
     render(<CompanyProfilePage />);
-    const section = sectionOf("Tipo de restaurante");
 
-    fireEvent.click(within(section).getByRole("button", { name: "Salvar" }));
+    // 1 seção suja: a barra aparece com a contagem.
+    expect(screen.getByText("1 alteração não salva")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Salvar alterações" }));
     expect(h.profile.handleSaveSpecialties).toHaveBeenCalledTimes(1);
 
-    fireEvent.click(within(section).getByRole("button", { name: "Descartar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Descartar" }));
     expect(h.profile.discardSpecialtyChanges).toHaveBeenCalledTimes(1);
   });
 
@@ -306,22 +314,20 @@ describe("Perfil da Empresa - layout novo", () => {
     expect(h.profile.handleSaveProfile).toHaveBeenCalledTimes(1);
   });
 
-  it("Salvar do horário e das formas de pagamento seguem separados", () => {
+  it("a barra global dispara cada seção suja de forma independente (LDMF-464)", () => {
+    h.hours.hasChanges = true;
     h.payments.hasChanges = true;
     render(<CompanyProfilePage />);
 
-    fireEvent.click(
-      within(sectionOf("Horário de Funcionamento")).getByRole("button", {
-        name: "Salvar",
-      }),
-    );
-    fireEvent.click(
-      within(sectionOf("Formas de Pagamento")).getByRole("button", {
-        name: "Salvar",
-      }),
-    );
+    // Duas seções sujas: a barra conta as duas.
+    expect(screen.getByText("2 alterações não salvas")).toBeInTheDocument();
+
+    // Um clique dispara os handlers das duas seções (rotas independentes).
+    fireEvent.click(screen.getByRole("button", { name: "Salvar alterações" }));
     expect(h.hours.handleSaveHours).toHaveBeenCalledTimes(1);
     expect(h.payments.handleSave).toHaveBeenCalledTimes(1);
+
+    h.hours.hasChanges = false;
     h.payments.hasChanges = false;
   });
 

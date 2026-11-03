@@ -275,6 +275,45 @@ function CompanyProfileContent() {
 
   const companyId = user.companyId || user.id;
 
+  // Barra global de Salvar/Descartar (LDMF-464): coordena as 3 seções de campo
+  // que têm salvamento próprio (Especialidades, Horários, Pagamento). Cada
+  // seção segue dona do seu dirty/handler; a barra só dispara as sujas, em
+  // paralelo e independentes (uma falha não barra a outra — Promise.allSettled),
+  // e cada handler já dá o próprio toast. Só aparece quando há mudança pendente.
+  // Dados fiscais, Endereço e Senha ficam de fora (fluxo próprio).
+  const globalSaveSections = [
+    {
+      dirty: hasSpecialtyChanges,
+      save: handleSaveSpecialties,
+      discard: discardSpecialtyChanges,
+    },
+    {
+      dirty: hasHoursChanges,
+      save: handleSaveHours,
+      discard: discardHoursChanges,
+    },
+    {
+      dirty: hasPaymentMethodsChanges,
+      save: handleSavePaymentMethods,
+      discard: discardPaymentMethodsChanges,
+    },
+  ];
+  const pendingSaveSections = globalSaveSections.filter(
+    (section) => section.dirty,
+  );
+  const pendingSaveCount = pendingSaveSections.length;
+  const isSavingAnySection =
+    isSavingSpecialty || isSavingHours || isSavingPaymentMethods;
+
+  const handleSaveAllSections = async () => {
+    await Promise.allSettled(
+      pendingSaveSections.map((section) => section.save()),
+    );
+  };
+  const handleDiscardAllSections = () => {
+    pendingSaveSections.forEach((section) => section.discard());
+  };
+
   return (
     <AdminPageLayout
       title="Perfil da Empresa"
@@ -530,42 +569,13 @@ function CompanyProfileContent() {
                 Pagamento (LDMF-351). */}
             <div className="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] lg:grid-rows-[auto_1fr] lg:items-start">
               {/* Tipo de restaurante (até 3) — LDMF-395. Saiu das Informações
-                  e virou seção própria. Salva no botão, como as outras. */}
+                  e virou seção própria. Salva pela barra global (LDMF-464). */}
               <SectionCard
                 icon={UtensilsCrossed}
                 title="Tipo de restaurante"
                 subtitle={`até ${MAX_SPECIALTIES} — o que o cliente vê no app`}
                 subtitleBelow
                 className="lg:col-start-2 lg:row-start-1"
-                actions={
-                  availableSpecialties.length === 0 ? undefined : (
-                    <div className="flex gap-2">
-                      {hasSpecialtyChanges && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={discardSpecialtyChanges}
-                          disabled={isSavingSpecialty}
-                          className="h-8 rounded-md px-3 text-xs font-semibold"
-                        >
-                          Descartar
-                        </Button>
-                      )}
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={handleSaveSpecialties}
-                        disabled={isSavingSpecialty || !hasSpecialtyChanges}
-                        className="h-8 rounded-md px-3.5 text-xs font-semibold"
-                      >
-                        <div className="flex gap-2">
-                          <Save className="h-3.5 w-3.5" />
-                          {isSavingSpecialty ? "Salvando..." : "Salvar"}
-                        </div>
-                      </Button>
-                    </div>
-                  )
-                }
               >
                 {isLoadingProfile ? (
                   <div className="grid grid-cols-1 gap-3 @lg:grid-cols-3">
@@ -629,7 +639,7 @@ function CompanyProfileContent() {
                       })}
                     </div>
                     <p className="mt-2.5 text-[11.5px] text-muted-foreground">
-                      Escolha os tipos e clique em Salvar. Até {MAX_SPECIALTIES}{" "}
+                      Escolha os tipos e salve na barra. Até {MAX_SPECIALTIES}{" "}
                       tipos.
                     </p>
                   </>
@@ -643,33 +653,6 @@ function CompanyProfileContent() {
                 subtitle="Dias e horários em que a loja aceita pedidos"
                 subtitleBelow
                 className="lg:col-start-1 lg:row-span-2 lg:row-start-1"
-                actions={
-                  <div className="flex gap-2">
-                    {hasHoursChanges && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={discardHoursChanges}
-                        disabled={isSavingHours}
-                        className="h-8 rounded-md px-3 text-xs font-semibold"
-                      >
-                        Descartar
-                      </Button>
-                    )}
-                    <Button
-                      size="sm"
-                      variant={"secondary"}
-                      onClick={handleSaveHours}
-                      disabled={isSavingHours || isLoadingHours}
-                      className="h-8 rounded-md px-3.5 text-xs font-semibold"
-                    >
-                      <div className="flex gap-2">
-                        <Save className="h-3.5 w-3.5" />
-                        {isSavingHours ? "Salvando..." : "Salvar"}
-                      </div>
-                    </Button>
-                  </div>
-                }
               >
                 {linkedToCashRegister && (
                   <SectionNotice>
@@ -889,38 +872,6 @@ function CompanyProfileContent() {
                 subtitle="O checkout só oferece ao cliente as formas marcadas"
                 subtitleBelow
                 className="lg:col-start-2 lg:row-start-2"
-                actions={
-                  <div className="flex gap-2">
-                    {hasPaymentMethodsChanges && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={discardPaymentMethodsChanges}
-                        disabled={isSavingPaymentMethods}
-                        className="h-8 rounded-md px-3 text-xs font-semibold"
-                      >
-                        Descartar
-                      </Button>
-                    )}
-                    <Button
-                      size="sm"
-                      variant={"secondary"}
-                      onClick={handleSavePaymentMethods}
-                      disabled={
-                        isSavingPaymentMethods ||
-                        isLoadingPaymentMethods ||
-                        isPaymentMethodsError ||
-                        !hasPaymentMethodsChanges
-                      }
-                      className="h-8 rounded-md px-3.5 text-xs font-semibold"
-                    >
-                      <div className="flex gap-2">
-                        <Save className="h-3.5 w-3.5" />
-                        {isSavingPaymentMethods ? "Salvando..." : "Salvar"}
-                      </div>
-                    </Button>
-                  </div>
-                }
               >
                 {/* Sem a lista gravada a tela mostraria o padrão (todas), e
                     salvar por cima apagaria a configuração real: trava até
@@ -1161,6 +1112,52 @@ function CompanyProfileContent() {
                 </div>
               )}
             </SectionCard>
+          </>
+        )}
+
+        {/* Barra global de Salvar/Descartar (LDMF-464): só aparece com mudança
+            pendente. Fixa no rodapé no mobile (acima da navegação), estática no
+            fim do conteúdo no desktop. Um único elemento responsivo (fixed no
+            mobile, static no md+) pra não duplicar o nó. */}
+        {pendingSaveCount > 0 && (
+          <>
+            {/* Respiro no mobile pra barra fixa não cobrir a última seção. */}
+            <div className="h-24 md:hidden" aria-hidden />
+            <div
+              className={cn(
+                "fixed inset-x-4 bottom-[calc(4rem+env(safe-area-inset-bottom)+0.5rem)] z-40",
+                "flex items-center gap-2 rounded-xl border border-border bg-card p-2.5 shadow-lg",
+                "md:static md:inset-x-0 md:bottom-auto md:z-auto md:mt-4 md:rounded-lg md:p-3 md:shadow-none",
+              )}
+            >
+              <span className="min-w-0 flex-1 text-xs font-semibold text-muted-foreground">
+                {pendingSaveCount}{" "}
+                {pendingSaveCount === 1
+                  ? "alteração não salva"
+                  : "alterações não salvas"}
+              </span>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={handleDiscardAllSections}
+                disabled={isSavingAnySection}
+                className="h-9 rounded-md px-3 text-xs font-semibold"
+              >
+                Descartar
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={handleSaveAllSections}
+                disabled={isSavingAnySection}
+                className="h-9 rounded-md px-3.5 text-xs font-semibold"
+              >
+                <div className="flex items-center gap-2">
+                  <Save className="h-3.5 w-3.5" />
+                  {isSavingAnySection ? "Salvando..." : "Salvar alterações"}
+                </div>
+              </Button>
+            </div>
           </>
         )}
       </div>
