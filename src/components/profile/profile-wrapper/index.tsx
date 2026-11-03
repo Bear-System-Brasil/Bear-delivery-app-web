@@ -95,6 +95,7 @@ export function ProfileWrapper() {
     pinRecenterKey,
     // CEP
     isLoadingCep,
+    zipCodeHint,
   } = useProfileManagement();
 
   // Redirect if not authenticated - só depois que o Zustand persist hidratar
@@ -230,6 +231,7 @@ export function ProfileWrapper() {
           isLoadingAddresses={isLoadingAddresses}
           isSavingAddress={isSavingAddress}
           isLoadingCep={isLoadingCep}
+          zipCodeHint={zipCodeHint}
           addressForm={addressForm}
           addressCoords={addressCoords}
           addresses={addresses}
