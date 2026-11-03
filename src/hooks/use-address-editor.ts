@@ -29,6 +29,7 @@ export type EditableAddress = {
   zipCode?: string;
   type?: string;
   complement?: string;
+  reference?: string;
   latitude?: number | null;
   longitude?: number | null;
   isDefault?: boolean;
@@ -252,6 +253,7 @@ export const useAddressEditor = ({ enabled }: { enabled: boolean }) => {
       zipCode: address.zipCode || "",
       type: address.type,
       complement: address.complement || "",
+      reference: address.reference || "",
       longitude: address.longitude ?? undefined,
       latitude: address.latitude ?? undefined,
       isDefault: address.isDefault ?? false,

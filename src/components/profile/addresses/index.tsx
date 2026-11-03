@@ -40,6 +40,7 @@ export type AddressForm = UseFormReturn<
     zipCode: string;
     type?: string | undefined;
     complement?: string | undefined;
+    reference?: string | undefined;
     longitude?: number | undefined;
     latitude?: number | undefined;
     isDefault?: boolean | undefined;
@@ -54,6 +55,7 @@ export type AddressForm = UseFormReturn<
     zipCode: string;
     type?: string | undefined;
     complement?: string | undefined;
+    reference?: string | undefined;
     longitude?: number | undefined;
     latitude?: number | undefined;
     isDefault?: boolean | undefined;
@@ -69,6 +71,7 @@ export type HandleAddAddress = (data: {
   zipCode: string;
   type?: string | undefined;
   complement?: string | undefined;
+  reference?: string | undefined;
   longitude?: number | undefined;
   latitude?: number | undefined;
   isDefault?: boolean | undefined;
