@@ -54,6 +54,21 @@ export function getQuantityLimitError(
   return null;
 }
 
+/**
+ * Converte os itens do carrinho do back (`orderedItems`) para o formato do
+ * teto. Item sem `productId` ou sem quantidade numérica fica de fora.
+ */
+export function toLimitedItems(orderedItems: unknown): LimitedItem[] {
+  if (!Array.isArray(orderedItems)) return [];
+  return orderedItems.flatMap((item) => {
+    const productId = (item as { productId?: unknown })?.productId;
+    const quantity = (item as { quantity?: unknown })?.quantity;
+    return typeof productId === "string" && typeof quantity === "number"
+      ? [{ productId, quantity }]
+      : [];
+  });
+}
+
 /** Mensagem de bloqueio se o carrinho como está já passa do teto. */
 export function getCartLimitError(items: LimitedItem[]): string | null {
   const productIds = new Set(items.map((item) => item.productId));
