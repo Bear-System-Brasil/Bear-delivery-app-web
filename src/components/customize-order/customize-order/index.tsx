@@ -17,6 +17,11 @@ import {
 import { resolveRestaurantOpenStatus } from "@/constants/opening-hours";
 import { useAuth } from "@/contexts/auth-provider";
 import { isSellableVariation } from "@/lib/product-variation";
+import {
+  MAX_UNITS_PER_PRODUCT,
+  PRODUCT_LIMIT_MESSAGE,
+} from "@/lib/order-quantity-limit";
+import { isUnlimitedStock } from "@/lib/unlimited-stock";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/utils";
 import { Minus, Plus, X } from "lucide-react";
@@ -417,20 +422,27 @@ export function CustomizeOrder({
   const availableStock = useMemo(() => {
     if (variations.length > 0) {
       if (!selectedVariation) return 0;
-      return selectedVariation.stockQuantity ?? 0;
+      const variationStock = selectedVariation.stockQuantity ?? 0;
+      // Estoque não controlado: sem limite de quantidade.
+      return isUnlimitedStock(variationStock) ? undefined : variationStock;
     }
-    return productData.stockQuantity;
+    return isUnlimitedStock(productData.stockQuantity)
+      ? undefined
+      : productData.stockQuantity;
   }, [variations.length, selectedVariation, productData.stockQuantity]);
 
   const isProductOutOfStock =
     !variationsLoading &&
     variations.length === 0 &&
     (productData.isAvailable === false ||
-      (productData.stockQuantity !== undefined &&
-        productData.stockQuantity <= 0));
+      (!isUnlimitedStock(productData.stockQuantity) &&
+        (productData.stockQuantity ?? 0) <= 0));
 
+  // Teto temporário por prato (LDMF-333) vale mesmo sem controle de estoque.
   const maxAllowedQuantity =
-    availableStock !== undefined ? Math.max(0, availableStock) : undefined;
+    availableStock !== undefined
+      ? Math.min(Math.max(0, availableStock), MAX_UNITS_PER_PRODUCT)
+      : MAX_UNITS_PER_PRODUCT;
 
   // Ajusta a quantidade se o tamanho selecionado tiver estoque menor que a quantidade atual
   useEffect(() => {
@@ -573,6 +585,12 @@ export function CustomizeOrder({
             className="border-t border-orange-200 bg-orange-50 px-4 py-2.5 text-center text-xs font-semibold text-orange-800 dark:border-orange-800 dark:bg-orange-950/40 dark:text-orange-300"
           >
             {closedReasonText}
+          </div>
+        )}
+
+        {quantity >= MAX_UNITS_PER_PRODUCT && (
+          <div className="border-t border-border bg-muted px-4 py-2 text-center text-xs font-semibold text-muted-foreground">
+            {PRODUCT_LIMIT_MESSAGE}
           </div>
         )}
 
