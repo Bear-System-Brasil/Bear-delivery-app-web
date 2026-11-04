@@ -17,6 +17,10 @@ import {
   type OpenLocationSheetMode,
 } from "@/lib/location-sheet";
 import { getProfileRoute, isCompanyStaffRole } from "@/utils/role-helpers";
+import {
+  writeUserLocation,
+  type LocationSource,
+} from "@/lib/user-location-cookie";
 import clsx from "clsx";
 import {
   ChevronDown,
@@ -200,16 +204,18 @@ export function MainHeader({
     }
   };
 
+  // Último gesto vence (LDMF-260): endereço escolhido grava "address", o
+  // toque em "Usar atual" grava "gps".
   const saveLocation = (
     location: Omit<SavedDeliveryLocation, "label"> &
       Partial<Pick<SavedDeliveryLocation, "label">>,
+    source: LocationSource = "address",
   ) => {
-    document.cookie = `userLocation=${encodeURIComponent(JSON.stringify(location))}; path=/; max-age=86400; SameSite=Lax`;
+    writeUserLocation(location, source);
     setLocationLabel(formatLocationLabel(location) || DEFAULT_LOCATION_LABEL);
     setLocationOpen(false);
     setIsChangingLocation(false);
     setLocationError("");
-    window.dispatchEvent(new Event("locationChanged"));
   };
 
   const handleCurrentLocation = async () => {
@@ -242,12 +248,15 @@ export function MainHeader({
       ]
         .filter(Boolean)
         .join(", ");
-      saveLocation({
-        lat: latitude,
-        lng: longitude,
-        city,
-        address: address || city,
-      });
+      saveLocation(
+        {
+          lat: latitude,
+          lng: longitude,
+          city,
+          address: address || city,
+        },
+        "gps",
+      );
     } catch {
       setLocationError("Não foi possível encontrar sua localização.");
     } finally {
@@ -349,7 +358,9 @@ export function MainHeader({
                 >
                   <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-muted" />
                   {isChangingLocation ? (
-                    <DeliveryAddressForm onSave={saveLocation} />
+                    <DeliveryAddressForm
+                      onSave={(location) => saveLocation(location, "address")}
+                    />
                   ) : (
                     <div className="mx-auto w-full max-w-xl space-y-4">
                       <SheetTitle className="text-lg font-bold">
