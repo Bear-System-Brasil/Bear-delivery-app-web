@@ -392,6 +392,12 @@ export const useAddressEditor = ({
     return addressCoords.coords;
   };
 
+  /** "É essa?" aceito: o logradouro achado vai para o formulário (LDMF-282). */
+  const acceptStreetSuggestion = () => {
+    const road = addressPin.acceptStreetSuggestion();
+    if (road) addressForm.setValue("street", road, { shouldValidate: true });
+  };
+
   return {
     addressForm,
     loadAddress,
@@ -418,6 +424,9 @@ export const useAddressEditor = ({
     isLocatingPin: addressPin.isLocatingNeighborhood,
     isSearchingAddress: addressPin.isSearchingAddress,
     addressNotFound: addressPin.addressNotFound,
+    streetSuggestion: addressPin.streetSuggestion,
+    acceptStreetSuggestion,
+    dismissStreetSuggestion: addressPin.dismissStreetSuggestion,
     pinZoom: pin?.zoom,
     pinRecenterKey: pin?.seq,
     // CEP

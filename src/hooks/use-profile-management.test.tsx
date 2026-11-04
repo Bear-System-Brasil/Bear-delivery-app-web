@@ -1389,14 +1389,14 @@ describe("useProfileManagement", () => {
         result.current.addressForm.setValue("number", "45");
       });
 
-      await waitFor(() => expect(nominatimCalls(fetchMock)).toHaveLength(1), { timeout: 3000 });
-      await waitFor(() => expect(result.current.isLocatingPin).toBe(false));
+      // As 4 tentativas (LDMF-282), 1 por segundo: todas caem fora da cidade.
+      await waitFor(() => expect(result.current.addressNotFound).toBe(true), { timeout: 6000 });
+      expect(nominatimCalls(fetchMock)).toHaveLength(4);
       expect(result.current.addressCoords).toEqual({
         coords: { lat: -20.6, lng: -41.2 },
         source: "manual",
       });
-      expect(result.current.addressNotFound).toBe(true);
-    });
+    }, 10000);
 
     it("Nominatim sem resultado avisa e o aviso sai quando o cliente arrasta o pino", async () => {
       const fetchMock = stubNominatim([]);
@@ -1407,15 +1407,68 @@ describe("useProfileManagement", () => {
         result.current.addressForm.setValue("number", "7");
       });
 
-      await waitFor(() => expect(result.current.addressNotFound).toBe(true), { timeout: 3000 });
-      expect(nominatimCalls(fetchMock)).toHaveLength(1);
+      await waitFor(() => expect(result.current.addressNotFound).toBe(true), { timeout: 6000 });
+      // Com e sem número, com e sem o tipo (LDMF-282).
+      expect(nominatimCalls(fetchMock).map((url) => url.searchParams.get("street"))).toEqual([
+        "7 Rua Sem Mapa",
+        "Rua Sem Mapa",
+        "7 Sem Mapa",
+        "Sem Mapa",
+      ]);
       expect(result.current.addressCoords).toBeNull();
       expect(result.current.isSearchingAddress).toBe(false);
 
       placePin(result, { lat: -20.6, lng: -41.2 });
 
       expect(result.current.addressNotFound).toBe(false);
-    });
+    }, 10000);
+
+    it("tipo errado: acha sem o tipo, move o pino e só troca o nome se o cliente aceitar (LDMF-282)", async () => {
+      const fetchMock = vi.fn(async (url: string) => {
+        const street = new URL(url).searchParams.get("street") ?? "";
+        const body = street.includes("Rua")
+          ? []
+          : [
+              {
+                lat: "-20.6045",
+                lon: "-41.2039",
+                address: {
+                  road: "Avenida Nossa Senhora da Penha",
+                  town: "Castelo",
+                  "ISO3166-2-lvl4": "BR-ES",
+                },
+              },
+            ];
+        return { ok: true, status: 200, json: async () => body };
+      });
+      vi.stubGlobal("fetch", fetchMock);
+      const { result } = await renderProfile();
+      fillCity(result);
+
+      act(() => {
+        result.current.addressForm.setValue("street", "Rua Nossa Senhora da Penha");
+        result.current.addressForm.setValue("number", "120");
+      });
+
+      await waitFor(
+        () => expect(result.current.streetSuggestion).toBe("Avenida Nossa Senhora da Penha"),
+        { timeout: 6000 },
+      );
+      expect(result.current.addressCoords?.coords).toEqual({ lat: -20.6045, lng: -41.2039 });
+      // Nome não troca sozinho.
+      expect(result.current.addressForm.getValues("street")).toBe("Rua Nossa Senhora da Penha");
+
+      const calls = nominatimCalls(fetchMock).length;
+      act(() => result.current.acceptStreetSuggestion());
+
+      expect(result.current.addressForm.getValues("street")).toBe(
+        "Avenida Nossa Senhora da Penha",
+      );
+      expect(result.current.streetSuggestion).toBeNull();
+      // Aceitar não busca de novo: o pino já está na avenida.
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      expect(nominatimCalls(fetchMock)).toHaveLength(calls);
+    }, 10000);
 
     it("zoom de rua para a busca de rua e número, de cidade para o centro da cidade", async () => {
       const fetchMock = vi.fn(async (url: string) => {

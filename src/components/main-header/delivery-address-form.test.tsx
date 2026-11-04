@@ -30,7 +30,10 @@ vi.mock("@/lib/nominatim", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/nominatim")>();
   return {
     ...actual,
-    nominatim: { searchAddress: vi.fn(async () => null) },
+    nominatim: {
+      searchAddress: vi.fn(async () => null),
+      findStreet: vi.fn(async () => null),
+    },
   };
 });
 

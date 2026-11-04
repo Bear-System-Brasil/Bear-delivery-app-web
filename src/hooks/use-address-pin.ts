@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { normalizeText, parseCoords } from "@/lib/geocode";
 import { nominatim } from "@/lib/nominatim";
+import { isSameStreet } from "@/lib/street-type";
 import {
   findNeighborhood,
   getNeighborhoods,
@@ -81,6 +82,9 @@ export function useAddressPin({ fields, onPin, otherNeighborhood = false }: Opti
   const [isSearchingAddress, setIsSearchingAddress] = useState(false);
   // A última busca de rua e número não achou nada dentro da cidade.
   const [addressNotFound, setAddressNotFound] = useState(false);
+  // Rua achada só sem o tipo escolhido, com outro nome ("Avenida ..."): o
+  // pino já foi para lá, mas o nome só troca se o cliente aceitar (LDMF-282).
+  const [streetSuggestion, setStreetSuggestion] = useState<string | null>(null);
 
   const onPinRef = useRef(onPin);
   onPinRef.current = onPin;
@@ -98,7 +102,8 @@ export function useAddressPin({ fields, onPin, otherNeighborhood = false }: Opti
   const neighborhood = fields.neighborhood ?? "";
   const street = fields.street ?? "";
   // "Sem número": a busca vai só com a rua.
-  const number = isNoNumber(fields.number) ? "" : (fields.number ?? "");
+  const rawNumber = fields.number;
+  const number = isNoNumber(rawNumber) ? "" : (rawNumber ?? "");
   const currentAddressKey = addressKey({ street, number: fields.number, city, state });
 
   useEffect(() => {
@@ -172,16 +177,35 @@ export function useAddressPin({ fields, onPin, otherNeighborhood = false }: Opti
     const timer = setTimeout(async () => {
       baseline.current.address = currentAddressKey;
       setAddressNotFound(false);
+      setStreetSuggestion(null);
       setIsSearchingAddress(true);
 
-      const coords = await nominatim.searchAddress({ street, number, city, state });
+      // Tentativas: com e sem número, com e sem o tipo (LDMF-282). Uma busca
+      // nova (mudou rua, número ou tipo) para as que faltam desta.
+      const match = await nominatim.findStreet(
+        { street, number, city, state },
+        () => !active,
+      );
       if (!active) return;
 
       setIsSearchingAddress(false);
       // Não achou ou caiu fora da cidade: o pino fica onde estava e o
       // cliente é avisado para arrastar.
-      if (coords) onPinRef.current(coords, "geocode", STREET_ZOOM);
-      else setAddressNotFound(true);
+      if (!match) {
+        setAddressNotFound(true);
+        return;
+      }
+
+      onPinRef.current(match.coords, "geocode", STREET_ZOOM);
+      // Nunca troca o nome em silêncio: pode existir "Rua X" e "Travessa X"
+      // na mesma cidade.
+      if (
+        match.withoutChosenType &&
+        match.road &&
+        !isSameStreet(match.road, street)
+      ) {
+        setStreetSuggestion(match.road);
+      }
     }, ADDRESS_SEARCH_DELAY_MS);
 
     return () => {
@@ -237,7 +261,29 @@ export function useAddressPin({ fields, onPin, otherNeighborhood = false }: Opti
       address: addressKey(values),
     };
     setAddressNotFound(false);
+    setStreetSuggestion(null);
   }, []);
+
+  /**
+   * Cliente aceitou o nome sugerido: devolve o logradouro para o formulário
+   * e marca como já buscado (o pino já está nele, não busca de novo).
+   */
+  const acceptStreetSuggestion = useCallback(() => {
+    const road = streetSuggestion;
+    if (!road) return null;
+
+    baseline.current.address = addressKey({
+      street: road,
+      number: rawNumber,
+      city,
+      state,
+    });
+    setStreetSuggestion(null);
+    return road;
+  }, [streetSuggestion, rawNumber, city, state]);
+
+  /** Cliente manteve o nome que digitou: o pino fica onde a busca pôs. */
+  const dismissStreetSuggestion = useCallback(() => setStreetSuggestion(null), []);
 
   /** O cliente posicionou o pino à mão: o aviso de não encontrado sai. */
   const clearNotice = useCallback(() => setAddressNotFound(false), []);
@@ -248,6 +294,9 @@ export function useAddressPin({ fields, onPin, otherNeighborhood = false }: Opti
     isLocatingNeighborhood,
     isSearchingAddress,
     addressNotFound,
+    streetSuggestion,
+    acceptStreetSuggestion,
+    dismissStreetSuggestion,
     resetBaseline,
     clearNotice,
     locateCityCenter,

@@ -19,7 +19,10 @@ vi.mock("@/services/ibge", () => ({
 }));
 vi.mock("@/lib/nominatim", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/nominatim")>()),
-  nominatim: { searchAddress: vi.fn(async () => null) },
+  nominatim: {
+      searchAddress: vi.fn(async () => null),
+      findStreet: vi.fn(async () => null),
+    },
 }));
 
 // Resposta real da BrasilAPI (medida em 17/10) para Castelo, CEP único:

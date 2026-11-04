@@ -589,6 +589,9 @@ export const useProfileManagement = () => {
     defaultOptionLockedHint,
     isSearchingAddress: addressEditor.isSearchingAddress,
     addressNotFound: addressEditor.addressNotFound,
+    streetSuggestion: addressEditor.streetSuggestion,
+    acceptStreetSuggestion: addressEditor.acceptStreetSuggestion,
+    dismissStreetSuggestion: addressEditor.dismissStreetSuggestion,
     pinZoom: addressEditor.pinZoom,
     pinRecenterKey: addressEditor.pinRecenterKey,
     // CEP
