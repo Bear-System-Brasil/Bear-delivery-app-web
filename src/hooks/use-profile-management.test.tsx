@@ -8,6 +8,7 @@ import {
   setDefaultAddress,
 } from "@/lib/default-address";
 import { nominatim } from "@/lib/nominatim";
+import { readUserLocation } from "@/lib/user-location-cookie";
 import { apiService, type Address } from "@/services/api";
 import { getNeighborhoods } from "@/services/neighborhoods";
 import { useAuthStore } from "@/stores";
@@ -793,6 +794,71 @@ describe("useProfileManagement", () => {
       });
 
       expect(result.current.settingDefaultAddressId).toBe("a1");
+    });
+  });
+
+  describe("ponto da home (cookie userLocation, LDMF-260)", () => {
+    afterEach(() => {
+      document.cookie = "userLocation=; path=/; max-age=0";
+    });
+
+    it("salvar endereço como padrão vira o ponto da home, com a posição do pino", async () => {
+      api.address.createUserAddress.mockResolvedValue({ success: true, data: stored("novo") });
+      const { result } = await renderProfile();
+      placePin(result);
+
+      await act(async () => {
+        await result.current.handleAddAddress(formData({ isDefault: true }));
+      });
+
+      expect(readUserLocation()).toMatchObject({
+        lat: PIN.lat,
+        lng: PIN.lng,
+        city: "Curitiba",
+        source: "address",
+      });
+    });
+
+    it("salvar endereço que não é padrão não mexe no ponto da home", async () => {
+      api.address.createUserAddress.mockResolvedValue({ success: true, data: stored("novo") });
+      const { result } = await renderProfile();
+      placePin(result);
+
+      await act(async () => {
+        await result.current.handleAddAddress(formData({ isDefault: false }));
+      });
+
+      expect(readUserLocation()).toBeNull();
+    });
+
+    it("marcar padrão pela lista vira o ponto da home", async () => {
+      savedAddresses = [stored("a1", { city: "Alegre" }), stored("a2", { isDefault: true })];
+      const { result } = await renderProfile();
+      await waitFor(() => expect(result.current.addresses).toHaveLength(2));
+
+      await act(async () => {
+        await result.current.handleSetDefaultAddress("a1");
+      });
+
+      expect(readUserLocation()).toMatchObject({
+        lat: -25.1,
+        lng: -49.1,
+        city: "Alegre",
+        source: "address",
+      });
+    });
+
+    it("padrão recusado pelo backend não mexe no ponto da home", async () => {
+      vi.mocked(setDefaultAddress).mockResolvedValue({ promoted: false, demotedAll: false });
+      savedAddresses = [stored("a1")];
+      const { result } = await renderProfile();
+      await waitFor(() => expect(result.current.addresses).toHaveLength(1));
+
+      await act(async () => {
+        await result.current.handleSetDefaultAddress("a1");
+      });
+
+      expect(readUserLocation()).toBeNull();
     });
   });
 

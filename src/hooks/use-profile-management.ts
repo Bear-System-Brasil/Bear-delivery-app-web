@@ -1,3 +1,4 @@
+import { setUserLocationFromAddress } from "@/lib/user-location-cookie";
 import {
   apiService,
   getBirthDateApiError,
@@ -394,6 +395,9 @@ export const useProfileManagement = () => {
       }
 
       if (response.success) {
+        // Endereço salvo como padrão vira o ponto da home (LDMF-260).
+        if (payload.isDefault) setUserLocationFromAddress(payload);
+
         queryClient.invalidateQueries({
           queryKey: ["addresses", "user", user?.id],
         });
@@ -474,6 +478,12 @@ export const useProfileManagement = () => {
         );
         return;
       }
+
+      // Novo padrão vira o ponto da home (LDMF-260).
+      const promotedAddress = rawAddresses?.find(
+        (address) => address.id === addressId,
+      );
+      if (promotedAddress) setUserLocationFromAddress(promotedAddress);
 
       queryClient.invalidateQueries({
         queryKey: ["addresses", "user", user?.id],
