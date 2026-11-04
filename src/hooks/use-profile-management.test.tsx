@@ -8,11 +8,18 @@ import {
   setDefaultAddress,
 } from "@/lib/default-address";
 import { nominatim } from "@/lib/nominatim";
+import { readUserLocation } from "@/lib/user-location-cookie";
 import { apiService, type Address } from "@/services/api";
 import { getNeighborhoods } from "@/services/neighborhoods";
 import { useAuthStore } from "@/stores";
 import type { AddressFormData } from "./use-form-validation";
-import { useProfileManagement } from "./use-profile-management";
+import {
+  DEFAULT_LOCKED_EDITING_HINT,
+  DEFAULT_LOCKED_FIRST_HINT,
+  DELETE_DEFAULT_ADDRESS_MESSAGE,
+  DELETE_ONLY_ADDRESS_MESSAGE,
+  useProfileManagement,
+} from "./use-profile-management";
 
 const { router } = vi.hoisted(() => ({ router: { push: vi.fn() } }));
 
@@ -419,6 +426,8 @@ describe("useProfileManagement", () => {
 
   describe("salvar endereço", () => {
     it("novo endereço sai com todos os campos, CEP só com dígitos e exatamente a posição do pino", async () => {
+      // Já tem padrão: o novo sai como não padrão (LDMF-262).
+      savedAddresses = [stored("a0", { isDefault: true })];
       api.address.createUserAddress.mockResolvedValue({ success: true, data: stored("novo") });
       const fetchMock = vi.fn();
       vi.stubGlobal("fetch", fetchMock);
@@ -796,6 +805,72 @@ describe("useProfileManagement", () => {
     });
   });
 
+  describe("ponto da home (cookie userLocation, LDMF-260)", () => {
+    afterEach(() => {
+      document.cookie = "userLocation=; path=/; max-age=0";
+    });
+
+    it("salvar endereço como padrão vira o ponto da home, com a posição do pino", async () => {
+      api.address.createUserAddress.mockResolvedValue({ success: true, data: stored("novo") });
+      const { result } = await renderProfile();
+      placePin(result);
+
+      await act(async () => {
+        await result.current.handleAddAddress(formData({ isDefault: true }));
+      });
+
+      expect(readUserLocation()).toMatchObject({
+        lat: PIN.lat,
+        lng: PIN.lng,
+        city: "Curitiba",
+        source: "address",
+      });
+    });
+
+    it("salvar endereço que não é padrão não mexe no ponto da home", async () => {
+      savedAddresses = [stored("a0", { isDefault: true })];
+      api.address.createUserAddress.mockResolvedValue({ success: true, data: stored("novo") });
+      const { result } = await renderProfile();
+      placePin(result);
+
+      await act(async () => {
+        await result.current.handleAddAddress(formData({ isDefault: false }));
+      });
+
+      expect(readUserLocation()).toBeNull();
+    });
+
+    it("marcar padrão pela lista vira o ponto da home", async () => {
+      savedAddresses = [stored("a1", { city: "Alegre" }), stored("a2", { isDefault: true })];
+      const { result } = await renderProfile();
+      await waitFor(() => expect(result.current.addresses).toHaveLength(2));
+
+      await act(async () => {
+        await result.current.handleSetDefaultAddress("a1");
+      });
+
+      expect(readUserLocation()).toMatchObject({
+        lat: -25.1,
+        lng: -49.1,
+        city: "Alegre",
+        source: "address",
+      });
+    });
+
+    it("padrão recusado pelo backend não mexe no ponto da home", async () => {
+      vi.mocked(setDefaultAddress).mockResolvedValue({ promoted: false, demotedAll: false });
+      savedAddresses = [stored("a1")];
+      const { result } = await renderProfile();
+      await waitFor(() => expect(result.current.addresses).toHaveLength(1));
+
+      await act(async () => {
+        await result.current.handleSetDefaultAddress("a1");
+      });
+
+      expect(readUserLocation()).toBeNull();
+    });
+  });
+
   describe("excluir endereço", () => {
     it("sem confirmação, não chama a API", async () => {
       vi.stubGlobal("confirm", vi.fn(() => false));
@@ -809,6 +884,7 @@ describe("useProfileManagement", () => {
     });
 
     it("confirmado, exclui e avisa", async () => {
+      savedAddresses = [stored("a1"), stored("a2", { isDefault: true })];
       api.address.deleteUserAddress.mockResolvedValue({ success: true });
       const { result } = await renderProfile();
 
@@ -821,6 +897,7 @@ describe("useProfileManagement", () => {
     });
 
     it("recusa mostra a mensagem do backend", async () => {
+      savedAddresses = [stored("a1"), stored("a2", { isDefault: true })];
       api.address.deleteUserAddress.mockResolvedValue({ success: false, message: "Endereço em uso" });
       const { result } = await renderProfile();
 
@@ -829,6 +906,74 @@ describe("useProfileManagement", () => {
       });
 
       expect(toast.error).toHaveBeenCalledWith("Endereço em uso");
+    });
+  });
+
+  describe("cliente logado sempre com endereço padrão (LDMF-262)", () => {
+    it("não exclui o único endereço", async () => {
+      vi.stubGlobal("confirm", vi.fn(() => true));
+      savedAddresses = [stored("a1", { isDefault: true })];
+      const { result } = await renderProfile();
+
+      await act(async () => {
+        await result.current.handleDeleteAddress("a1");
+      });
+
+      expect(toast.error).toHaveBeenCalledWith(DELETE_ONLY_ADDRESS_MESSAGE);
+      expect(api.address.deleteUserAddress).not.toHaveBeenCalled();
+    });
+
+    it("não exclui o padrão sem marcar outro antes", async () => {
+      vi.stubGlobal("confirm", vi.fn(() => true));
+      savedAddresses = [stored("a1", { isDefault: true }), stored("a2")];
+      const { result } = await renderProfile();
+
+      await act(async () => {
+        await result.current.handleDeleteAddress("a1");
+      });
+
+      expect(toast.error).toHaveBeenCalledWith(DELETE_DEFAULT_ADDRESS_MESSAGE);
+      expect(api.address.deleteUserAddress).not.toHaveBeenCalled();
+    });
+
+    it("sem padrão, o endereço salvo vira padrão mesmo com a caixa desmarcada", async () => {
+      api.address.createUserAddress.mockResolvedValue({ success: true, data: stored("novo") });
+      const { result } = await renderProfile();
+      expect(result.current.defaultOptionLockedHint).toBe(DEFAULT_LOCKED_FIRST_HINT);
+      placePin(result);
+
+      await act(async () => {
+        await result.current.handleAddAddress(formData({ isDefault: false }));
+      });
+
+      expect(api.address.createUserAddress.mock.calls[0][0].isDefault).toBe(true);
+    });
+
+    it("editando o padrão, desmarcar a caixa não tira o padrão", async () => {
+      savedAddresses = [stored("a1", { isDefault: true }), stored("a2")];
+      api.address.updateUserAddress.mockResolvedValue({ success: true, data: stored("a1") });
+      const { result } = await renderProfile();
+
+      act(() => result.current.handleEditAddress(result.current.addresses[0]));
+      await waitFor(() =>
+        expect(result.current.defaultOptionLockedHint).toBe(DEFAULT_LOCKED_EDITING_HINT),
+      );
+      placePin(result);
+
+      await act(async () => {
+        await result.current.handleAddAddress(formData({ isDefault: false }));
+      });
+
+      expect(api.address.updateUserAddress.mock.calls[0][1].isDefault).toBe(true);
+    });
+
+    it("com outro padrão, a caixa fica livre", async () => {
+      savedAddresses = [stored("a1", { isDefault: true }), stored("a2")];
+      const { result } = await renderProfile();
+
+      expect(result.current.defaultOptionLockedHint).toBeNull();
+      act(() => result.current.handleEditAddress(result.current.addresses[1]));
+      expect(result.current.defaultOptionLockedHint).toBeNull();
     });
   });
 
@@ -1332,6 +1477,63 @@ describe("useProfileManagement", () => {
   });
 
   describe("CEP", () => {
+    it("CEP automático: cidade de CEP único preenche o CEP vazio, sem buscar e com aviso", async () => {
+      const fetchMock = vi.fn();
+      vi.stubGlobal("fetch", fetchMock);
+      const { result } = await renderProfile();
+
+      act(() => {
+        result.current.changeState("ES");
+        result.current.changeCity("Castelo");
+      });
+
+      await waitFor(() =>
+        expect(result.current.addressForm.getValues("zipCode")).toBe("29360-000"),
+      );
+      expect(result.current.zipCodeHint).toBe(
+        "Preenchemos o CEP da cidade, que vale para a cidade inteira.",
+      );
+      // Bairro, rua e número continuam como estavam (vazios).
+      expect(result.current.addressForm.getValues("neighborhood") ?? "").toBe("");
+      const cepCalls = fetchMock.mock.calls.filter(([url]) =>
+        /brasilapi|viacep/.test(String(url)),
+      );
+      expect(cepCalls).toHaveLength(0);
+    });
+
+    it("CEP automático não troca um CEP que o cliente já digitou", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 503 }));
+      const { result } = await renderProfile();
+
+      act(() => {
+        result.current.addressForm.setValue("zipCode", "29360-111");
+        result.current.changeState("ES");
+        result.current.changeCity("Castelo");
+      });
+
+      await waitFor(() => expect(result.current.neighborhoodOptions).not.toBeNull());
+      expect(result.current.addressForm.getValues("zipCode")).toBe("29360-111");
+    });
+
+    it("trocar para cidade sem CEP único tira o CEP preenchido automaticamente", async () => {
+      vi.stubGlobal("fetch", vi.fn());
+      const { result } = await renderProfile();
+
+      act(() => {
+        result.current.changeState("ES");
+        result.current.changeCity("Castelo");
+      });
+      await waitFor(() =>
+        expect(result.current.addressForm.getValues("zipCode")).toBe("29360-000"),
+      );
+
+      act(() => result.current.changeCity("Alegre"));
+
+      await waitFor(() =>
+        expect(result.current.addressForm.getValues("zipCode")).toBe(""),
+      );
+    });
+
     it("CEP completo busca na BrasilAPI e preenche o endereço", async () => {
       const fetchMock = vi.fn().mockResolvedValue({
         ok: true,

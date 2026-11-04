@@ -13,6 +13,7 @@ import type { AddressFieldLocks } from "@/hooks/use-address-fields";
 import { isNoNumber, NO_NUMBER } from "@/hooks/use-form-validation";
 import type { IbgeState } from "@/services/ibge";
 import { Coords } from "@/types/restaurant";
+import { cn } from "@/lib/utils";
 
 /** Bairro da lista: `value` é o nome oficial, `label` o texto exibido. */
 export type NeighborhoodOption = { value: string; label: string };
@@ -62,6 +63,9 @@ export type AddressCoreFieldsProps = AddressFieldProps &
     /** Mostra a caixa "Definir como endereço padrão". A loja não mostra: o
      *  endereço dela é sempre o padrão (LDMF-263). */
     showDefaultOption?: boolean;
+    /** Preenchido quando o endereço tem que ser o padrão (LDMF-262): a caixa
+     *  fica marcada e travada, com este texto explicando o porquê. */
+    defaultOptionLockedHint?: string | null;
     /** Onde o pino deve ficar, nos textos do mapa ("sua casa", "sua loja"). */
     placeLabel?: string;
   };
@@ -97,6 +101,7 @@ export function AddressCoreFields({
   showComplement = true,
   showReference = false,
   showDefaultOption = true,
+  defaultOptionLockedHint = null,
   placeLabel = "sua casa",
   stateOptions,
   cityOptions,
@@ -425,19 +430,34 @@ export function AddressCoreFields({
 
       {/* Checkbox Padrão */}
       {showDefaultOption && (
-        <div className="md:col-span-2 flex items-center space-x-2 pt-2">
+        <div className="md:col-span-2 flex flex-wrap items-center gap-x-2 pt-2">
           <input
             type="checkbox"
             id="isDefault"
             {...addressForm.register("isDefault")}
-            className="h-4 w-4 rounded border-border text-brand-500 focus:ring-brand-500"
+            disabled={!!defaultOptionLockedHint}
+            aria-describedby={
+              defaultOptionLockedHint ? "isDefault-locked-hint" : undefined
+            }
+            className="h-4 w-4 rounded border-border text-brand-500 focus:ring-brand-500 disabled:opacity-60"
           />
           <label
             htmlFor="isDefault"
-            className="text-sm font-medium cursor-pointer"
+            className={cn(
+              "text-sm font-medium",
+              defaultOptionLockedHint ? "cursor-default" : "cursor-pointer",
+            )}
           >
             Definir como endereço padrão
           </label>
+          {defaultOptionLockedHint && (
+            <p
+              id="isDefault-locked-hint"
+              className="basis-full text-xs text-muted-foreground"
+            >
+              {defaultOptionLockedHint}
+            </p>
+          )}
         </div>
       )}
     </div>

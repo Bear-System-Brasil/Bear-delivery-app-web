@@ -101,6 +101,8 @@ type Props = {
   editingAddressId?: string | null;
   neighborhoodOptions?: NeighborhoodOption[] | null;
   isLocatingPin?: boolean;
+  /** Ver `AddressCoreFields`: endereço que tem que ser o padrão (LDMF-262). */
+  defaultOptionLockedHint?: string | null;
   addressFieldProps: AddressFieldProps;
   pinStatusProps?: PinStatusProps;
 };
@@ -124,6 +126,7 @@ export function Addresses({
   editingAddressId,
   neighborhoodOptions,
   isLocatingPin,
+  defaultOptionLockedHint = null,
   addressFieldProps,
   pinStatusProps,
 }: Props) {
@@ -252,6 +255,7 @@ export function Addresses({
           isEditing={!!editingAddressId}
           neighborhoodOptions={neighborhoodOptions}
           isLocatingPin={isLocatingPin}
+          defaultOptionLockedHint={defaultOptionLockedHint}
           {...addressFieldProps}
           {...pinStatusProps}
         />

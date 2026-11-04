@@ -638,10 +638,15 @@ async function apiRequest<T>(
       const is404OnRecentProducts =
         response.status === 404 && endpoint.startsWith("/product/recent");
 
+      // Cidade sem lista de bairros: esperado, o cliente usa "Outro".
+      const is404OnNeighborhoods =
+        response.status === 404 && endpoint.startsWith("/neighborhoods");
+
       if (
         !is404OnViewOrder &&
         !is404OnAddToCart &&
         !is404OnRecentProducts &&
+        !is404OnNeighborhoods &&
         process.env.NODE_ENV !== "production"
       ) {
         // `serverMessage` e o corpo bruto do erro: sem eles o log so diz "400"
@@ -2316,6 +2321,19 @@ export const apiService = {
         message: "Erro ao fazer upload do cover",
       };
     }
+  },
+
+  // Bairros por estado e cidade (LDMF-264). Exige login; visitante usa a
+  // lista local (ver services/neighborhoods). `query` já vem codificada.
+  neighborhoods: {
+    getByCity: (query: string) =>
+      apiRequest<unknown>(
+        "GET",
+        `/neighborhoods?${query}`,
+        undefined,
+        true,
+        true,
+      ),
   },
 
   // Address endpoints

@@ -78,6 +78,7 @@ export function ProfileWrapper() {
     applyCoords,
     neighborhoodOptions,
     isLocatingPin,
+    defaultOptionLockedHint,
     stateOptions,
     cityOptions,
     isLoadingCities,
@@ -237,6 +238,7 @@ export function ProfileWrapper() {
           addresses={addresses}
           neighborhoodOptions={neighborhoodOptions}
           isLocatingPin={isLocatingPin}
+          defaultOptionLockedHint={defaultOptionLockedHint}
           addressFieldProps={{
             stateOptions,
             cityOptions,

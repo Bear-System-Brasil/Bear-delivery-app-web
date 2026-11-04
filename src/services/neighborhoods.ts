@@ -1,5 +1,7 @@
 import casteloEs from "@/data/neighborhoods/es-castelo.json";
 import { normalizeText } from "@/lib/geocode";
+import { apiService } from "@/services/api";
+import { useAuthStore } from "@/stores/auth-store";
 
 /**
  * Bairro da lista oficial da cidade. `lat`/`lng` ficam `null` até serem
@@ -18,7 +20,7 @@ export type Neighborhood = {
 };
 
 /**
- * Formato combinado para a futura rota de bairros do backend (LDMF-264).
+ * Formato da rota de bairros do backend (LDMF-264, `GET /neighborhoods`).
  * `ibgeCode` e `cep` podem ser `null` quando ainda não foram confirmados.
  */
 export type CityNeighborhoods = {
@@ -35,17 +37,109 @@ export type CityNeighborhoods = {
   neighborhoods: Neighborhood[];
 };
 
-// Lista local temporária (LDMF-260). Fonte dos nomes: Lei Municipal de Castelo
-// nº 4.641, de 15/09/2026, na grafia da lei: os 32 bairros, com Pantanal e
-// Jardim Primavera separados (LDMF-278). Fontes e atribuição em
+// Lista local (LDMF-260), igual à do backend. Fica como reserva: a rota do
+// back exige login, e o seletor de endereço da home também é usado por
+// visitante. Fonte dos nomes: Lei Municipal de Castelo nº 4.641, de
+// 15/09/2026, na grafia da lei: os 32 bairros, com Pantanal e Jardim
+// Primavera separados (LDMF-278). Fontes e atribuição em
 // src/data/neighborhoods/README.md.
 const LOCAL_LISTS: CityNeighborhoods[] = [casteloEs as CityNeighborhoods];
 
+function findLocalList(stateKey: string, cityKey: string) {
+  return (
+    LOCAL_LISTS.find(
+      (list) =>
+        normalizeText(list.state) === stateKey &&
+        normalizeText(list.city) === cityKey,
+    ) ?? null
+  );
+}
+
+const toCoord = (value: unknown) =>
+  typeof value === "number" && Number.isFinite(value) ? value : null;
+
+const toText = (value: unknown) =>
+  typeof value === "string" && value.trim() ? value.trim() : null;
+
 /**
- * Bairros de uma cidade, ou `null` quando ainda não temos lista para ela.
+ * Lê a resposta do back sem confiar no formato: bairro sem nome é
+ * descartado e coordenada que não é número vira `null`.
+ */
+export function parseNeighborhoodsResponse(
+  payload: unknown,
+): CityNeighborhoods | null {
+  const raw = payload as Partial<Record<keyof CityNeighborhoods, unknown>>;
+  if (!raw || !Array.isArray(raw.neighborhoods)) return null;
+
+  const state = toText(raw.state);
+  const city = toText(raw.city);
+  if (!state || !city) return null;
+
+  const center = raw.center as { lat?: unknown; lng?: unknown } | null;
+  const centerLat = toCoord(center?.lat);
+  const centerLng = toCoord(center?.lng);
+
+  const neighborhoods = raw.neighborhoods.flatMap((item): Neighborhood[] => {
+    const entry = item as Record<string, unknown> | null;
+    const name = toText(entry?.name);
+    if (!name) return [];
+
+    const altNames = Array.isArray(entry?.altNames)
+      ? entry.altNames.filter(
+          (alt): alt is string => typeof alt === "string" && !!alt.trim(),
+        )
+      : [];
+
+    return [
+      {
+        name,
+        ...(altNames.length > 0 ? { altNames } : {}),
+        lat: toCoord(entry?.lat),
+        lng: toCoord(entry?.lng),
+      },
+    ];
+  });
+
+  return {
+    state,
+    city,
+    ibgeCode: toText(raw.ibgeCode),
+    cep: toText(raw.cep),
+    center:
+      centerLat !== null && centerLng !== null
+        ? { lat: centerLat, lng: centerLng }
+        : null,
+    neighborhoods,
+  };
+}
+
+/** A lista de uma cidade não muda durante a sessão: uma busca por cidade. */
+const remoteLists = new Map<string, Promise<CityNeighborhoods | null>>();
+
+async function fetchRemoteList(
+  state: string,
+  city: string,
+): Promise<CityNeighborhoods | null | undefined> {
+  const query = new URLSearchParams({ state, city }).toString();
+  let response;
+  try {
+    response = await apiService.neighborhoods.getByCity(query);
+  } catch {
+    return undefined;
+  }
+
+  if (response.success) return parseNeighborhoodsResponse(response.data);
+  // 404 = o back não tem lista para a cidade: o cliente usa "Outro".
+  if (response.status === 404) return null;
+  // Falha (rede, 5xx, sessão vencida): quem decide é a lista local.
+  return undefined;
+}
+
+/**
+ * Bairros de uma cidade, ou `null` quando não temos lista para ela.
  *
- * Assíncrona de propósito: tem a mesma assinatura que a chamada à rota do
- * backend vai ter, então trocar a origem não muda quem usa.
+ * Logado, vem da rota do backend (LDMF-264). Visitante, ou se a rota
+ * falhar, vem da lista local.
  */
 export async function getNeighborhoods(
   state: string,
@@ -56,13 +150,26 @@ export async function getNeighborhoods(
 
   if (!stateKey || !cityKey) return null;
 
-  return (
-    LOCAL_LISTS.find(
-      (list) =>
-        normalizeText(list.state) === stateKey &&
-        normalizeText(list.city) === cityKey,
-    ) ?? null
-  );
+  const local = findLocalList(stateKey, cityKey);
+  if (!useAuthStore.getState().isAuthenticated) return local;
+
+  const cacheKey = `${stateKey}|${cityKey}`;
+  let pending = remoteLists.get(cacheKey);
+  if (!pending) {
+    pending = fetchRemoteList(state.trim(), city.trim()).then((remote) => {
+      // Falha não fica guardada: a próxima troca de cidade tenta de novo.
+      if (remote === undefined) remoteLists.delete(cacheKey);
+      return remote === undefined ? local : remote;
+    });
+    remoteLists.set(cacheKey, pending);
+  }
+
+  return pending;
+}
+
+/** Só para teste: esquece as listas já buscadas no back. */
+export function clearNeighborhoodsCache() {
+  remoteLists.clear();
 }
 
 /**
