@@ -17,7 +17,7 @@ export default function HomePageLoading() {
         {/* Banner */}
         <section className="px-4 mt-6">
           <div className="max-w-7xl mx-auto">
-            <Skeleton className="h-52 md:h-72 rounded-3xl w-full" />
+            <Skeleton className="aspect-[25/9] rounded-3xl w-full" />
           </div>
         </section>
 
