@@ -215,12 +215,13 @@ vi.mock("./use-addresses", () => ({
   useUserAddresses: () => addressesQuery,
 }));
 
-vi.mock("@/lib/address-coordinates", () => ({
-  resolveAddressCoordinates: vi.fn(),
-  withCoords: vi.fn(),
-}));
+// withCoords de verdade: o pino do endereço novo (núcleo, LDMF-260) passa
+// por ele.
 
-vi.mock("@/lib/geocode", () => ({ parseCoords: vi.fn() }));
+vi.mock("@/lib/geocode", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/geocode")>()),
+  parseCoords: vi.fn(),
+}));
 
 vi.mock("@/services/api", () => ({
   apiService: {
@@ -275,6 +276,31 @@ const defaultCalls = () =>
 const SWAP_KEY = "pending-default-address";
 
 type Hook = ReturnType<typeof useCheckoutProcess>;
+
+/** Pino do endereço novo nos testes (toque no mapa). */
+const NEW_PIN = { lat: -23.5503, lng: -46.6339 };
+
+const CONTACT_FIELDS = new Set(["name", "phone", "cpf"]);
+
+/**
+ * Preenche o endereço novo como a tela faz: contato pelo `handleInputChange`
+ * e endereço pelo formulário do núcleo (LDMF-260). `pin: null` = sem pino.
+ */
+function fillNewAddress(
+  h: Hook,
+  values: Record<string, string>,
+  { pin = NEW_PIN }: { pin?: { lat: number; lng: number } | null } = {},
+) {
+  Object.entries(values).forEach(([field, value]) => {
+    if (CONTACT_FIELDS.has(field)) h.handleInputChange(field, value);
+    else
+      h.addressEditor.addressForm.setValue(
+        field as "zipCode",
+        value,
+      );
+  });
+  if (pin) h.addressEditor.applyCoords(pin, "manual");
+}
 
 async function submitWith(setup: (h: Hook) => void) {
   const { result } = renderCheckout();
@@ -542,7 +568,7 @@ describe("useCheckoutProcess - CEP do endereço novo", () => {
     act(() => {
       result.current.setOrderType("delivery");
       result.current.setAddressMode("new");
-      Object.entries({
+      fillNewAddress(result.current, {
         name: "Cliente",
         phone: "11999999999",
         zipCode: "0100-10",
@@ -551,9 +577,7 @@ describe("useCheckoutProcess - CEP do endereço novo", () => {
         neighborhood: "Sé",
         city: "São Paulo",
         state: "SP",
-      }).forEach(([field, value]) =>
-        result.current.handleInputChange(field, value),
-      );
+      });
     });
 
     // O POST aceita o CEP pela metade; o PATCH não. Deixar entrar aqui
@@ -561,7 +585,9 @@ describe("useCheckoutProcess - CEP do endereço novo", () => {
     // troca de endereço padrão.
     expect(result.current.isDeliveryValid()).toBe(false);
 
-    act(() => result.current.handleInputChange("zipCode", "01001-000"));
+    act(() =>
+      result.current.addressEditor.addressForm.setValue("zipCode", "01001-000"),
+    );
     expect(result.current.isDeliveryValid()).toBe(true);
   });
 });
@@ -584,9 +610,7 @@ describe("useCheckoutProcess - campo faltando (LDMF-350)", () => {
     act(() => {
       result.current.setOrderType("delivery");
       result.current.setAddressMode("new");
-      Object.entries(FILL).forEach(([field, value]) =>
-        result.current.handleInputChange(field, value),
-      );
+      fillNewAddress(result.current, FILL);
     });
 
     expect(result.current.getDeliveryErrors()).toEqual({
@@ -600,9 +624,109 @@ describe("useCheckoutProcess - campo faltando (LDMF-350)", () => {
 
     act(() => {
       result.current.setOrderType("delivery");
-      result.current.handleInputChange("number", "100");
+      result.current.addressEditor.addressForm.setValue("number", "100");
     });
     expect(result.current.isDeliveryValid()).toBe(true);
+  });
+});
+
+describe("useCheckoutProcess - endereço novo pelo núcleo (LDMF-260)", () => {
+  const ADDRESS = {
+    name: "Cliente",
+    phone: "11999999999",
+    zipCode: "29360-000",
+    state: "ES",
+    city: "Castelo",
+    neighborhood: "Centro",
+    street: "Rua Jocarly Garcia",
+    number: "100",
+  };
+
+  afterEach(() => {
+    // O endereço criado entra no cache de endereços; os testes seguintes
+    // partem do caderno padrão.
+    queryClient.clear();
+    addressesQuery = ADDRESSES_WITH_DEFAULT;
+    seedAddressBook(ADDRESSES_WITH_DEFAULT);
+  });
+
+  it("sem pino no mapa não avança", async () => {
+    const { result } = renderCheckout();
+
+    act(() => {
+      result.current.setOrderType("delivery");
+      result.current.setAddressMode("new");
+      fillNewAddress(result.current, ADDRESS, { pin: null });
+    });
+
+    expect(result.current.getDeliveryErrors()).toEqual({
+      location: "Marque no mapa onde fica o endereço.",
+    });
+
+    act(() => result.current.addressEditor.applyCoords(NEW_PIN, "manual"));
+    expect(result.current.getDeliveryErrors()).toEqual({});
+  });
+
+  it("número fora do formato da casa não avança; S/N passa", async () => {
+    const { result } = renderCheckout();
+
+    act(() => {
+      result.current.setOrderType("delivery");
+      result.current.setAddressMode("new");
+      fillNewAddress(result.current, { ...ADDRESS, number: "vtech" });
+    });
+
+    expect(result.current.getDeliveryErrors()).toEqual({
+      number: "Informe o número da casa ou marque Sem número",
+    });
+
+    act(() => result.current.addressEditor.addressForm.setValue("number", "S/N"));
+    expect(result.current.getDeliveryErrors()).toEqual({});
+  });
+
+  it("frete e endereço usam a posição do pino; GPS move o pino do endereço novo", async () => {
+    addressesQuery = ADDRESSES_EMPTY;
+    seedAddressBook(ADDRESSES_EMPTY);
+    createUserAddress.mockReset();
+    createUserAddress.mockResolvedValue({
+      success: true,
+      data: { id: "addr-novo", isDefault: true },
+    });
+    const { result } = renderCheckout();
+
+    act(() => {
+      result.current.setOrderType("delivery");
+      result.current.setPaymentMethod("pix_on_delivery");
+      result.current.setAddressMode("new");
+      fillNewAddress(result.current, {
+        ...ADDRESS,
+        complement: "   ",
+        reference: " Portão azul ",
+      });
+    });
+    // "Usar localização" cai no pino do núcleo.
+    const gps = { lat: -20.6, lng: -41.2 };
+    act(() => result.current.applyCoords(gps, "manual"));
+    expect(result.current.addressEditor.addressCoords?.coords).toEqual(gps);
+
+    await act(async () => {
+      await result.current.handleSubmitOrder();
+    });
+
+    expect(createUserAddress).toHaveBeenCalledWith(
+      expect.objectContaining({
+        zipCode: "29360000",
+        state: "ES",
+        city: "Castelo",
+        neighborhood: "Centro",
+        street: "Rua Jocarly Garcia",
+        number: "100",
+        latitude: gps.lat,
+        longitude: gps.lng,
+        complement: undefined,
+        reference: "Portão azul",
+      }),
+    );
   });
 });
 
@@ -838,7 +962,7 @@ describe("useCheckoutProcess - endereço padrão da entrega", () => {
       result.current.setPaymentMethod("pix_on_delivery");
       result.current.setSaveAddress(true);
       result.current.setAddressMode("new");
-      Object.entries({
+      fillNewAddress(result.current, {
         name: "Cliente",
         phone: "11999999999",
         zipCode: "01001-000",
@@ -847,9 +971,7 @@ describe("useCheckoutProcess - endereço padrão da entrega", () => {
         neighborhood: "Sé",
         city: "São Paulo",
         state: "SP",
-      }).forEach(([field, value]) =>
-        result.current.handleInputChange(field, value),
-      );
+      });
     });
 
     await act(async () => {
@@ -889,7 +1011,7 @@ describe("useCheckoutProcess - endereço padrão da entrega", () => {
       result.current.setPaymentMethod("pix_on_delivery");
       result.current.setSaveAddress(false);
       result.current.setAddressMode("new");
-      Object.entries({
+      fillNewAddress(result.current, {
         name: "Cliente",
         phone: "11999999999",
         zipCode: "01001-000",
@@ -898,9 +1020,7 @@ describe("useCheckoutProcess - endereço padrão da entrega", () => {
         neighborhood: "Sé",
         city: "São Paulo",
         state: "SP",
-      }).forEach(([field, value]) =>
-        result.current.handleInputChange(field, value),
-      );
+      });
     });
 
     await act(async () => {

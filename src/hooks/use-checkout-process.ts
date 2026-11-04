@@ -16,7 +16,6 @@ import {
   onlyNumbers,
 } from "@/utils";
 import {
-  resolveAddressCoordinates,
   withCoords,
   type CoordinateSource,
   type SourcedCoords,
@@ -51,8 +50,13 @@ import {
 } from "./use-opening-hours";
 import { resolveRestaurantOpenStatus } from "@/constants/opening-hours";
 import { resolveAcceptedPaymentMethods } from "@/lib/accepted-payment-methods";
-import { getCheckoutFieldErrors } from "@/lib/checkout-validation";
+import {
+  getCheckoutFieldErrors,
+  type CheckoutFieldErrors,
+} from "@/lib/checkout-validation";
 import { getCartLimitError } from "@/lib/order-quantity-limit";
+import { useAddressEditor } from "./use-address-editor";
+import { addressSchema, NUMBER_MESSAGE } from "./use-form-validation";
 
 function showCheckoutError(message: string) {
   toast.dismiss?.();
@@ -268,6 +272,13 @@ export const useCheckoutProcess = () => {
   // Delivery vs pickup
   const [orderType, setOrderType] = useState<"delivery" | "pickup">("delivery");
 
+  // Endereço novo (LDMF-260): campos, CEP, bairros e pino vêm do núcleo de
+  // endereço, o mesmo do perfil. A coordenada do endereço novo é a do pino -
+  // nada é geocodificado escondido no finalizar.
+  const isNewAddress = orderType === "delivery" && addressMode === "new";
+  const addressEditor = useAddressEditor({ enabled: isNewAddress });
+  const newAddressPin = addressEditor.addressCoords?.coords ?? null;
+
   // Form state
   const [deliveryInfo, setDeliveryInfo] = useState<DeliveryInfo>({
     name: user?.name || "",
@@ -331,15 +342,9 @@ export const useCheckoutProcess = () => {
   //   `false` para o checkout avisar que o frete é calculado na finalização em
   //   vez de exibir "Grátis" (LDMF-315).
   const subtotal = getSubtotal();
-  const customerCoords =
-    addressCoords &&
-    !(
-      addressMode === "new" &&
-      !selectedAddressId &&
-      addressCoords.source === "stored"
-    )
-      ? addressCoords.coords
-      : null;
+  const customerCoords = isNewAddress
+    ? newAddressPin
+    : (addressCoords?.coords ?? null);
   const { deliveryFee, isDeliveryFeeKnown } = resolveCheckoutShipping({
     orderType,
     restaurant: restaurantDetails,
@@ -421,23 +426,34 @@ export const useCheckoutProcess = () => {
    * (clique no mapa > geocodificação > CEP).
    */
   const applyCoords = (coords: Coords | null, source: CoordinateSource) => {
+    // Endereço novo: o pino é o do núcleo ("Usar localização" cai aqui).
+    if (isNewAddress) {
+      addressEditor.applyCoords(coords, source);
+      return;
+    }
     setAddressCoords((current) => withCoords(current, coords, source));
   };
 
   /**
-   * Coordenada definitiva do endereço digitado. Sem gesto explícito do
-   * cliente, geocodificação o que foi digitado - é isso que evita o endereço ir
-   * para o banco com a coordenada errada (ou sem nenhuma).
+   * Coordenada do endereço do pedido. Endereço novo: exatamente a posição do
+   * pino (sem pino, a etapa 1 não deixa avançar). Endereço salvo: a dele.
    */
-  const resolveDeliveryCoords = async () => {
-    const resolved = await resolveAddressCoordinates(
-      deliveryInfo,
-      addressCoords,
-    );
+  const resolveDeliveryCoords = async () =>
+    isNewAddress ? newAddressPin : (addressCoords?.coords ?? null);
 
-    if (resolved) setAddressCoords(resolved);
-
-    return resolved?.coords ?? null;
+  /** Texto do endereço novo, como está no formulário do núcleo. */
+  const getNewAddressValues = () => {
+    const values = addressEditor.addressForm.getValues();
+    return {
+      zipCode: values.zipCode ?? "",
+      street: values.street ?? "",
+      number: values.number ?? "",
+      neighborhood: values.neighborhood ?? "",
+      city: values.city ?? "",
+      state: values.state ?? "",
+      complement: values.complement ?? "",
+      reference: values.reference ?? "",
+    };
   };
 
   /**
@@ -449,17 +465,20 @@ export const useCheckoutProcess = () => {
     const shouldBeDefault =
       saveAddress && (!hasDefault || userAddresses.length === 0);
 
+    const values = getNewAddressValues();
+    const optionalText = (value: string) => value.trim() || undefined;
+
     const addressData = {
-      zipCode: onlyNumbers(deliveryInfo.zipCode),
-      state: deliveryInfo.state,
-      city: deliveryInfo.city,
-      neighborhood: deliveryInfo.neighborhood,
+      zipCode: onlyNumbers(values.zipCode),
+      state: values.state,
+      city: values.city,
+      neighborhood: values.neighborhood.trim(),
       longitude: coords?.lng,
       latitude: coords?.lat,
-      street: deliveryInfo.street,
-      number: deliveryInfo.number,
-      complement: deliveryInfo.complement || undefined,
-      reference: deliveryInfo.reference || undefined,
+      street: values.street.trim(),
+      number: values.number.trim(),
+      complement: optionalText(values.complement),
+      reference: optionalText(values.reference),
       isDefault: shouldBeDefault,
     };
 
@@ -488,12 +507,32 @@ export const useCheckoutProcess = () => {
    * POST, que é mais permissivo, e depois qualquer PATCH naquele endereço
    * falhava com "CEP inválido" - inclusive o que só queria mudar o padrão.
    */
-  const getDeliveryErrors = () =>
-    getCheckoutFieldErrors({
-      values: deliveryInfo,
+  const getDeliveryErrors = (): CheckoutFieldErrors => {
+    const values = isNewAddress
+      ? { ...deliveryInfo, ...getNewAddressValues() }
+      : deliveryInfo;
+    const errors = getCheckoutFieldErrors({
+      values,
       orderType,
       hasCpf: userHasCpf(user),
     });
+
+    // Endereço novo segue as regras do núcleo: número no formato da casa (ou
+    // "Sem número") e pino marcado no mapa.
+    if (isNewAddress) {
+      if (
+        !errors.number &&
+        !addressSchema.shape.number.safeParse(values.number).success
+      ) {
+        errors.number = NUMBER_MESSAGE;
+      }
+      if (!newAddressPin) {
+        errors.location = "Marque no mapa onde fica o endereço.";
+      }
+    }
+
+    return errors;
+  };
 
   /** Valida os dados de entrega (etapa 1 do checkout). */
   const isDeliveryValid = () => Object.keys(getDeliveryErrors()).length === 0;
@@ -1024,6 +1063,9 @@ export const useCheckoutProcess = () => {
     // Form state
     deliveryInfo,
     addressCoords,
+    // Núcleo de endereço do endereço novo (LDMF-260)
+    addressEditor,
+    isNewAddress,
     applyCoords,
     paymentMethod,
     availablePaymentMethods,

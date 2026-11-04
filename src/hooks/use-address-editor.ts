@@ -54,8 +54,15 @@ export type EditableAddress = {
  * PATCH). O salvar usa exatamente a posição do pino.
  *
  * @param enabled o modal está aberto (carrega estados e cidades só então).
+ * @param zipCodeOptional CEP pode ficar vazio (seletor da home).
  */
-export const useAddressEditor = ({ enabled }: { enabled: boolean }) => {
+export const useAddressEditor = ({
+  enabled,
+  zipCodeOptional = false,
+}: {
+  enabled: boolean;
+  zipCodeOptional?: boolean;
+}) => {
   // CEP state
   const [isLoadingCep, setIsLoadingCep] = useState(false);
   const [lastFetchedCep, setLastFetchedCep] = useState<string | null>(null);
@@ -76,7 +83,7 @@ export const useAddressEditor = ({ enabled }: { enabled: boolean }) => {
     [pin],
   );
 
-  const addressForm = useAddressForm();
+  const addressForm = useAddressForm(undefined, { zipCodeOptional });
 
   // Watch CEP field changes
   const watchedZipCode = addressForm.watch("zipCode");

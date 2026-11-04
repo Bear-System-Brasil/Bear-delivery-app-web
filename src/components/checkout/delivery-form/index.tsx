@@ -1,17 +1,11 @@
 "use client";
 
-import {
-  type Dispatch,
-  type ReactNode,
-  type SetStateAction,
-  useState,
-} from "react";
+import { type Dispatch, type ReactNode, type SetStateAction } from "react";
 
 import { toast } from "sonner";
 
 import { DeliveryInfo } from "@/hooks";
 import { cn } from "@/lib/utils";
-import { formatCep } from "@/utils";
 
 import {
   Check,
@@ -32,12 +26,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 
-import { AddressMap } from "@/components/address-map";
-import {
-  parseBrasilApiCoords,
-  type CoordinateSource,
-  type SourcedCoords,
-} from "@/lib/address-coordinates";
+import { AddressCoreFields } from "@/components/profile/delivery-form/address-core-fields";
+import type { useAddressEditor } from "@/hooks/use-address-editor";
+import type { CoordinateSource } from "@/lib/address-coordinates";
 import {
   CHECKOUT_ADDRESS_FIELDS,
   CHECKOUT_FIELD_LABELS,
@@ -57,7 +48,6 @@ type Props = {
   setSaveAddress: Dispatch<SetStateAction<boolean>>;
   addressMode: "select" | "new";
   deliveryInfo: DeliveryInfo;
-  addressCoords: SourcedCoords | null;
   loadingAddresses: boolean;
   saveAddress: boolean;
   userAddresses: Address[];
@@ -68,6 +58,8 @@ type Props = {
   hasCpf?: boolean;
   /** Campos que travaram o avanço, com a mensagem de cada um. */
   fieldErrors?: CheckoutFieldErrors;
+  /** Núcleo de endereço do endereço novo (LDMF-260). */
+  addressEditor: ReturnType<typeof useAddressEditor>;
 };
 
 type FieldProps = {
@@ -78,9 +70,6 @@ type FieldProps = {
   error?: string;
   children: ReactNode;
 };
-
-const CITY_WIDE_CEP_HINT =
-  "Este CEP vale para a cidade inteira. Preencha rua, número e bairro abaixo.";
 
 const fieldLabelClass = "text-[11px] font-bold text-foreground";
 const inputClass =
@@ -134,7 +123,6 @@ export function DeliveryForm({
   setSaveAddress,
   addressMode,
   deliveryInfo,
-  addressCoords,
   loadingAddresses,
   userAddresses,
   saveAddress,
@@ -144,78 +132,8 @@ export function DeliveryForm({
   restaurant,
   hasCpf,
   fieldErrors = {},
+  addressEditor,
 }: Props) {
-  const [isLoadingCep, setIsLoadingCep] = useState(false);
-  // CEP único da cidade (29360000 Castelo, 29500000 Alegre - as cidades do
-  // lançamento) volta sem rua e sem bairro: o cliente sempre digita rua,
-  // número e bairro à mão, e a tela diz isso em vez de prometer que "os
-  // campos serao preenchidos".
-  const [cepHint, setCepHint] = useState<string | null>(null);
-
-  const handleGetData = async (zipCode: string) => {
-    setIsLoadingCep(true);
-    setCepHint(null);
-    try {
-      const response = await fetch(
-        `https://brasilapi.com.br/api/cep/v2/${zipCode}`,
-      );
-
-      if (!response.ok) {
-        toast.error(
-          response.status === 404 ? "CEP não encontrado" : "Erro ao buscar CEP",
-        );
-        return;
-      }
-
-      const data = await response.json();
-
-      // Só sobrescreve o que o CEP trouxe. Antes cada campo recebia
-      // `data.x || ""`, e um CEP sem rua (cidade de CEP único) apagava a rua
-      // e o bairro que o cliente já tinha digitado - e o checkout travava
-      // com "Preencha nome, telefone e endereço" (LDMF-350).
-      if (data.street) handleInputChange("street", data.street);
-      if (data.neighborhood) handleInputChange("neighborhood", data.neighborhood);
-      if (data.city) handleInputChange("city", data.city);
-      if (data.state) handleInputChange("state", data.state);
-
-      setCepHint(
-        !data.street
-          ? CITY_WIDE_CEP_HINT
-          : !data.neighborhood
-            ? "Este CEP não traz o bairro. Preencha o bairro abaixo."
-            : null,
-      );
-
-      // A BrasilAPI já devolve a coordenada do logradouro - usa como ponto de
-      // partida e centra o mapa nela. É a fonte de menor prioridade: some
-      // assim que a geocodificação do endereço completo ou um clique no mapa
-      // aparecerem.
-      applyCoords(parseBrasilApiCoords(data), "cep");
-
-      toast.success(
-        !data.street
-          ? "CEP da cidade encontrado. Preencha rua, número e bairro."
-          : !data.neighborhood
-            ? "CEP encontrado. Preencha o bairro."
-            : "CEP encontrado. Campos preenchidos.",
-      );
-    } catch (error) {
-      console.error("Erro ao buscar CEP:", error);
-      toast.error("Erro ao buscar CEP. Verifique sua conexao.");
-    } finally {
-      setIsLoadingCep(false);
-    }
-  };
-
-  const handleZipCode = (zipCode: string) => {
-    handleInputChange("zipCode", zipCode);
-
-    const cleanedZipCode = zipCode.replace(/\D/g, "");
-    if (cleanedZipCode.length >= 8) {
-      handleGetData(cleanedZipCode);
-    }
-  };
-
   const handleNewAddress = () => {
     setAddressMode((prev) => (prev === "select" ? "new" : "select"));
 
@@ -503,163 +421,34 @@ export function DeliveryForm({
                 </div>
               )}
 
-              <div className="grid grid-cols-1 gap-2.5 md:grid-cols-4">
-                <Field htmlFor="zipCode" label="CEP" error={fieldErrors.zipCode}>
-                  <Input
-                    id="zipCode"
-                    placeholder="00000-000"
-                    value={deliveryInfo.zipCode}
-                    maxLength={9}
-                    onChange={(e) => handleZipCode(formatCep(e.target.value))}
-                    disabled={isLoadingCep}
-                    className={cn(
-                      inputClass,
-                      fieldErrors.zipCode && inputErrorClass,
-                    )}
-                    {...errorProps("zipCode", fieldErrors.zipCode)}
-                  />
-                </Field>
-
-                <Field
-                  htmlFor="state"
-                  label="Estado"
-                  error={fieldErrors.state}
-                >
-                  <Input
-                    id="state"
-                    placeholder="SP"
-                    value={deliveryInfo.state}
-                    onChange={(e) => handleInputChange("state", e.target.value)}
-                    className={cn(inputClass, fieldErrors.state && inputErrorClass)}
-                    {...errorProps("state", fieldErrors.state)}
-                  />
-                </Field>
-
-                <Field
-                  htmlFor="city"
-                  label="Cidade" className="md:col-span-2"
-                  error={fieldErrors.city}
-                >
-                  <Input
-                    id="city"
-                    placeholder="Sao Paulo"
-                    value={deliveryInfo.city}
-                    onChange={(e) => handleInputChange("city", e.target.value)}
-                    className={cn(inputClass, fieldErrors.city && inputErrorClass)}
-                    {...errorProps("city", fieldErrors.city)}
-                  />
-                </Field>
-
-                <p
-                  className={cn(
-                    "text-xs font-semibold md:col-span-4",
-                    cepHint && !isLoadingCep
-                      ? "text-amber-700 dark:text-amber-400"
-                      : "text-muted-foreground",
-                  )}
-                >
-                  {isLoadingCep
-                    ? "Buscando CEP..."
-                    : (cepHint ??
-                      "Digite o CEP e os campos serao preenchidos.")}
-                </p>
-
-                <Field
-                  htmlFor="neighborhood"
-                  label="Bairro"
-                  className="md:col-span-2"
-                  error={fieldErrors.neighborhood}
-                >
-                  <Input
-                    id="neighborhood"
-                    placeholder="Centro"
-                    value={deliveryInfo.neighborhood}
-                    onChange={(e) =>
-                      handleInputChange("neighborhood", e.target.value)
-                    }
-                    className={cn(inputClass, fieldErrors.neighborhood && inputErrorClass)}
-                    {...errorProps("neighborhood", fieldErrors.neighborhood)}
-                  />
-                </Field>
-
-                <Field htmlFor="street" label="Rua" error={fieldErrors.street}>
-                  <Input
-                    id="street"
-                    placeholder="Rua das Flores"
-                    value={deliveryInfo.street}
-                    onChange={(e) =>
-                      handleInputChange("street", e.target.value)
-                    }
-                    className={cn(inputClass, fieldErrors.street && inputErrorClass)}
-                    {...errorProps("street", fieldErrors.street)}
-                  />
-                </Field>
-
-                <Field htmlFor="number" label="Numero" error={fieldErrors.number}>
-                  <Input
-                    id="number"
-                    placeholder="123"
-                    value={deliveryInfo.number}
-                    onChange={(e) =>
-                      handleInputChange("number", e.target.value)
-                    }
-                    className={cn(inputClass, fieldErrors.number && inputErrorClass)}
-                    {...errorProps("number", fieldErrors.number)}
-                  />
-                </Field>
-
-                <Field
-                  htmlFor="complement"
-                  label="Complemento"
-                  optional
-                  className="md:col-span-2"
-                >
-                  <Input
-                    id="complement"
-                    placeholder="Apartamento, bloco..."
-                    value={deliveryInfo.complement}
-                    onChange={(e) =>
-                      handleInputChange("complement", e.target.value)
-                    }
-                    className={inputClass}
-                  />
-                </Field>
-
-                <Field
-                  htmlFor="reference"
-                  label="Ponto de referencia"
-                  optional
-                  className="md:col-span-2"
-                >
-                  <Input
-                    id="reference"
-                    placeholder="Proximo ao mercado"
-                    value={deliveryInfo.reference}
-                    onChange={(e) =>
-                      handleInputChange("reference", e.target.value)
-                    }
-                    className={inputClass}
-                  />
-                </Field>
-              </div>
-
-              <div className="rounded-lg border border-border bg-muted p-2.5">
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <span className="text-xs font-bold text-foreground">
-                    Localização no mapa
-                  </span>
-                  <span className="text-[11px] font-semibold text-muted-foreground">
-                    {addressCoords
-                      ? "Clique no mapa para ajustar"
-                      : "Preencha o CEP ou clique no mapa"}
-                  </span>
-                </div>
-                <AddressMap
-                  mapHeight={220}
-                  value={addressCoords?.coords ?? null}
-                  onSelect={(coords) => applyCoords(coords, "manual")}
-                />
-              </div>
+              {/* Mesmos campos do perfil: CEP → Estado → Cidade → Bairro →
+                  Rua → Número, complemento, referência e o pino. */}
+              <AddressCoreFields
+                addressForm={addressEditor.addressForm}
+                applyCoords={addressEditor.applyCoords}
+                addressCoords={addressEditor.addressCoords}
+                isLoadingCep={addressEditor.isLoadingCep}
+                zipCodeHint={addressEditor.zipCodeHint}
+                neighborhoodOptions={addressEditor.neighborhoodOptions}
+                isLocatingPin={addressEditor.isLocatingPin}
+                stateOptions={addressEditor.stateOptions}
+                cityOptions={addressEditor.cityOptions}
+                isLoadingCities={addressEditor.isLoadingCities}
+                citiesError={addressEditor.citiesError}
+                fieldLocks={addressEditor.fieldLocks}
+                onStateChange={addressEditor.changeState}
+                onCityChange={addressEditor.changeCity}
+                onNeighborhoodChange={addressEditor.changeNeighborhood}
+                isOtherNeighborhood={addressEditor.isOtherNeighborhood}
+                onSelectOtherNeighborhood={addressEditor.selectOtherNeighborhood}
+                onOtherNeighborhoodChange={addressEditor.changeOtherNeighborhood}
+                isSearchingAddress={addressEditor.isSearchingAddress}
+                addressNotFound={addressEditor.addressNotFound}
+                pinZoom={addressEditor.pinZoom}
+                pinRecenterKey={addressEditor.pinRecenterKey}
+                showReference
+                showDefaultOption={false}
+              />
 
               <div className="flex items-center gap-2 pt-1">
                 <Checkbox
