@@ -967,6 +967,18 @@ describe("useProfileManagement", () => {
       expect(api.address.updateUserAddress.mock.calls[0][1].isDefault).toBe(true);
     });
 
+    it("modal aberto antes da lista carregar não deixa a caixa marcada por engano", async () => {
+      savedAddresses = [stored("a1", { isDefault: true })];
+      api.address.createUserAddress.mockResolvedValue({ success: true, data: stored("novo") });
+      const hook = renderHook(() => useProfileManagement(), { wrapper });
+      // Abre já, com a lista ainda carregando.
+      act(() => hook.result.current.addingAddressState.open());
+      await waitFor(() => expect(hook.result.current.isLoadingAddresses).toBe(false));
+
+      expect(hook.result.current.defaultOptionLockedHint).toBeNull();
+      expect(hook.result.current.addressForm.getValues("isDefault")).toBeFalsy();
+    });
+
     it("com outro padrão, a caixa fica livre", async () => {
       savedAddresses = [stored("a1", { isDefault: true }), stored("a2")];
       const { result } = await renderProfile();

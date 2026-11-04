@@ -13,7 +13,7 @@ import { formatDate, getErrorMessage, onlyNumbers } from "@/utils";
 import { isCompanyAdminRole } from "@/utils/role-helpers";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useAddressEditor } from "./use-address-editor";
 import { useUserAddresses } from "./use-addresses";
@@ -109,16 +109,30 @@ export const useProfileManagement = () => {
     editingAddressId &&
       addresses.find((addr) => addr.id === editingAddressId)?.isDefault,
   );
-  const defaultOptionLockedHint = editingAddressIsDefault
-    ? DEFAULT_LOCKED_EDITING_HINT
-    : !hasDefaultAddress
-      ? DEFAULT_LOCKED_FIRST_HINT
-      : null;
+  // Lista ainda carregando: não dá para saber se há padrão, então não trava.
+  const defaultOptionLockedHint = isLoadingAddresses
+    ? null
+    : editingAddressIsDefault
+      ? DEFAULT_LOCKED_EDITING_HINT
+      : !hasDefaultAddress
+        ? DEFAULT_LOCKED_FIRST_HINT
+        : null;
   const isDefaultLocked = defaultOptionLockedHint !== null;
 
+  // A trava marca a caixa; se ela destravar (a lista chegou e já tem padrão),
+  // a marca que a trava pôs sai junto - não vale como escolha do cliente.
+  const checkedByLock = useRef(false);
   useEffect(() => {
-    if (addingAddressState.isOpen && isDefaultLocked) {
+    if (!addingAddressState.isOpen) {
+      checkedByLock.current = false;
+      return;
+    }
+    if (isDefaultLocked) {
       addressForm.setValue("isDefault", true);
+      checkedByLock.current = true;
+    } else if (checkedByLock.current) {
+      addressForm.setValue("isDefault", false);
+      checkedByLock.current = false;
     }
   }, [addingAddressState.isOpen, isDefaultLocked, addressForm]);
 
