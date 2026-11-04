@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { KitchenPrintArea } from "./index";
 import type { KitchenOrder, KitchenOrderItem } from "./types";
@@ -14,6 +14,14 @@ function makeOrder(orderedItems: KitchenOrderItem[]): KitchenOrder {
     customer: { id: "c1", name: "Cliente Teste" },
     orderedItems,
   };
+}
+
+// A comanda sai em duas vias; estes testes olham a da cozinha, que é a que
+// mostra tamanho, adicionais e observações por extenso.
+function renderKitchenVia(order: KitchenOrder) {
+  render(<KitchenPrintArea order={order} />);
+  const section = screen.getByRole("region", { name: "Via da cozinha" });
+  return { via: within(section), container: section };
 }
 
 // Forma observada em GET /order/company/status/:status: o tamanho vem em
@@ -54,20 +62,20 @@ const itemSemTamanho: KitchenOrderItem = {
 
 describe("KitchenPrintArea - tamanho e adicionais na comanda", () => {
   it("item com tamanho imprime o nome do tamanho escolhido", () => {
-    render(<KitchenPrintArea order={makeOrder([itemComTamanho])} />);
+    const { via } = renderKitchenVia(makeOrder([itemComTamanho]));
 
-    expect(screen.getByText("Tamanho: Tradicional (18 cm)")).toBeInTheDocument();
-    expect(screen.queryByText("Variação")).not.toBeInTheDocument();
-    expect(screen.queryByText(/Adiciona/)).not.toBeInTheDocument();
+    expect(via.getByText("Tamanho: Tradicional (18 cm)")).toBeInTheDocument();
+    expect(via.queryByText("Variação")).not.toBeInTheDocument();
+    expect(via.queryByText(/Adiciona/)).not.toBeInTheDocument();
   });
 
   it("item sem tamanho e sem adicional não imprime nenhuma dessas linhas", () => {
-    const { container } = render(<KitchenPrintArea order={makeOrder([itemSemTamanho])} />);
+    const { via, container } = renderKitchenVia(makeOrder([itemSemTamanho]));
 
-    expect(screen.getByText("2x Caldo de Cana")).toBeInTheDocument();
-    expect(screen.queryByText(/Tamanho/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Adiciona/)).not.toBeInTheDocument();
-    expect(screen.queryByText("Variação")).not.toBeInTheDocument();
+    expect(via.getByText("2x Caldo de Cana")).toBeInTheDocument();
+    expect(via.queryByText(/Tamanho/)).not.toBeInTheDocument();
+    expect(via.queryByText(/Adiciona/)).not.toBeInTheDocument();
+    expect(via.queryByText("Variação")).not.toBeInTheDocument();
     expect(container.querySelectorAll("p.pl-2")).toHaveLength(0);
   });
 
@@ -76,9 +84,9 @@ describe("KitchenPrintArea - tamanho e adicionais na comanda", () => {
       ...itemComTamanho,
       variations: [{ id: "var-1", productVariation: null }],
     };
-    const { container } = render(<KitchenPrintArea order={makeOrder([item])} />);
+    const { via, container } = renderKitchenVia(makeOrder([item]));
 
-    expect(screen.queryByText("Variação")).not.toBeInTheDocument();
+    expect(via.queryByText("Variação")).not.toBeInTheDocument();
     expect(container.querySelectorAll("p.pl-2")).toHaveLength(0);
   });
 
@@ -89,28 +97,28 @@ describe("KitchenPrintArea - tamanho e adicionais na comanda", () => {
         { id: "var-1", observations: "bem fechado", productVariation: { name: "Tradicional (18 cm)" } },
       ],
     };
-    render(<KitchenPrintArea order={makeOrder([item])} />);
+    const { via } = renderKitchenVia(makeOrder([item]));
 
-    expect(screen.getByText("Tamanho: Tradicional (18 cm) (bem fechado)")).toBeInTheDocument();
+    expect(via.getByText("Tamanho: Tradicional (18 cm) (bem fechado)")).toBeInTheDocument();
   });
 
   it("item só com adicional imprime \"Adicionais:\" e o nome real, sem linha de tamanho", () => {
     const item: KitchenOrderItem = { ...itemSemTamanho, quantity: 1, addOns: [adicional] };
-    render(<KitchenPrintArea order={makeOrder([item])} />);
+    const { via } = renderKitchenVia(makeOrder([item]));
 
-    expect(screen.getByText("Adicionais:")).toBeInTheDocument();
-    expect(screen.getByText("+ Catupiry extra")).toBeInTheDocument();
-    expect(screen.queryByText("+ Adicional")).not.toBeInTheDocument();
-    expect(screen.queryByText(/Tamanho/)).not.toBeInTheDocument();
+    expect(via.getByText("Adicionais:")).toBeInTheDocument();
+    expect(via.getByText("+ Catupiry extra")).toBeInTheDocument();
+    expect(via.queryByText("+ Adicional")).not.toBeInTheDocument();
+    expect(via.queryByText(/Tamanho/)).not.toBeInTheDocument();
   });
 
   it("item com tamanho e adicional imprime os dois em linhas separadas", () => {
     const item: KitchenOrderItem = { ...itemComTamanho, addOns: [adicional] };
-    render(<KitchenPrintArea order={makeOrder([item])} />);
+    const { via } = renderKitchenVia(makeOrder([item]));
 
-    expect(screen.getByText("Tamanho: Tradicional (18 cm)")).toBeInTheDocument();
-    expect(screen.getByText("Adicionais:")).toBeInTheDocument();
-    expect(screen.getByText("+ Catupiry extra")).toBeInTheDocument();
+    expect(via.getByText("Tamanho: Tradicional (18 cm)")).toBeInTheDocument();
+    expect(via.getByText("Adicionais:")).toBeInTheDocument();
+    expect(via.getByText("+ Catupiry extra")).toBeInTheDocument();
   });
 
   it("adicional sem nome não vira o genérico \"+ Adicional\"", () => {
@@ -118,18 +126,18 @@ describe("KitchenPrintArea - tamanho e adicionais na comanda", () => {
       ...itemSemTamanho,
       addOns: [{ ...adicional, productAddOns: null }],
     };
-    render(<KitchenPrintArea order={makeOrder([item])} />);
+    const { via } = renderKitchenVia(makeOrder([item]));
 
-    expect(screen.queryByText("+ Adicional")).not.toBeInTheDocument();
-    expect(screen.queryByText("Adicionais:")).not.toBeInTheDocument();
+    expect(via.queryByText("+ Adicional")).not.toBeInTheDocument();
+    expect(via.queryByText("Adicionais:")).not.toBeInTheDocument();
   });
 
   it("adicional com quantidade 1 imprime só o nome", () => {
     const item: KitchenOrderItem = { ...itemSemTamanho, quantity: 1, addOns: [{ ...adicional, quantity: 1 }] };
-    render(<KitchenPrintArea order={makeOrder([item])} />);
+    const { via } = renderKitchenVia(makeOrder([item]));
 
-    expect(screen.getByText("+ Catupiry extra")).toBeInTheDocument();
-    expect(screen.queryByText(/1x Catupiry/)).not.toBeInTheDocument();
+    expect(via.getByText("+ Catupiry extra")).toBeInTheDocument();
+    expect(via.queryByText(/1x Catupiry/)).not.toBeInTheDocument();
   });
 
   it("adicional com quantidade maior que 1 imprime \"4x Morango\"", () => {
@@ -138,9 +146,9 @@ describe("KitchenPrintArea - tamanho e adicionais na comanda", () => {
       quantity: 1,
       addOns: [{ ...adicional, id: "add-2", quantity: 4, productAddOns: { name: "Morango" } }],
     };
-    render(<KitchenPrintArea order={makeOrder([item])} />);
+    const { via } = renderKitchenVia(makeOrder([item]));
 
-    expect(screen.getByText("+ 4x Morango")).toBeInTheDocument();
+    expect(via.getByText("+ 4x Morango")).toBeInTheDocument();
   });
 
   it("junta linhas idênticas e mantém separada a de tamanho diferente (pedido #6)", () => {
@@ -154,21 +162,19 @@ describe("KitchenPrintArea - tamanho e adicionais na comanda", () => {
     };
     const v600 = [{ id: "v", productVariationId: "v600", priceSnapshot: 0, productVariation: { name: "600ml" } }];
     const v300 = [{ id: "w", productVariationId: "v300", priceSnapshot: 0, productVariation: { name: "300 ml" } }];
-    render(
-      <KitchenPrintArea
-        order={makeOrder([
-          { ...caldo, id: "a", quantity: 3, variations: v600 },
-          { ...caldo, id: "b", quantity: 3, variations: v600 },
-          { ...caldo, id: "c", quantity: 1, variations: v300 },
-        ])}
-      />,
+    const { via } = renderKitchenVia(
+      makeOrder([
+        { ...caldo, id: "a", quantity: 3, variations: v600 },
+        { ...caldo, id: "b", quantity: 3, variations: v600 },
+        { ...caldo, id: "c", quantity: 1, variations: v300 },
+      ]),
     );
 
-    expect(screen.getByText("6x Caldo de Cana")).toBeInTheDocument();
-    expect(screen.getByText("1x Caldo de Cana")).toBeInTheDocument();
-    expect(screen.queryByText("3x Caldo de Cana")).not.toBeInTheDocument();
-    expect(screen.getByText("Tamanho: 600ml")).toBeInTheDocument();
-    expect(screen.getByText("Tamanho: 300 ml")).toBeInTheDocument();
+    expect(via.getByText("6x Caldo de Cana")).toBeInTheDocument();
+    expect(via.getByText("1x Caldo de Cana")).toBeInTheDocument();
+    expect(via.queryByText("3x Caldo de Cana")).not.toBeInTheDocument();
+    expect(via.getByText("Tamanho: 600ml")).toBeInTheDocument();
+    expect(via.getByText("Tamanho: 300 ml")).toBeInTheDocument();
   });
 
   describe("adicionais por unidade", () => {
@@ -176,20 +182,20 @@ describe("KitchenPrintArea - tamanho e adicionais na comanda", () => {
     const gelo = { id: "g", quantity: 1, productAddOns: { name: "Gelo" } };
 
     it("prato com 1 unidade mantém \"Adicionais:\" sem total", () => {
-      render(<KitchenPrintArea order={makeOrder([{ ...itemSemTamanho, quantity: 1, addOns: [limao, gelo] }])} />);
+      const { via } = renderKitchenVia(makeOrder([{ ...itemSemTamanho, quantity: 1, addOns: [limao, gelo] }]));
 
-      expect(screen.getByText("Adicionais:")).toBeInTheDocument();
-      expect(screen.getByText("+ 4x Com limão")).toBeInTheDocument();
-      expect(screen.getByText("+ Gelo")).toBeInTheDocument();
-      expect(screen.queryByText(/no total/)).not.toBeInTheDocument();
+      expect(via.getByText("Adicionais:")).toBeInTheDocument();
+      expect(via.getByText("+ 4x Com limão")).toBeInTheDocument();
+      expect(via.getByText("+ Gelo")).toBeInTheDocument();
+      expect(via.queryByText(/no total/)).not.toBeInTheDocument();
     });
 
     it("prato com mais de 1 unidade usa \"em cada um\" e mostra o total", () => {
-      render(<KitchenPrintArea order={makeOrder([{ ...itemSemTamanho, quantity: 6, addOns: [limao, gelo] }])} />);
+      const { via } = renderKitchenVia(makeOrder([{ ...itemSemTamanho, quantity: 6, addOns: [limao, gelo] }]));
 
-      expect(screen.getByText("Adicionais, em cada um:")).toBeInTheDocument();
-      expect(screen.getByText("+ 4x Com limão (24 no total)")).toBeInTheDocument();
-      expect(screen.getByText("+ Gelo (6 no total)")).toBeInTheDocument();
+      expect(via.getByText("Adicionais, em cada um:")).toBeInTheDocument();
+      expect(via.getByText("+ 4x Com limão (24 no total)")).toBeInTheDocument();
+      expect(via.getByText("+ Gelo (6 no total)")).toBeInTheDocument();
     });
   });
 });
