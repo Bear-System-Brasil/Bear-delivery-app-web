@@ -54,10 +54,7 @@ import {
   getCheckoutFieldErrors,
   type CheckoutFieldErrors,
 } from "@/lib/checkout-validation";
-import {
-  getCartLimitError,
-  toLimitedItems,
-} from "@/lib/order-quantity-limit";
+import { getCartLimitError } from "@/lib/order-quantity-limit";
 import { useAddressEditor } from "./use-address-editor";
 import { addressSchema, NUMBER_MESSAGE } from "./use-form-validation";
 
@@ -806,10 +803,8 @@ export const useCheckoutProcess = () => {
       // chamada direta) somou itens depois que o checkout abriu.
       const backendLimitError = cartResponse.success
         ? getCartLimitError(
-            toLimitedItems(
-              (cartResponse.data as { orderedItems?: unknown } | undefined)
-                ?.orderedItems,
-            ),
+            (cartResponse.data as { orderedItems?: unknown } | undefined)
+              ?.orderedItems,
           )
         : null;
       if (backendLimitError) {
