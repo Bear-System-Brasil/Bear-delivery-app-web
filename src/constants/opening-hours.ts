@@ -374,6 +374,82 @@ function parseTimeToMinutes(timeStr: string): number | null {
   return h * 60 + m;
 }
 
+/** Fuso da loja: o mesmo que o back usa para decidir se a loja está aberta. */
+const STORE_TIME_ZONE = "America/Sao_Paulo";
+
+const storeClockFormatter = new Intl.DateTimeFormat("en-US", {
+  timeZone: STORE_TIME_ZONE,
+  weekday: "short",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
+
+const WEEKDAY_NUMBER: Record<string, number> = {
+  Sun: 0,
+  Mon: 1,
+  Tue: 2,
+  Wed: 3,
+  Thu: 4,
+  Fri: 5,
+  Sat: 6,
+};
+
+/**
+ * Dia da semana (0 = domingo) e minuto do dia no fuso da loja, não no do
+ * aparelho do cliente - um celular com fuso errado não pode abrir a loja.
+ */
+export function getStoreClock(now = new Date()): {
+  dayNumber: number;
+  minute: number;
+} {
+  const parts = storeClockFormatter.formatToParts(now);
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((item) => item.type === type)?.value ?? "";
+  return {
+    dayNumber: WEEKDAY_NUMBER[part("weekday")] ?? now.getDay(),
+    minute: (Number(part("hour")) % 24) * 60 + Number(part("minute")),
+  };
+}
+
+/**
+ * Aberto pela grade de horários, com a MESMA regra que o back usa ao
+ * finalizar o pedido (`isWithinBusinessHours`, back `store-status.util.ts`):
+ * aberto de abertura a fechamento, com as duas pontas incluídas, e fechado
+ * na pausa, também com as duas pontas incluídas. Sem dia cadastrado,
+ * fechado. Divergir disso faz a tela dizer "Aberto" e o back recusar.
+ */
+export function isOpenBySchedule(
+  hours: DayHours[] | undefined | null,
+  now = new Date(),
+): boolean {
+  if (!hours || hours.length === 0) return false;
+
+  const { dayNumber, minute } = getStoreClock(now);
+  const today = hours.find((h) => h.day === DAY_KEY_BY_NUMBER[dayNumber]);
+  if (!today || !today.isOpen) return false;
+
+  const openMin = parseTimeToMinutes(today.openTime);
+  const closeMin = parseTimeToMinutes(today.closeTime);
+  if (openMin === null || closeMin === null) return false;
+  if (minute < openMin || minute > closeMin) return false;
+
+  const breakStartMin = today.breakStart
+    ? parseTimeToMinutes(today.breakStart)
+    : null;
+  const breakEndMin = today.breakEnd ? parseTimeToMinutes(today.breakEnd) : null;
+  if (
+    breakStartMin !== null &&
+    breakEndMin !== null &&
+    minute >= breakStartMin &&
+    minute <= breakEndMin
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
 /**
  * Descobre o próximo horário de abertura a partir da grade de horários da semana.
  * Retorna uma string amigável (ex: "Abre hoje às 18:00", "Abre amanhã às 11:30") ou null.
@@ -384,8 +460,9 @@ export function getNextOpeningLabel(
 ): string | null {
   if (!hours || hours.length === 0) return null;
 
-  const currentDayNum = now.getDay(); // 0 = sun, 1 = mon, ...
-  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  // Relógio da loja (São Paulo), o mesmo do status aberto/fechado
+  const { dayNumber: currentDayNum, minute: currentMinutes } =
+    getStoreClock(now);
 
   for (let offset = 0; offset < 7; offset++) {
     const targetDayNum = (currentDayNum + offset) % 7;
@@ -480,7 +557,12 @@ export function resolveRestaurantOpenStatus(
       };
     }
 
-    const isOpen = Boolean(openingHoursResponse.isOpen);
+    // Loja ligada ao caixa: só o back sabe se o caixa está aberto. Fora
+    // isso, calcula pela grade e pelo relógio - o `isOpen` do back fica
+    // guardado e só muda quando alguém salva o horário (LDMF-469).
+    const isOpen = openingHoursResponse.linkedToCashRegister
+      ? Boolean(openingHoursResponse.isOpen)
+      : isOpenBySchedule(days, now);
     if (!isOpen) {
       const nextOpening = getNextOpeningLabel(days, now);
       return {

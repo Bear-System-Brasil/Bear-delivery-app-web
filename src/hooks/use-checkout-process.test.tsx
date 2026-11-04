@@ -1339,12 +1339,25 @@ describe("useCheckoutProcess - restaurante fechado", () => {
   });
 
   // LDMF-374: o cache pode ter até 1 minuto. Quem decide é a consulta na hora.
+  // O status sai da grade (LDMF-469): aberto o dia todo, todo dia, contra
+  // o dia todo em pausa - os dois valem para qualquer hora do teste.
+  const ALL_DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
   const OPEN_HOURS = {
     isOpen: true,
     linkedToCashRegister: false,
-    days: [{ day: "mon", isOpen: true, openTime: "00:00", closeTime: "23:59" }],
+    days: ALL_DAYS.map((day) => ({ day, openTime: "00:00", closeTime: "23:59" })),
   };
-  const CLOSED_HOURS = { ...OPEN_HOURS, isOpen: false };
+  const CLOSED_HOURS = {
+    isOpen: false,
+    linkedToCashRegister: false,
+    days: ALL_DAYS.map((day) => ({
+      day,
+      openTime: "00:00",
+      closeTime: "23:59",
+      breakStart: "00:00",
+      breakEnd: "23:59",
+    })),
+  };
 
   it("consulta o status na hora e bloqueia se a loja fechou depois do cache", async () => {
     openingHoursQuery = { data: OPEN_HOURS, isLoading: false };
