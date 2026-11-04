@@ -88,7 +88,9 @@ export function BannerCarousel() {
                       </div>
                     </div>
                   ) : (
-                    <div className="relative h-40 sm:h-52 md:h-60">
+                    // Proporcao da arte (2400x864 = 25:9). Altura fixa cortava a
+                    // imagem no desktop e parecia zoom.
+                    <div className="relative aspect-[25/9] w-full">
                       {banner.image && (
                         <Image
                           src={banner.image}
