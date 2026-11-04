@@ -13,7 +13,13 @@ import { apiService, type Address } from "@/services/api";
 import { getNeighborhoods } from "@/services/neighborhoods";
 import { useAuthStore } from "@/stores";
 import type { AddressFormData } from "./use-form-validation";
-import { useProfileManagement } from "./use-profile-management";
+import {
+  DEFAULT_LOCKED_EDITING_HINT,
+  DEFAULT_LOCKED_FIRST_HINT,
+  DELETE_DEFAULT_ADDRESS_MESSAGE,
+  DELETE_ONLY_ADDRESS_MESSAGE,
+  useProfileManagement,
+} from "./use-profile-management";
 
 const { router } = vi.hoisted(() => ({ router: { push: vi.fn() } }));
 
@@ -420,6 +426,8 @@ describe("useProfileManagement", () => {
 
   describe("salvar endereço", () => {
     it("novo endereço sai com todos os campos, CEP só com dígitos e exatamente a posição do pino", async () => {
+      // Já tem padrão: o novo sai como não padrão (LDMF-262).
+      savedAddresses = [stored("a0", { isDefault: true })];
       api.address.createUserAddress.mockResolvedValue({ success: true, data: stored("novo") });
       const fetchMock = vi.fn();
       vi.stubGlobal("fetch", fetchMock);
@@ -820,6 +828,7 @@ describe("useProfileManagement", () => {
     });
 
     it("salvar endereço que não é padrão não mexe no ponto da home", async () => {
+      savedAddresses = [stored("a0", { isDefault: true })];
       api.address.createUserAddress.mockResolvedValue({ success: true, data: stored("novo") });
       const { result } = await renderProfile();
       placePin(result);
@@ -875,6 +884,7 @@ describe("useProfileManagement", () => {
     });
 
     it("confirmado, exclui e avisa", async () => {
+      savedAddresses = [stored("a1"), stored("a2", { isDefault: true })];
       api.address.deleteUserAddress.mockResolvedValue({ success: true });
       const { result } = await renderProfile();
 
@@ -887,6 +897,7 @@ describe("useProfileManagement", () => {
     });
 
     it("recusa mostra a mensagem do backend", async () => {
+      savedAddresses = [stored("a1"), stored("a2", { isDefault: true })];
       api.address.deleteUserAddress.mockResolvedValue({ success: false, message: "Endereço em uso" });
       const { result } = await renderProfile();
 
@@ -895,6 +906,74 @@ describe("useProfileManagement", () => {
       });
 
       expect(toast.error).toHaveBeenCalledWith("Endereço em uso");
+    });
+  });
+
+  describe("cliente logado sempre com endereço padrão (LDMF-262)", () => {
+    it("não exclui o único endereço", async () => {
+      vi.stubGlobal("confirm", vi.fn(() => true));
+      savedAddresses = [stored("a1", { isDefault: true })];
+      const { result } = await renderProfile();
+
+      await act(async () => {
+        await result.current.handleDeleteAddress("a1");
+      });
+
+      expect(toast.error).toHaveBeenCalledWith(DELETE_ONLY_ADDRESS_MESSAGE);
+      expect(api.address.deleteUserAddress).not.toHaveBeenCalled();
+    });
+
+    it("não exclui o padrão sem marcar outro antes", async () => {
+      vi.stubGlobal("confirm", vi.fn(() => true));
+      savedAddresses = [stored("a1", { isDefault: true }), stored("a2")];
+      const { result } = await renderProfile();
+
+      await act(async () => {
+        await result.current.handleDeleteAddress("a1");
+      });
+
+      expect(toast.error).toHaveBeenCalledWith(DELETE_DEFAULT_ADDRESS_MESSAGE);
+      expect(api.address.deleteUserAddress).not.toHaveBeenCalled();
+    });
+
+    it("sem padrão, o endereço salvo vira padrão mesmo com a caixa desmarcada", async () => {
+      api.address.createUserAddress.mockResolvedValue({ success: true, data: stored("novo") });
+      const { result } = await renderProfile();
+      expect(result.current.defaultOptionLockedHint).toBe(DEFAULT_LOCKED_FIRST_HINT);
+      placePin(result);
+
+      await act(async () => {
+        await result.current.handleAddAddress(formData({ isDefault: false }));
+      });
+
+      expect(api.address.createUserAddress.mock.calls[0][0].isDefault).toBe(true);
+    });
+
+    it("editando o padrão, desmarcar a caixa não tira o padrão", async () => {
+      savedAddresses = [stored("a1", { isDefault: true }), stored("a2")];
+      api.address.updateUserAddress.mockResolvedValue({ success: true, data: stored("a1") });
+      const { result } = await renderProfile();
+
+      act(() => result.current.handleEditAddress(result.current.addresses[0]));
+      await waitFor(() =>
+        expect(result.current.defaultOptionLockedHint).toBe(DEFAULT_LOCKED_EDITING_HINT),
+      );
+      placePin(result);
+
+      await act(async () => {
+        await result.current.handleAddAddress(formData({ isDefault: false }));
+      });
+
+      expect(api.address.updateUserAddress.mock.calls[0][1].isDefault).toBe(true);
+    });
+
+    it("com outro padrão, a caixa fica livre", async () => {
+      savedAddresses = [stored("a1", { isDefault: true }), stored("a2")];
+      const { result } = await renderProfile();
+
+      expect(result.current.defaultOptionLockedHint).toBeNull();
+      act(() => result.current.handleEditAddress(result.current.addresses[1]));
+      expect(result.current.defaultOptionLockedHint).toBeNull();
     });
   });
 

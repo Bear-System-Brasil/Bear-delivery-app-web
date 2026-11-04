@@ -30,6 +30,16 @@ interface Address extends AddressFormData {
   type?: string;
 }
 
+/** Textos da regra "cliente logado sempre com endereço padrão" (LDMF-262). */
+export const DEFAULT_LOCKED_FIRST_HINT =
+  "Você ainda não tem endereço padrão, então este fica como padrão.";
+export const DEFAULT_LOCKED_EDITING_HINT =
+  "Este é o seu endereço padrão. Para trocar, toque na estrela de outro endereço da lista.";
+export const DELETE_ONLY_ADDRESS_MESSAGE =
+  "Você precisa ter pelo menos um endereço. Cadastre outro antes de excluir este.";
+export const DELETE_DEFAULT_ADDRESS_MESSAGE =
+  "Este é o seu endereço padrão. Marque outro como padrão antes de excluir.";
+
 /**
  * Hook para gerenciar perfil do usuário (cliente)
  * Inclui: dados pessoais, foto, endereços
@@ -90,26 +100,27 @@ export const useProfileManagement = () => {
   });
   const { addressForm } = addressEditor;
 
-  // Se o cliente não tem nenhum endereço padrão cadastrado, o próximo endereço criado
-  // deve vir com a opção de padrão marcada por conveniência e conformidade com entrega.
-  useEffect(() => {
-    if (addingAddressState.isOpen && !editingAddressId) {
-      const hasDefault = Boolean(
-        (rawAddresses && rawAddresses.some((a) => a.isDefault)) ||
-        (addresses && addresses.some((a) => a.isDefault)),
-      );
-      if (!hasDefault || (addresses?.length ?? 0) === 0) {
-        addressForm.setValue("isDefault", true);
-      }
-    }
-  }, [
-    addingAddressState.isOpen,
-    editingAddressId,
-    rawAddresses,
-    addresses,
-    addressForm,
-  ]);
+  // LDMF-262: o cliente logado nunca fica sem endereço padrão. Sem padrão
+  // nenhum (primeiro endereço, ou o padrão sumiu), o endereço salvo vira o
+  // padrão; editando o padrão, a caixa não desmarca - trocar o padrão é
+  // marcar outro na lista. Nos dois casos a caixa fica marcada e travada.
+  const hasDefaultAddress = addresses.some((addr) => addr.isDefault);
+  const editingAddressIsDefault = Boolean(
+    editingAddressId &&
+      addresses.find((addr) => addr.id === editingAddressId)?.isDefault,
+  );
+  const defaultOptionLockedHint = editingAddressIsDefault
+    ? DEFAULT_LOCKED_EDITING_HINT
+    : !hasDefaultAddress
+      ? DEFAULT_LOCKED_FIRST_HINT
+      : null;
+  const isDefaultLocked = defaultOptionLockedHint !== null;
 
+  useEffect(() => {
+    if (addingAddressState.isOpen && isDefaultLocked) {
+      addressForm.setValue("isDefault", true);
+    }
+  }, [addingAddressState.isOpen, isDefaultLocked, addressForm]);
 
   /**
    * Prevent SSR issues
@@ -331,15 +342,8 @@ export const useProfileManagement = () => {
 
     setIsSavingAddress(true);
     try {
-      const hasDefault = Boolean(
-        (rawAddresses && rawAddresses.some((addr) => addr.isDefault)) ||
-        (addresses && addresses.some((addr) => addr.isDefault)),
-      );
-      const shouldBeDefault = editingAddressId
-        ? (data.isDefault ?? false)
-        : data.isDefault !== undefined
-          ? Boolean(data.isDefault)
-          : !hasDefault || (addresses?.length ?? 0) === 0;
+      // Caixa travada (LDMF-262) vem `undefined` no submit: vale a trava.
+      const shouldBeDefault = isDefaultLocked || Boolean(data.isDefault);
 
       const payload = {
         street: data.street,
@@ -509,6 +513,18 @@ export const useProfileManagement = () => {
    * Deletar endereço
    */
   const handleDeleteAddress = async (addressId: string) => {
+    // LDMF-262: excluir não pode deixar o cliente sem endereço padrão. O
+    // back só marca o endereço como inativo e não promove outro.
+    const target = addresses.find((addr) => addr.id === addressId);
+    if (addresses.length <= 1) {
+      toast.error(DELETE_ONLY_ADDRESS_MESSAGE);
+      return;
+    }
+    if (target?.isDefault) {
+      toast.error(DELETE_DEFAULT_ADDRESS_MESSAGE);
+      return;
+    }
+
     if (!confirm("Tem certeza que deseja excluir este endereço?")) return;
 
     try {
@@ -570,6 +586,7 @@ export const useProfileManagement = () => {
     selectOtherNeighborhood: addressEditor.selectOtherNeighborhood,
     changeOtherNeighborhood: addressEditor.changeOtherNeighborhood,
     isLocatingPin: addressEditor.isLocatingPin,
+    defaultOptionLockedHint,
     isSearchingAddress: addressEditor.isSearchingAddress,
     addressNotFound: addressEditor.addressNotFound,
     pinZoom: addressEditor.pinZoom,

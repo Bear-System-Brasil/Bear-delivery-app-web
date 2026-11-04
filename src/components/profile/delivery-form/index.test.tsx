@@ -33,6 +33,7 @@ type Extra = {
   addressNotFound?: boolean;
   showReference?: boolean;
   showDefaultOption?: boolean;
+  defaultOptionLockedHint?: string | null;
   placeLabel?: string;
   zipCodeHint?: string | null;
   isLoadingCep?: boolean;
@@ -413,6 +414,14 @@ describe("DeliveryForm: ordem e trava dos campos", () => {
       expect(screen.queryByLabelText("Referência")).toBeNull();
       expect(screen.getByText(/Confira se o pino está na sua casa/)).toBeTruthy();
       expect(screen.getByRole("alert").textContent).toContain("até a sua casa");
+    });
+
+    it("caixa de padrão travada mostra o motivo (LDMF-262)", () => {
+      renderForm({ defaultOptionLockedHint: "Este fica como padrão." });
+
+      const checkbox = screen.getByLabelText("Definir como endereço padrão") as HTMLInputElement;
+      expect(checkbox.disabled).toBe(true);
+      expect(screen.getByText("Este fica como padrão.")).toBeTruthy();
     });
 
     it("loja: sem caixa de padrão, com Referência e texto falando em loja", () => {
