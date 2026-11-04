@@ -92,6 +92,9 @@ export function ProfileWrapper() {
     changeOtherNeighborhood,
     isSearchingAddress,
     addressNotFound,
+    streetSuggestion,
+    acceptStreetSuggestion,
+    dismissStreetSuggestion,
     pinZoom,
     pinRecenterKey,
     // CEP
@@ -255,6 +258,9 @@ export function ProfileWrapper() {
           pinStatusProps={{
             isSearchingAddress,
             addressNotFound,
+            streetSuggestion,
+            onAcceptStreetSuggestion: acceptStreetSuggestion,
+            onDismissStreetSuggestion: dismissStreetSuggestion,
             pinZoom,
             pinRecenterKey,
           }}

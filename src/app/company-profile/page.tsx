@@ -1010,6 +1010,9 @@ function CompanyProfileContent() {
                 onOtherNeighborhoodChange={addressEditor.changeOtherNeighborhood}
                 isSearchingAddress={addressEditor.isSearchingAddress}
                 addressNotFound={addressEditor.addressNotFound}
+                streetSuggestion={addressEditor.streetSuggestion}
+                onAcceptStreetSuggestion={addressEditor.acceptStreetSuggestion}
+                onDismissStreetSuggestion={addressEditor.dismissStreetSuggestion}
                 pinZoom={addressEditor.pinZoom}
                 pinRecenterKey={addressEditor.pinRecenterKey}
                 showReference

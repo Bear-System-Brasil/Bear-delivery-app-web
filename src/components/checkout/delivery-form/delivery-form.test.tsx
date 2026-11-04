@@ -130,7 +130,7 @@ describe("DeliveryForm - endereço novo pelo núcleo (LDMF-260)", () => {
     expect(screen.getByLabelText("CEP *")).toBeEnabled();
     expect(screen.getByLabelText("Estado *")).toBeEnabled();
     expect(screen.getByLabelText("Cidade *")).toBeDisabled();
-    expect(screen.getByLabelText("Rua *")).toBeDisabled();
+    expect(screen.getByLabelText("Nome da rua *")).toBeDisabled();
     expect(screen.getByLabelText("Complemento")).toBeInTheDocument();
     expect(screen.getByLabelText("Referência")).toBeInTheDocument();
     // "Salvar para pedidos futuros" continua; a caixa de padrão do perfil não.
@@ -193,7 +193,7 @@ describe("DeliveryForm - campos faltando", () => {
   it("retirada não mostra endereço nem cobra os campos dele", () => {
     renderForm({ orderType: "pickup" });
 
-    expect(screen.queryByLabelText("Rua *")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Nome da rua *")).not.toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });

@@ -3,6 +3,7 @@
 import { formatCep } from "@/utils";
 import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import type { AddressForm } from "@/components/profile/addresses";
 import { AddressMap } from "@/components/address-map";
 import type {
@@ -14,6 +15,14 @@ import { isNoNumber, NO_NUMBER } from "@/hooks/use-form-validation";
 import type { IbgeState } from "@/services/ibge";
 import { Coords } from "@/types/restaurant";
 import { cn } from "@/lib/utils";
+import {
+  DEFAULT_STREET_TYPE,
+  joinStreet,
+  splitStreet,
+  STREET_TYPES,
+  type StreetType,
+} from "@/lib/street-type";
+import { useState } from "react";
 
 /** Bairro da lista: `value` é o nome oficial, `label` o texto exibido. */
 export type NeighborhoodOption = { value: string; label: string };
@@ -22,6 +31,10 @@ export type NeighborhoodOption = { value: string; label: string };
 export type PinStatusProps = {
   isSearchingAddress?: boolean;
   addressNotFound?: boolean;
+  /** Logradouro achado com outro nome, para o cliente confirmar (LDMF-282). */
+  streetSuggestion?: string | null;
+  onAcceptStreetSuggestion?: () => void;
+  onDismissStreetSuggestion?: () => void;
   pinZoom?: number;
   pinRecenterKey?: number;
 };
@@ -116,6 +129,9 @@ export function AddressCoreFields({
   onOtherNeighborhoodChange,
   isSearchingAddress = false,
   addressNotFound = false,
+  streetSuggestion = null,
+  onAcceptStreetSuggestion,
+  onDismissStreetSuggestion,
   pinZoom,
   pinRecenterKey,
 }: AddressCoreFieldsProps) {
@@ -125,6 +141,37 @@ export function AddressCoreFields({
   // "Sem número" é o próprio valor S/N no campo: endereço salvo assim já abre
   // com a caixa marcada, e trocar rua/bairro (que limpa o número) desmarca.
   const noNumber = isNoNumber(currentNumber);
+
+  // Tipo de logradouro + nome (LDMF-282). O formulário guarda só `street`,
+  // o logradouro completo ("Rua Sete de Setembro"), que é o que vai para o
+  // back; tipo e nome são lidos dele. O tipo escolhido com o nome ainda
+  // vazio fica aqui até o nome ser digitado.
+  const currentStreet = addressForm.watch("street") ?? "";
+  const streetParts = splitStreet(currentStreet);
+  const [chosenStreetType, setChosenStreetType] =
+    useState<StreetType>(DEFAULT_STREET_TYPE);
+  const streetType = streetParts.type ?? chosenStreetType;
+  // Endereço salvo sem tipo reconhecido: o texto inteiro aparece como nome.
+  const streetName = streetParts.type ? streetParts.name : currentStreet;
+
+  const setStreet = (value: string) =>
+    addressForm.setValue("street", value, {
+      shouldValidate: !!addressForm.formState.errors.street,
+      shouldDirty: true,
+    });
+
+  // Tipo digitado no começo do nome ("Av. ") vai para o seletor, mesmo
+  // antes do resto do nome: nunca "Rua Av. Brasil" nem "Rua Rua ...".
+  const changeStreetName = (value: string) => {
+    const typed = splitStreet(value).type;
+    if (typed) setChosenStreetType(typed);
+    setStreet(joinStreet(typed ?? streetType, value));
+  };
+
+  const changeStreetType = (type: StreetType) => {
+    setChosenStreetType(type);
+    if (streetName.trim()) setStreet(joinStreet(type, streetName));
+  };
 
   const setNoNumber = (checked: boolean) =>
     addressForm.setValue("number", checked ? NO_NUMBER : "", {
@@ -316,19 +363,49 @@ export function AddressCoreFields({
         )}
       </div>
 
-      {/* Rua */}
-      <div className="md:col-span-2 space-y-2">
-        <label htmlFor="address-street" className="text-sm font-medium">
-          Rua *
-        </label>
-        <Input
-          id="address-street"
-          {...addressForm.register("street")}
-          placeholder="Nome da rua"
-          disabled={fieldLocks.street}
-        />
+      {/* Rua: tipo de logradouro + nome (LDMF-282) */}
+      <div className="md:col-span-2 grid grid-cols-[minmax(0,8.5rem)_1fr] gap-2">
+        <div className="space-y-2">
+          <label htmlFor="address-street-type" className="text-sm font-medium">
+            Tipo
+          </label>
+          <select
+            id="address-street-type"
+            className={selectClass}
+            value={streetType}
+            onChange={(e) => changeStreetType(e.target.value as StreetType)}
+            disabled={fieldLocks.street}
+          >
+            {STREET_TYPES.map((type) => (
+              <option key={type} value={type}>
+                {type}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="space-y-2">
+          <label htmlFor="address-street" className="text-sm font-medium">
+            Nome da rua *
+          </label>
+          <input type="hidden" {...addressForm.register("street")} />
+          <Input
+            id="address-street"
+            value={streetName}
+            onChange={(e) => changeStreetName(e.target.value)}
+            onBlur={() => {
+              if (currentStreet !== currentStreet.trim()) {
+                setStreet(currentStreet.trim());
+              }
+            }}
+            placeholder="Ex.: Sete de Setembro"
+            disabled={fieldLocks.street}
+            aria-invalid={errors.street ? true : undefined}
+          />
+        </div>
         {errors.street && (
-          <p className="text-sm text-destructive">{errors.street.message}</p>
+          <p className="col-span-2 text-sm text-destructive">
+            {errors.street.message}
+          </p>
         )}
       </div>
 
@@ -419,6 +496,33 @@ export function AddressCoreFields({
             Não encontramos esse endereço no mapa. Arraste o pino até a{" "}
             {placeLabel}.
           </p>
+        )}
+        {streetSuggestion && (
+          <div
+            role="status"
+            className="space-y-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-xs dark:border-amber-700 dark:bg-amber-950/40"
+          >
+            <p>
+              Encontramos <strong>{streetSuggestion}</strong>. É essa?
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                size="sm"
+                onClick={onAcceptStreetSuggestion}
+              >
+                Sim, usar esse nome
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={onDismissStreetSuggestion}
+              >
+                Manter o que digitei
+              </Button>
+            </div>
+          </div>
         )}
         {!addressCoords && (
           <p className="text-xs font-medium text-destructive">

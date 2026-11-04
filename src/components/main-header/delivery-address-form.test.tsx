@@ -140,7 +140,7 @@ describe("DeliveryAddressForm (núcleo de endereço)", () => {
     expect(screen.getByLabelText("CEP")).toBeEnabled();
     expect(screen.getByLabelText("Estado *")).toBeEnabled();
     expect(screen.getByLabelText("Cidade *")).toBeDisabled();
-    expect(screen.getByLabelText("Rua *")).toBeDisabled();
+    expect(screen.getByLabelText("Nome da rua *")).toBeDisabled();
     expect(screen.getByLabelText("Número *")).toBeDisabled();
     // Complemento e "padrão" não vão para o cookie: não aparecem.
     expect(screen.queryByLabelText("Complemento")).not.toBeInTheDocument();
@@ -168,7 +168,7 @@ describe("DeliveryAddressForm (núcleo de endereço)", () => {
       expect(screen.getByLabelText("Bairro *").tagName).toBe("SELECT"),
     );
     await userEvent.selectOptions(screen.getByLabelText("Bairro *"), "Centro");
-    await userEvent.type(screen.getByLabelText("Rua *"), "Av. Brasil");
+    await userEvent.type(screen.getByLabelText("Nome da rua *"), "Av. Brasil");
     await userEvent.click(screen.getByLabelText("Sem número"));
     await userEvent.click(screen.getByRole("button", { name: "marcar no mapa" }));
     await userEvent.click(screen.getByRole("button", { name: "Trabalho" }));
@@ -179,7 +179,7 @@ describe("DeliveryAddressForm (núcleo de endereço)", () => {
       lat: MAP_PIN.lat,
       lng: MAP_PIN.lng,
       city: "Castelo",
-      address: "Av. Brasil, s/n - Centro, Castelo - ES",
+      address: "Avenida Brasil, s/n - Centro, Castelo - ES",
       label: "Trabalho",
     });
     // CEP vazio não consulta nada.
@@ -192,7 +192,7 @@ describe("DeliveryAddressForm (núcleo de endereço)", () => {
     const onSave = renderForm();
     await chooseCastelo();
     await userEvent.type(screen.getByLabelText("Bairro *"), "Centro");
-    await userEvent.type(screen.getByLabelText("Rua *"), "Av. Brasil");
+    await userEvent.type(screen.getByLabelText("Nome da rua *"), "Av. Brasil");
     await userEvent.type(screen.getByLabelText("Número *"), "10");
     await userEvent.click(saveButton());
 
@@ -210,7 +210,7 @@ describe("DeliveryAddressForm (núcleo de endereço)", () => {
     await userEvent.type(screen.getByLabelText("CEP"), "2936");
     await chooseCastelo();
     await userEvent.type(screen.getByLabelText("Bairro *"), "Centro");
-    await userEvent.type(screen.getByLabelText("Rua *"), "Av. Brasil");
+    await userEvent.type(screen.getByLabelText("Nome da rua *"), "Av. Brasil");
     await userEvent.type(screen.getByLabelText("Número *"), "10");
     await userEvent.click(screen.getByRole("button", { name: "marcar no mapa" }));
     await userEvent.click(saveButton());
