@@ -15,15 +15,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { usePayment } from "@/hooks";
 import { buildPaymentMethodUpdate } from "@/lib/payment-update";
 import { cn } from "@/lib/utils";
-// Linha separada de propósito, pra não conflitar com o PR do LDMF-429, que
-// mexe na linha de import do React. Unificar depois (LDMF-392).
-import { useRef } from "react";
 import { Payment, PaymentMethod, PaymentStatus } from "@/services/api";
 import { useAuthStore } from "@/stores";
 import { formatCurrency, getCustomerDisplayName } from "@/utils";
 import { isManagementRole } from "@/utils/role-helpers";
 import { Check, DollarSign, Search, SlidersHorizontal, X } from "lucide-react";
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
 const PAY_METHOD_OPTIONS: { value: PaymentMethod | "ALL"; label: string }[] = [
   { value: "ALL", label: "Todos os métodos" },
