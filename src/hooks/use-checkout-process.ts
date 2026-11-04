@@ -52,10 +52,7 @@ import {
 import { resolveRestaurantOpenStatus } from "@/constants/opening-hours";
 import { resolveAcceptedPaymentMethods } from "@/lib/accepted-payment-methods";
 import { getCheckoutFieldErrors } from "@/lib/checkout-validation";
-import {
-  getCartLimitError,
-  toLimitedItems,
-} from "@/lib/order-quantity-limit";
+import { getCartLimitError } from "@/lib/order-quantity-limit";
 
 function showCheckoutError(message: string) {
   toast.dismiss?.();
@@ -759,10 +756,8 @@ export const useCheckoutProcess = () => {
       // chamada direta) somou itens depois que o checkout abriu.
       const backendLimitError = cartResponse.success
         ? getCartLimitError(
-            toLimitedItems(
-              (cartResponse.data as { orderedItems?: unknown } | undefined)
-                ?.orderedItems,
-            ),
+            (cartResponse.data as { orderedItems?: unknown } | undefined)
+              ?.orderedItems,
           )
         : null;
       if (backendLimitError) {

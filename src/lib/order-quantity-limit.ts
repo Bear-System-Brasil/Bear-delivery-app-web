@@ -69,8 +69,13 @@ export function toLimitedItems(orderedItems: unknown): LimitedItem[] {
   });
 }
 
-/** Mensagem de bloqueio se o carrinho como está já passa do teto. */
-export function getCartLimitError(items: LimitedItem[]): string | null {
+/**
+ * Mensagem de bloqueio se o carrinho como está já passa do teto. Aceita o
+ * carrinho da tela ou o `orderedItems` cru do back: item sem `productId` ou
+ * sem quantidade numérica fica de fora.
+ */
+export function getCartLimitError(cartItems: unknown): string | null {
+  const items = toLimitedItems(cartItems);
   const productIds = new Set(items.map((item) => item.productId));
   for (const productId of productIds) {
     if (unitsOfProduct(items, productId) > MAX_UNITS_PER_PRODUCT) {
