@@ -28,6 +28,8 @@ export const NO_NEIGHBORHOOD_CEP_HINT =
   "Este CEP não traz o bairro. Preencha o bairro abaixo.";
 export const CEP_NOT_FOUND_HINT =
   "CEP não encontrado. Confira o número ou preencha estado, cidade, bairro, rua e número à mão.";
+export const CITY_CEP_FILLED_HINT =
+  "Preenchemos o CEP da cidade, que vale para a cidade inteira.";
 export const CEP_LOOKUP_FAILED_HINT =
   "Não conseguimos consultar o CEP agora. Preencha estado, cidade, bairro, rua e número à mão.";
 
@@ -159,6 +161,35 @@ export const useAddressEditor = ({ enabled }: { enabled: boolean }) => {
     watchedNeighborhood,
     addressForm,
   ]);
+
+  // CEP automático (LDMF-260): cidade de CEP único na lista (Castelo,
+  // 29360-000) preenche o CEP vazio. Sem busca: o CEP é o da própria cidade
+  // escolhida. Trocar para outra cidade tira o CEP que foi preenchido aqui.
+  const autoFilledCep = useRef<string | null>(null);
+  useEffect(() => {
+    const currentCep = onlyNumbers(addressForm.getValues("zipCode") ?? "");
+    const cityCep = onlyNumbers(addressPin.neighborhoodList?.cep ?? "");
+
+    if (autoFilledCep.current && currentCep === autoFilledCep.current) {
+      if (cityCep === currentCep) return;
+      autoFilledCep.current = null;
+      lastCepRequest.current = null;
+      setLastFetchedCep(null);
+      addressForm.setValue("zipCode", "", { shouldValidate: true });
+      return;
+    }
+
+    if (cityCep.length !== 8 || currentCep) return;
+
+    autoFilledCep.current = cityCep;
+    lastCepRequest.current = cityCep;
+    setLastFetchedCep(cityCep);
+    addressForm.setValue("zipCode", formatCep(cityCep), {
+      shouldValidate: true,
+    });
+    setZipCodeHint(CITY_CEP_FILLED_HINT);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [addressPin.neighborhoodList]);
 
   /**
    * Auto-fetch CEP when complete (8 digits)
@@ -316,6 +347,7 @@ export const useAddressEditor = ({ enabled }: { enabled: boolean }) => {
     });
     setLastFetchedCep(onlyNumbers(address.zipCode ?? ""));
     lastCepRequest.current = null;
+    autoFilledCep.current = null;
     setZipCodeHint(null);
     addressFields.resetOtherNeighborhood();
   };
@@ -325,6 +357,7 @@ export const useAddressEditor = ({ enabled }: { enabled: boolean }) => {
     addressForm.reset();
     setLastFetchedCep(null);
     lastCepRequest.current = null;
+    autoFilledCep.current = null;
     setZipCodeHint(null);
     setPin(null);
     addressPin.resetBaseline();

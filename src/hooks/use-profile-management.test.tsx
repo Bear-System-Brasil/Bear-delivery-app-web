@@ -1332,6 +1332,63 @@ describe("useProfileManagement", () => {
   });
 
   describe("CEP", () => {
+    it("CEP automático: cidade de CEP único preenche o CEP vazio, sem buscar e com aviso", async () => {
+      const fetchMock = vi.fn();
+      vi.stubGlobal("fetch", fetchMock);
+      const { result } = await renderProfile();
+
+      act(() => {
+        result.current.changeState("ES");
+        result.current.changeCity("Castelo");
+      });
+
+      await waitFor(() =>
+        expect(result.current.addressForm.getValues("zipCode")).toBe("29360-000"),
+      );
+      expect(result.current.zipCodeHint).toBe(
+        "Preenchemos o CEP da cidade, que vale para a cidade inteira.",
+      );
+      // Bairro, rua e número continuam como estavam (vazios).
+      expect(result.current.addressForm.getValues("neighborhood") ?? "").toBe("");
+      const cepCalls = fetchMock.mock.calls.filter(([url]) =>
+        /brasilapi|viacep/.test(String(url)),
+      );
+      expect(cepCalls).toHaveLength(0);
+    });
+
+    it("CEP automático não troca um CEP que o cliente já digitou", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 503 }));
+      const { result } = await renderProfile();
+
+      act(() => {
+        result.current.addressForm.setValue("zipCode", "29360-111");
+        result.current.changeState("ES");
+        result.current.changeCity("Castelo");
+      });
+
+      await waitFor(() => expect(result.current.neighborhoodOptions).not.toBeNull());
+      expect(result.current.addressForm.getValues("zipCode")).toBe("29360-111");
+    });
+
+    it("trocar para cidade sem CEP único tira o CEP preenchido automaticamente", async () => {
+      vi.stubGlobal("fetch", vi.fn());
+      const { result } = await renderProfile();
+
+      act(() => {
+        result.current.changeState("ES");
+        result.current.changeCity("Castelo");
+      });
+      await waitFor(() =>
+        expect(result.current.addressForm.getValues("zipCode")).toBe("29360-000"),
+      );
+
+      act(() => result.current.changeCity("Alegre"));
+
+      await waitFor(() =>
+        expect(result.current.addressForm.getValues("zipCode")).toBe(""),
+      );
+    });
+
     it("CEP completo busca na BrasilAPI e preenche o endereço", async () => {
       const fetchMock = vi.fn().mockResolvedValue({
         ok: true,
