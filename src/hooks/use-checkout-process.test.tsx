@@ -895,11 +895,11 @@ describe("useCheckoutProcess - endereço padrão da entrega", () => {
     );
   });
 
-  it("desmarca o endereço temporário antes de descartá-lo", async () => {
+  it("sem padrão, o endereço do pedido fica salvo como padrão mesmo com 'Salvar' desmarcado (LDMF-262)", async () => {
     addressesQuery = ADDRESSES_WITHOUT_DEFAULT;
     seedAddressBook(ADDRESSES_WITHOUT_DEFAULT);
 
-    await submitWith((h) => {
+    const result = await submitWith((h) => {
       h.setOrderType("delivery");
       h.setPaymentMethod("pix");
       // "Salvar este endereço para pedidos futuros" desmarcado.
@@ -907,10 +907,10 @@ describe("useCheckoutProcess - endereço padrão da entrega", () => {
       h.setAddressMode("new");
     });
 
-    // Sem o "off", o cliente ficaria com um endereço padrão apagado - e o
-    // próximo pedido de entrega sairia desse endereço morto.
-    expect(defaultCalls()).toEqual(["addr-1:on", "addr-1:off"]);
-    expect(deleteUserAddress).toHaveBeenCalledWith("addr-1");
+    expect(result.current.newAddressBecomesDefault).toBe(true);
+    // Descartar deixaria o cliente logado sem endereço padrão.
+    expect(defaultCalls()).toEqual(["addr-1:on"]);
+    expect(deleteUserAddress).not.toHaveBeenCalled();
   });
 
   it("desfaz na montagem uma troca que ficou pela metade", async () => {
@@ -987,9 +987,9 @@ describe("useCheckoutProcess - endereço padrão da entrega", () => {
     expect(finishOrder).toHaveBeenCalledTimes(1);
   });
 
-  it("cadastra novo endereço sem padrão quando o cliente desmarca salvar para o futuro", async () => {
-    addressesQuery = ADDRESSES_EMPTY;
-    seedAddressBook(ADDRESSES_EMPTY);
+  it("cadastra novo endereço sem padrão quando o cliente já tem padrão e desmarca salvar para o futuro", async () => {
+    addressesQuery = ADDRESSES_WITH_DEFAULT;
+    seedAddressBook(ADDRESSES_WITH_DEFAULT);
     createUserAddress.mockResolvedValue({
       success: true,
       data: {
@@ -1005,6 +1005,62 @@ describe("useCheckoutProcess - endereço padrão da entrega", () => {
     });
 
     const { result } = renderCheckout();
+    await waitFor(() => expect(result.current.selectedAddressId).toBe("addr-1"));
+    expect(result.current.newAddressBecomesDefault).toBe(false);
+
+    act(() => {
+      result.current.setOrderType("delivery");
+      result.current.setPaymentMethod("pix_on_delivery");
+      result.current.setSaveAddress(false);
+      result.current.setAddressMode("new");
+      // "Novo endereço" na tela também tira a seleção do endereço salvo.
+      result.current.setSelectedAddressId(null);
+      fillNewAddress(result.current, {
+        name: "Cliente",
+        phone: "11999999999",
+        zipCode: "01001-000",
+        street: "Praça da Sé",
+        number: "1",
+        neighborhood: "Sé",
+        city: "São Paulo",
+        state: "SP",
+      });
+    });
+
+    await act(async () => {
+      await result.current.handleSubmitOrder();
+    });
+
+    expect(createUserAddress).toHaveBeenCalledWith(
+      expect.objectContaining({
+        isDefault: false,
+        zipCode: "01001000",
+      }),
+    );
+  });
+});
+
+describe("useCheckoutProcess - cliente logado sempre com padrão (LDMF-262)", () => {
+  beforeEach(() => {
+    finishOrder.mockReset();
+    openCart.mockReset();
+    paymentsCreate.mockReset();
+    paymentsCreate.mockResolvedValue({ success: true, data: {} });
+    deleteUserAddress.mockReset();
+    resetAddressMocks();
+    addressesQuery = ADDRESSES_EMPTY;
+    seedAddressBook(ADDRESSES_EMPTY);
+  });
+
+  it("primeiro endereço vira padrão e fica salvo, mesmo com 'Salvar' desmarcado", async () => {
+    createUserAddress.mockResolvedValue({
+      success: true,
+      data: { id: "addr-novo", isDefault: true },
+    });
+    finishOrder.mockResolvedValue({ success: true, data: { id: "order-1" } });
+
+    const { result } = renderCheckout();
+    expect(result.current.newAddressBecomesDefault).toBe(true);
 
     act(() => {
       result.current.setOrderType("delivery");
@@ -1028,11 +1084,9 @@ describe("useCheckoutProcess - endereço padrão da entrega", () => {
     });
 
     expect(createUserAddress).toHaveBeenCalledWith(
-      expect.objectContaining({
-        isDefault: false,
-        zipCode: "01001000",
-      }),
+      expect.objectContaining({ isDefault: true }),
     );
+    expect(deleteUserAddress).not.toHaveBeenCalled();
   });
 });
 

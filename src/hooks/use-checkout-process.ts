@@ -457,13 +457,19 @@ export const useCheckoutProcess = () => {
   };
 
   /**
+   * Cliente sem endereço padrão (LDMF-262): o endereço novo do checkout fica
+   * salvo e vira o padrão - o logado nunca fica sem padrão.
+   */
+  const newAddressBecomesDefault = !userAddresses?.some((a) => a.isDefault);
+
+  /**
    * Salva novo endereço do usuário (lança erro se falhar para não duplicar
    * requisição nem empilhar toasts no fluxo de finalização).
    */
   const saveNewAddress = async (coords: Coords | null): Promise<string> => {
-    const hasDefault = Boolean(userAddresses?.some((a) => a.isDefault));
-    const shouldBeDefault =
-      saveAddress && (!hasDefault || userAddresses.length === 0);
+    // LDMF-262: sem endereço padrão, o novo vira o padrão, marcado ou não
+    // "Salvar este endereço" (e por isso não é descartado depois).
+    const shouldBeDefault = newAddressBecomesDefault;
 
     const values = getNewAddressValues();
     const optionalText = (value: string) => value.trim() || undefined;
@@ -578,6 +584,8 @@ export const useCheckoutProcess = () => {
    * 6. Limpa carrinho local (após delay para evitar redirect indesejado)
    */
   const handleSubmitOrder = async () => {
+    // Antes de criar o endereço: depois dele, o cliente já tem padrão.
+    const keepNewAddress = saveAddress || newAddressBecomesDefault;
     // Trava síncrona: cliques repetidos antes do re-render do React (ou
     // enquanto a navegação pós-sucesso ainda está em andamento) são ignorados
     // no ato, evitando finalizações/pagamentos duplicados e toasts empilhados.
@@ -925,7 +933,7 @@ export const useCheckoutProcess = () => {
       // o cliente desmarcou "Salvar este endereço para pedidos futuros", ele
       // não pode sobrar em "meus endereços" depois - descarta (soft delete) o
       // que acabou de ser criado só pra esse pedido.
-      if (!saveAddress && addressMode === "new" && deliveryAddressId) {
+      if (!keepNewAddress && addressMode === "new" && deliveryAddressId) {
         try {
           // Este endereço pode ter acabado de virar o padrão do cliente:
           // quando não havia padrão nenhum, a promoção acima fica de pé em
@@ -1046,6 +1054,7 @@ export const useCheckoutProcess = () => {
     selectedAddressId,
     addressMode,
     saveAddress,
+    newAddressBecomesDefault,
     loadingAddresses,
     setAddressMode,
     setSaveAddress,

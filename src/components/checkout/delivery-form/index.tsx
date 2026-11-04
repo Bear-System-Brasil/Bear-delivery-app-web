@@ -50,6 +50,8 @@ type Props = {
   deliveryInfo: DeliveryInfo;
   loadingAddresses: boolean;
   saveAddress: boolean;
+  /** Sem endereço padrão, o novo fica salvo como padrão (LDMF-262). */
+  newAddressBecomesDefault?: boolean;
   userAddresses: Address[];
   selectedAddressId: string | null;
   orderType: "delivery" | "pickup";
@@ -126,6 +128,7 @@ export function DeliveryForm({
   loadingAddresses,
   userAddresses,
   saveAddress,
+  newAddressBecomesDefault = false,
   selectedAddressId,
   orderType,
   setOrderType,
@@ -450,22 +453,28 @@ export function DeliveryForm({
                 showDefaultOption={false}
               />
 
-              <div className="flex items-center gap-2 pt-1">
-                <Checkbox
-                  id="saveAddress"
-                  checked={saveAddress}
-                  onCheckedChange={(checked) =>
-                    setSaveAddress(Boolean(checked))
-                  }
-                  className="rounded-md border-border data-[state=checked]:bg-brand-500"
-                />
-                <Label
-                  htmlFor="saveAddress"
-                  className="cursor-pointer text-xs font-semibold text-foreground"
-                >
-                  Salvar este endereço para pedidos futuros
-                </Label>
-              </div>
+              {newAddressBecomesDefault ? (
+                <p className="pt-1 text-xs text-muted-foreground">
+                  Este endereço fica salvo como o seu endereço padrão.
+                </p>
+              ) : (
+                <div className="flex items-center gap-2 pt-1">
+                  <Checkbox
+                    id="saveAddress"
+                    checked={saveAddress}
+                    onCheckedChange={(checked) =>
+                      setSaveAddress(Boolean(checked))
+                    }
+                    className="rounded-md border-border data-[state=checked]:bg-brand-500"
+                  />
+                  <Label
+                    htmlFor="saveAddress"
+                    className="cursor-pointer text-xs font-semibold text-foreground"
+                  >
+                    Salvar este endereço para pedidos futuros
+                  </Label>
+                </div>
+              )}
             </div>
           )}
         </section>

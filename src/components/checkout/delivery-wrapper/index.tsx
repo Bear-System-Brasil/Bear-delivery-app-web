@@ -62,6 +62,7 @@ export function DeliveryWrapper() {
     selectedAddressId,
     addressMode,
     saveAddress,
+    newAddressBecomesDefault,
     loadingAddresses,
     setAddressMode,
     setSaveAddress,
@@ -365,6 +366,7 @@ export function DeliveryWrapper() {
               addressEditor={addressEditor}
               addressMode={addressMode}
               saveAddress={saveAddress}
+              newAddressBecomesDefault={newAddressBecomesDefault}
               orderType={orderType}
               setOrderType={setOrderType}
               restaurant={restaurant}
