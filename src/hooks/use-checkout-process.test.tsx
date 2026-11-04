@@ -1459,6 +1459,43 @@ describe("useCheckoutProcess - loja do carrinho antes de finalizar (LDMF-317)", 
     );
   });
 
+  it("carrinho do back passou do teto depois que o checkout abriu: bloqueia (LDMF-333)", async () => {
+    // A tela tem 1 unidade; por fora (outra aba), o carrinho do back foi a 34
+    viewOrder.mockResolvedValue({
+      success: true,
+      data: {
+        id: "cart:user-1",
+        companyId: "comp-1",
+        orderedItems: [
+          { productId: "prod-1", quantity: 3, product: { companyId: "comp-1" } },
+          { productId: "prod-1", quantity: 31, product: { companyId: "comp-1" } },
+        ],
+      },
+    });
+
+    await submitWith(pickup);
+
+    expect(finishOrder).not.toHaveBeenCalled();
+    expect(toastError).toHaveBeenCalledWith(PRODUCT_LIMIT_MESSAGE);
+  });
+
+  it("carrinho do back dentro do teto: finaliza", async () => {
+    viewOrder.mockResolvedValue({
+      success: true,
+      data: {
+        id: "cart:user-1",
+        companyId: "comp-1",
+        orderedItems: [
+          { productId: "prod-1", quantity: 30, product: { companyId: "comp-1" } },
+        ],
+      },
+    });
+
+    await submitWith(pickup);
+
+    expect(finishOrder).toHaveBeenCalledTimes(1);
+  });
+
   it("item de outra loja dentro do carrinho certo: bloqueia e avisa", async () => {
     viewOrder.mockResolvedValue({
       success: true,

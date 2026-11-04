@@ -52,7 +52,10 @@ import {
 import { resolveRestaurantOpenStatus } from "@/constants/opening-hours";
 import { resolveAcceptedPaymentMethods } from "@/lib/accepted-payment-methods";
 import { getCheckoutFieldErrors } from "@/lib/checkout-validation";
-import { getCartLimitError } from "@/lib/order-quantity-limit";
+import {
+  getCartLimitError,
+  toLimitedItems,
+} from "@/lib/order-quantity-limit";
 
 function showCheckoutError(message: string) {
   toast.dismiss?.();
@@ -748,6 +751,22 @@ export const useCheckoutProcess = () => {
       );
       if (cartProblem) {
         showCheckoutError(cartProblem);
+        return;
+      }
+
+      // Teto de quantidade (LDMF-333) no carrinho do back, que é o que vai
+      // ser finalizado: o desta tela pode estar velho se outra aba (ou uma
+      // chamada direta) somou itens depois que o checkout abriu.
+      const backendLimitError = cartResponse.success
+        ? getCartLimitError(
+            toLimitedItems(
+              (cartResponse.data as { orderedItems?: unknown } | undefined)
+                ?.orderedItems,
+            ),
+          )
+        : null;
+      if (backendLimitError) {
+        showCheckoutError(backendLimitError);
         return;
       }
 
