@@ -185,14 +185,28 @@ describe("useCartActions", () => {
     });
 
     describe("status da loja no cache (LDMF-374)", () => {
+      // O status sai da grade (LDMF-469): aberto o dia todo, todo dia,
+      // contra o dia todo em pausa - valem para qualquer hora do teste.
       const OPEN_HOURS: OpeningHoursResponse = {
         isOpen: true,
         linkedToCashRegister: false,
-        days: [
-          { id: "h1", companyId: "r1", day: 1, openTime: "00:00", closeTime: "23:59" },
-        ],
+        days: [0, 1, 2, 3, 4, 5, 6].map((day) => ({
+          id: `h${day}`,
+          companyId: "r1",
+          day,
+          openTime: "00:00",
+          closeTime: "23:59",
+        })),
       };
-      const CLOSED_HOURS: OpeningHoursResponse = { ...OPEN_HOURS, isOpen: false };
+      const CLOSED_HOURS: OpeningHoursResponse = {
+        ...OPEN_HOURS,
+        isOpen: false,
+        days: OPEN_HOURS.days.map((d) => ({
+          ...d,
+          breakStart: "00:00",
+          breakEnd: "23:59",
+        })),
+      };
       const KEY = ["opening-hours", "public", "r1"];
 
       function renderWithClient(seed: unknown, updatedAt = Date.now()) {
@@ -1329,14 +1343,28 @@ describe("useCartActions", () => {
     });
 
     describe("status da loja ao finalizar pelo carrinho (LDMF-374)", () => {
+      // O status sai da grade (LDMF-469): aberto o dia todo, todo dia,
+      // contra o dia todo em pausa - valem para qualquer hora do teste.
       const OPEN_HOURS: OpeningHoursResponse = {
         isOpen: true,
         linkedToCashRegister: false,
-        days: [
-          { id: "h1", companyId: "r1", day: 1, openTime: "00:00", closeTime: "23:59" },
-        ],
+        days: [0, 1, 2, 3, 4, 5, 6].map((day) => ({
+          id: `h${day}`,
+          companyId: "r1",
+          day,
+          openTime: "00:00",
+          closeTime: "23:59",
+        })),
       };
-      const CLOSED_HOURS: OpeningHoursResponse = { ...OPEN_HOURS, isOpen: false };
+      const CLOSED_HOURS: OpeningHoursResponse = {
+        ...OPEN_HOURS,
+        isOpen: false,
+        days: OPEN_HOURS.days.map((d) => ({
+          ...d,
+          breakStart: "00:00",
+          breakEnd: "23:59",
+        })),
+      };
       const KEY = ["opening-hours", "public", "r1"];
 
       /** Carrinho com um item e o selo da loja já no cache, no formato do selo. */
