@@ -23,7 +23,7 @@ const banners: Banner[] = [
     id: 1,
     variant: "image",
     title: "Inauguração Bear",
-    image: "/banners/bear-inauguracao.jpg",
+    image: "/banners/bear-inauguracao-v2.jpg",
     badge: "INAUGURAÇÃO",
     hideOverlay: true,
   },
