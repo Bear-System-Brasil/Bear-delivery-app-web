@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type KeyboardEvent } from "react";
 import Image from "next/image";
 import { Heart, Plus } from "lucide-react";
 
@@ -17,7 +17,11 @@ export const NEW_DISH_CARD_CLASS = "w-[212px] shrink-0 snap-start";
 type Props = {
   dish: NewDish;
   index: number;
-  onOpen: (dish: NewDish) => void;
+  /**
+   * Clique no card/no "+". Ausente = read-only: card não clicável e sem "+"
+   * (conta de restaurante vê a vitrine, mas não abre o prato - LDMF-473).
+   */
+  onOpen?: (dish: NewDish) => void;
 };
 
 function StoreMiniLogo({ dish }: { dish: NewDish }) {
@@ -57,23 +61,31 @@ export function NewDishCard({ dish, index, onOpen }: Props) {
     dish.discountPercent > 0 ? `-${dish.discountPercent}%` : "NOVO";
   const { deliveryTimeLabel, isFreeDelivery } = dish.restaurant;
 
-  const handleOpen = () => onOpen(dish);
+  const handleOpen = onOpen ? () => onOpen(dish) : undefined;
+
+  const interactiveProps = handleOpen
+    ? {
+        role: "button",
+        tabIndex: 0,
+        "aria-label": `Ver ${dish.name}`,
+        onClick: handleOpen,
+        onKeyDown: (event: KeyboardEvent<HTMLElement>) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            handleOpen();
+          }
+        },
+      }
+    : {};
 
   return (
     <article
-      role="button"
-      tabIndex={0}
-      aria-label={`Ver ${dish.name}`}
-      onClick={handleOpen}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          handleOpen();
-        }
-      }}
+      {...interactiveProps}
       className={cn(
         NEW_DISH_CARD_CLASS,
-        "cursor-pointer overflow-hidden rounded-[18px] border border-border bg-card transition-colors hover:border-zinc-400/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400 dark:hover:border-zinc-600",
+        "overflow-hidden rounded-[18px] border border-border bg-card",
+        handleOpen &&
+          "cursor-pointer transition-colors hover:border-zinc-400/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400 dark:hover:border-zinc-600",
         "animate-in fade-in duration-300",
       )}
       style={{ animationDelay: `${index * 40}ms` }}
@@ -154,17 +166,19 @@ export function NewDishCard({ dish, index, onOpen }: Props) {
               </span>
             )}
           </div>
-          <button
-            type="button"
-            aria-label={`Adicionar ${dish.name}`}
-            onClick={(event) => {
-              event.stopPropagation();
-              handleOpen();
-            }}
-            className="flex h-8 min-w-8 shrink-0 items-center justify-center rounded-full bg-orange-500 px-[9px] text-white transition-colors hover:bg-orange-400"
-          >
-            <Plus className="h-4 w-4" strokeWidth={3} />
-          </button>
+          {handleOpen && (
+            <button
+              type="button"
+              aria-label={`Adicionar ${dish.name}`}
+              onClick={(event) => {
+                event.stopPropagation();
+                handleOpen();
+              }}
+              className="flex h-8 min-w-8 shrink-0 items-center justify-center rounded-full bg-orange-500 px-[9px] text-white transition-colors hover:bg-orange-400"
+            >
+              <Plus className="h-4 w-4" strokeWidth={3} />
+            </button>
+          )}
         </div>
       </div>
     </article>
