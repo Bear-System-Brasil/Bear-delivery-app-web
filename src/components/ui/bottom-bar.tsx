@@ -12,7 +12,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ComponentType } from "react";
 
 import { useAuth } from "@/contexts/auth-provider";
-import { useCartActions } from "@/hooks";
+import { useCartActions } from "@/hooks/use-cart-actions";
 import { useAuthStore } from "@/stores";
 import { isBottomBarHidden } from "@/constants/bottom-bar-routes";
 import { getPrimaryWorkspaceLink } from "@/constants/workspace-links";

@@ -22,13 +22,10 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { isMidnightClose } from "@/constants/opening-hours";
-import {
-  MAX_SPECIALTIES,
-  useCompanyAcceptedPaymentMethods,
-  useCompanyOpeningHours,
-  useCompanyProfileManagement,
-  useSpecialties,
-} from "@/hooks";
+import { MAX_SPECIALTIES, useCompanyProfileManagement } from "@/hooks/use-company-profile-management";
+import { useCompanyAcceptedPaymentMethods } from "@/hooks/use-company-accepted-payment-methods";
+import { useCompanyOpeningHours } from "@/hooks/use-opening-hours";
+import { useSpecialties } from "@/hooks/use-specialties";
 import {
   ACCEPTED_PAYMENT_METHODS,
   ACCEPTED_PAYMENT_METHOD_LABELS,

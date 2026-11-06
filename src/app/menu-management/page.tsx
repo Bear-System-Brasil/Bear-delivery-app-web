@@ -31,12 +31,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { isUnlimitedStock, UNLIMITED_STOCK } from "@/lib/unlimited-stock";
 import { CustomizeOrder } from "@/components/customize-order/customize-order";
 import { MenuAppPreview } from "@/components/menu-app-preview";
-import {
-  useMenuManagement,
-  useProductAddOns,
-  useProductVariations,
-  type MenuModalTab,
-} from "@/hooks";
+import { useMenuManagement, type MenuModalTab } from "@/hooks/use-menu-management";
+import { useProductAddOns } from "@/hooks/use-product-add-ons";
+import { useProductVariations } from "@/hooks/use-product-variations";
 import { groupMenuByCategory } from "@/lib/menu-grouping";
 import { cn } from "@/lib/utils";
 import type { Product } from "@/services/api";
