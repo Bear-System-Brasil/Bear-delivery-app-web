@@ -31,6 +31,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { isUnlimitedStock, UNLIMITED_STOCK } from "@/lib/unlimited-stock";
 import {
   Sheet,
+  SheetClose,
   SheetContent,
   SheetDescription,
   SheetHeader,
@@ -1157,15 +1158,26 @@ function MenuManagementContent() {
           side="right"
           className="w-full gap-0 overflow-y-auto border-border bg-background p-0 sm:max-w-xl"
         >
-          <SheetHeader className="sticky top-0 z-10 space-y-1 border-b border-border bg-background px-4 py-4 text-left sm:px-6">
-            <SheetTitle className="flex items-center gap-2 text-[15px] font-extrabold text-foreground">
-              <Eye className="h-4 w-4 text-muted-foreground" />
-              Prévia no app
-            </SheetTitle>
-            <SheetDescription className="text-[12px] font-semibold text-muted-foreground">
-              Como o cliente vê o seu cardápio. Toque num prato pra abrir a
-              visão do cliente.
-            </SheetDescription>
+          {/* O X padrao do Sheet fica por baixo deste cabecalho fixo, entao o
+              fechar mora aqui dentro - no celular a previa ocupa a tela toda e
+              nao havia outra saida. */}
+          <SheetHeader className="sticky top-0 z-10 flex-row items-start gap-3 space-y-0 border-b border-border bg-background px-4 py-4 text-left sm:px-6">
+            <div className="min-w-0 flex-1 space-y-1">
+              <SheetTitle className="flex items-center gap-2 text-[15px] font-extrabold text-foreground">
+                <Eye className="h-4 w-4 text-muted-foreground" />
+                Prévia no app
+              </SheetTitle>
+              <SheetDescription className="text-[12px] font-semibold text-muted-foreground">
+                Como o cliente vê o seu cardápio. Toque num prato pra abrir a
+                visão do cliente.
+              </SheetDescription>
+            </div>
+            <SheetClose
+              aria-label="Fechar prévia"
+              className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-[10px] border border-border bg-card text-foreground transition-colors hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+            >
+              <X className="h-4 w-4" />
+            </SheetClose>
           </SheetHeader>
 
           <div className="px-4 py-4 sm:px-6">
