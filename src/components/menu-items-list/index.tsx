@@ -29,11 +29,11 @@ interface MenuItemsListProps {
   className?: string;
   emptyLabel?: string;
   /**
-   * Força uma coluna só. As colunas padrão seguem a largura da tela
-   * (sm/lg), então num container estreito como a prévia do admin (320px) o
-   * grid abria 3 colunas no PC e os cards ficavam esmagados.
+   * Sempre no layout de celular (uma coluna), seja qual for a largura da
+   * tela. Usado na previa em moldura de celular no PC, onde os breakpoints
+   * da tela (sm/lg) espremiam a grade dentro dos 390px da moldura.
    */
-  singleColumn?: boolean;
+  mobileLayout?: boolean;
 }
 
 export function MenuItemsList({
@@ -43,7 +43,7 @@ export function MenuItemsList({
   onSelectItem,
   className,
   emptyLabel = "Nenhum produto disponível no momento.",
-  singleColumn = false,
+  mobileLayout = false,
 }: MenuItemsListProps) {
   return (
     <section
@@ -65,14 +65,19 @@ export function MenuItemsList({
               id={`category-${slugify(category)}`}
               className="scroll-mt-[130px]"
             >
-              <h2 className="mb-2 text-sm font-bold text-foreground sm:mb-3 sm:text-base">
+              <h2
+                className={cn(
+                  "mb-2 text-sm font-bold text-foreground",
+                  !mobileLayout && "sm:mb-3 sm:text-base",
+                )}
+              >
                 {category}
               </h2>
 
               <div
                 className={cn(
                   "grid gap-3",
-                  !singleColumn && "sm:grid-cols-2 lg:grid-cols-3",
+                  !mobileLayout && "sm:grid-cols-2 lg:grid-cols-3",
                 )}
               >
                 {items.map((item) => {
