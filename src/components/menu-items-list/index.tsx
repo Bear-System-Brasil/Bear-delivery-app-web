@@ -51,7 +51,7 @@ export function MenuItemsList({
       className={cn("space-y-6", className)}
     >
       {categories.length === 0 ? (
-        <Card className="border-border bg-card p-10 text-center shadow-sm">
+        <Card className="border-border bg-card p-10 text-center shadow-sm backdrop-blur-none">
           <p className="text-sm font-medium text-muted-foreground">
             {emptyLabel}
           </p>
@@ -104,7 +104,10 @@ export function MenuItemsList({
                         clickable ? () => onSelectItem?.(item) : undefined
                       }
                       className={cn(
-                        "group flex min-h-[116px] min-w-0 gap-3 overflow-visible rounded-[13px] border border-border bg-card p-3 shadow-sm transition hover:border-border hover:shadow-md",
+                        // Sem o backdrop-blur padrao do Card: o fundo aqui e solido (o
+                        // desfoque nao aparece) e cada card com desfoque vira
+                        // uma camada na GPU - pesa em celular/PC fraco.
+                        "group flex min-h-[116px] min-w-0 gap-3 overflow-visible rounded-[13px] border border-border bg-card p-3 shadow-sm backdrop-blur-none transition hover:border-border hover:shadow-md",
                         clickable ? "cursor-pointer" : "cursor-default",
                       )}
                     >
