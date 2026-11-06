@@ -28,6 +28,12 @@ interface MenuItemsListProps {
   onSelectItem?: (item: Product) => void;
   className?: string;
   emptyLabel?: string;
+  /**
+   * Sempre no layout de celular (uma coluna), seja qual for a largura da
+   * tela. Usado na previa em moldura de celular no PC, onde os breakpoints
+   * da tela (sm/lg) espremiam a grade dentro dos 390px da moldura.
+   */
+  mobileLayout?: boolean;
 }
 
 export function MenuItemsList({
@@ -37,6 +43,7 @@ export function MenuItemsList({
   onSelectItem,
   className,
   emptyLabel = "Nenhum produto disponível no momento.",
+  mobileLayout = false,
 }: MenuItemsListProps) {
   return (
     <section
@@ -58,11 +65,21 @@ export function MenuItemsList({
               id={`category-${slugify(category)}`}
               className="scroll-mt-[130px]"
             >
-              <h2 className="mb-2 text-sm font-bold text-foreground sm:mb-3 sm:text-base">
+              <h2
+                className={cn(
+                  "mb-2 text-sm font-bold text-foreground",
+                  !mobileLayout && "sm:mb-3 sm:text-base",
+                )}
+              >
                 {category}
               </h2>
 
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <div
+                className={cn(
+                  "grid gap-3",
+                  !mobileLayout && "sm:grid-cols-2 lg:grid-cols-3",
+                )}
+              >
                 {items.map((item) => {
                   const isAvailable = item.isAvailable !== false;
 
