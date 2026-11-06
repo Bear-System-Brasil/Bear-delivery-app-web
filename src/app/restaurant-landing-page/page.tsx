@@ -155,7 +155,7 @@ export default function RestaurantLandingPage() {
               {BENEFITS.map(({ icon: Icon, title, description }) => (
                 <Card
                   key={title}
-                  className="border-0 bg-card/80 backdrop-blur-sm shadow-lg hover:shadow-2xl transition-all duration-500 rounded-2xl"
+                  className="border-0 bg-card/80 shadow-lg hover:shadow-2xl transition-all duration-500 rounded-2xl"
                 >
                   <CardContent className="p-6">
                     {/* QUADRADINHO AGORA CLARO */}
@@ -175,7 +175,7 @@ export default function RestaurantLandingPage() {
 
         <section
           id="como-funciona"
-          className="py-20 px-4 bg-card/50 backdrop-blur-sm relative"
+          className="py-20 px-4 bg-card/50 relative"
         >
           <div className="max-w-6xl mx-auto">
             <div className="text-center mb-16">
@@ -225,7 +225,7 @@ export default function RestaurantLandingPage() {
           </div>
         </section>
 
-        <footer className="border-t bg-card/80 backdrop-blur-sm py-8 px-4 relative">
+        <footer className="border-t bg-card/80 py-8 px-4 relative">
           <div className="max-w-6xl mx-auto">
             <div className="flex flex-col md:flex-row justify-between items-center gap-4">
               <Link href="/" className="shrink-0">
