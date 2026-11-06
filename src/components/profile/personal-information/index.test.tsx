@@ -3,7 +3,7 @@ import type { ComponentProps } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { PersonalInformation } from "./index";
 import { useForm } from "react-hook-form";
-import type { ProfileFormData } from "@/hooks";
+import type { ProfileFormData } from "@/hooks/use-form-validation";
 import { useProfileForm } from "@/hooks/use-form-validation";
 import { BIRTH_DATE_MESSAGES } from "@/utils";
 import type { User } from "@/stores/auth-store";

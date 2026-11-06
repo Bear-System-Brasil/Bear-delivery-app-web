@@ -30,7 +30,9 @@ import {
   StepperTitle,
   StepperTrigger,
 } from "@/components/reui/stepper";
-import { useCartActions, useOrderHistory, useRestaurants } from "@/hooks";
+import { useCartActions } from "@/hooks/use-cart-actions";
+import { useOrderHistory } from "@/hooks/use-order-history";
+import { useRestaurants } from "@/hooks/use-restaurants";
 import { useAuthStore } from "@/stores/auth-store";
 import { apiService } from "@/services/api";
 import type { CustomerOrder } from "@/constants/order-management";

@@ -9,7 +9,7 @@ import {
 
 import { toast } from "sonner";
 
-import { DeliveryInfo } from "@/hooks";
+import { DeliveryInfo } from "@/hooks/use-checkout-process";
 import { cn } from "@/lib/utils";
 import { formatCep } from "@/utils";
 

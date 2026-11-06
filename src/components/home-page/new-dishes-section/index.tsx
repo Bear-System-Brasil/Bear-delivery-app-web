@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { CustomizeOrder } from "@/components/customize-order/customize-order";
-import { useNewDishes } from "@/hooks";
+import { useNewDishes } from "@/hooks/use-new-dishes";
 import { cn } from "@/lib/utils";
 import type { NewDish } from "@/services/products/new-dishes";
 import type { Restaurant, UserLocation } from "@/types/restaurant";

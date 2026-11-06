@@ -20,12 +20,7 @@ import {
 } from "@/lib/product-variation";
 import { isUnlimitedStock, UNLIMITED_STOCK } from "@/lib/unlimited-stock";
 import { cn } from "@/lib/utils";
-import {
-  useCreateProductVariation,
-  useDeleteProductVariation,
-  useProductVariations,
-  useUpdateProductVariation,
-} from "@/hooks";
+import { useCreateProductVariation, useDeleteProductVariation, useProductVariations, useUpdateProductVariation } from "@/hooks/use-product-variations";
 import type { ProductVariation } from "@/services/api";
 import { formatCurrency } from "@/utils";
 import { Edit, Info, Loader2, Plus, Ruler, Trash2 } from "lucide-react";

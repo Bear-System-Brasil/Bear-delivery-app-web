@@ -6,7 +6,8 @@ import { useRouter } from "next/navigation";
 
 import { toast } from "sonner";
 
-import { useCartActions, useCheckoutProcess } from "@/hooks";
+import { useCartActions } from "@/hooks/use-cart-actions";
+import { useCheckoutProcess } from "@/hooks/use-checkout-process";
 
 import { useAuth } from "@/contexts/auth-provider";
 

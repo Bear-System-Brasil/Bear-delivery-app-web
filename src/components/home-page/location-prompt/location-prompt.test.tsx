@@ -10,9 +10,9 @@ import type { Restaurant } from "@/types/restaurant";
  * disso aparecem as lojas perto.
  */
 
-vi.mock("@/hooks", () => ({
+vi.mock("@/hooks/use-new-dishes", () => ({
   useNewDishes: () => ({ data: [], isLoading: false }),
-}));
+}))
 
 vi.mock("@/components/customize-order/customize-order", () => ({
   CustomizeOrder: () => null,
