@@ -92,7 +92,7 @@ function TeamManagementContent() {
     <AdminPageLayout
       title="Equipe"
       icon={UserCog}
-      mainClassName="p-4 pb-20 sm:p-6 md:pb-10 lg:pl-[17rem] lg:pr-8"
+      mainClassName="p-4 pb-20 sm:p-6 md:pb-10 lg:px-8"
       action={{
         label: "Atualizar",
         busyLabel: "Atualizando...",
