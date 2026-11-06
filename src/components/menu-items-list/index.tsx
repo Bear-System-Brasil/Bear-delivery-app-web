@@ -28,6 +28,12 @@ interface MenuItemsListProps {
   onSelectItem?: (item: Product) => void;
   className?: string;
   emptyLabel?: string;
+  /**
+   * Força uma coluna só. As colunas padrão seguem a largura da tela
+   * (sm/lg), então num container estreito como a prévia do admin (320px) o
+   * grid abria 3 colunas no PC e os cards ficavam esmagados.
+   */
+  singleColumn?: boolean;
 }
 
 export function MenuItemsList({
@@ -37,6 +43,7 @@ export function MenuItemsList({
   onSelectItem,
   className,
   emptyLabel = "Nenhum produto disponível no momento.",
+  singleColumn = false,
 }: MenuItemsListProps) {
   return (
     <section
@@ -62,7 +69,12 @@ export function MenuItemsList({
                 {category}
               </h2>
 
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <div
+                className={cn(
+                  "grid gap-3",
+                  !singleColumn && "sm:grid-cols-2 lg:grid-cols-3",
+                )}
+              >
                 {items.map((item) => {
                   const isAvailable = item.isAvailable !== false;
 
