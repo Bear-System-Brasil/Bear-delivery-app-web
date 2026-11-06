@@ -224,6 +224,20 @@ describe("MenuManagementPage - Prévia interativa do app (Fase 2, LDMF-454)", ()
     // Mostra os cards read-only do cliente (componente compartilhado).
     expect(within(dialog).getByText("Pizza Margherita")).toBeInTheDocument();
   });
+
+  it("fecha pelo botão 'Fechar prévia' do cabeçalho", async () => {
+    const user = userEvent.setup();
+    render(<MenuManagementPage />);
+
+    await user.click(screen.getByRole("button", { name: "Prévia" }));
+    const dialog = await screen.findByRole("dialog");
+
+    await user.click(
+      within(dialog).getByRole("button", { name: "Fechar prévia" }),
+    );
+
+    expect(screen.queryByText("Prévia no app")).not.toBeInTheDocument();
+  });
 });
 
 
