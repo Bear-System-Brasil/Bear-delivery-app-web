@@ -639,6 +639,7 @@ function MenuManagementContent() {
                     <Skeleton className="h-5 w-20 rounded-md" />
                     <Skeleton className="h-5 w-24 rounded-md" />
                   </div>
+                  <Skeleton className="h-5 w-28 rounded-md" />
                 </div>
                 <div className="flex flex-col justify-center gap-1.5">
                   <Skeleton className="h-7 w-7 rounded-lg" />
