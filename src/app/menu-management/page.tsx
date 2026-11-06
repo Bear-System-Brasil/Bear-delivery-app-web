@@ -29,16 +29,8 @@ import { StockQuantityInput } from "@/components/ui/stock-quantity-input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { isUnlimitedStock, UNLIMITED_STOCK } from "@/lib/unlimited-stock";
-import {
-  Sheet,
-  SheetClose,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
 import { CustomizeOrder } from "@/components/customize-order/customize-order";
-import { MenuItemsList } from "@/components/menu-items-list";
+import { MenuAppPreview } from "@/components/menu-app-preview";
 import {
   useMenuManagement,
   useProductAddOns,
@@ -139,7 +131,6 @@ function MenuManagementContent() {
   // não a filtrada pela busca/aba do admin, pra refletir o que o cliente vê.
   // O prato abre em modo read-only (CustomizeOrder preview), igual à Categoria.
   const [showPreview, setShowPreview] = useState(false);
-  const [selectedPreviewCat, setSelectedPreviewCat] = useState("");
   const [previewItem, setPreviewItem] = useState<Product | null>(null);
 
   const previewCategoryMap = useMemo(
@@ -153,10 +144,6 @@ function MenuManagementContent() {
     () => groupMenuByCategory(allProducts, previewCategoryMap),
     [allProducts, previewCategoryMap],
   );
-  const previewListCategories =
-    selectedPreviewCat && previewCats.includes(selectedPreviewCat)
-      ? [selectedPreviewCat]
-      : previewCats;
 
   const editingProductId = editingProduct?.id ?? null;
   const { data: existingVariations = [] } = useProductVariations(
@@ -1149,86 +1136,17 @@ function MenuManagementContent() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Prévia interativa do app (Fase 2, LDMF-454): painel que abre/fecha
-          com os mesmos cards read-only do cliente (componente compartilhado).
+      {/* Prévia interativa do app (Fase 2, LDMF-454): mesmos cards read-only
+          do cliente; tela cheia no celular, moldura de celular no PC.
           O prato abre no modal read-only do cliente (CustomizeOrder preview),
           montado como irmão no topo pra não aninhar diálogos. */}
-      <Sheet open={showPreview} onOpenChange={setShowPreview}>
-        <SheetContent
-          side="right"
-          className="w-full gap-0 overflow-y-auto border-border bg-background p-0 sm:max-w-xl"
-        >
-          {/* O X padrao do Sheet fica por baixo deste cabecalho fixo, entao o
-              fechar mora aqui dentro - no celular a previa ocupa a tela toda e
-              nao havia outra saida. */}
-          <SheetHeader className="sticky top-0 z-10 flex-row items-start gap-3 space-y-0 border-b border-border bg-background px-4 py-4 text-left sm:px-6">
-            <div className="min-w-0 flex-1 space-y-1">
-              <SheetTitle className="flex items-center gap-2 text-[15px] font-extrabold text-foreground">
-                <Eye className="h-4 w-4 text-muted-foreground" />
-                Prévia no app
-              </SheetTitle>
-              <SheetDescription className="text-[12px] font-semibold text-muted-foreground">
-                Como o cliente vê o seu cardápio. Toque num prato pra abrir a
-                visão do cliente.
-              </SheetDescription>
-            </div>
-            <SheetClose
-              aria-label="Fechar prévia"
-              className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-[10px] border border-border bg-card text-foreground transition-colors hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
-            >
-              <X className="h-4 w-4" />
-            </SheetClose>
-          </SheetHeader>
-
-          <div className="px-4 py-4 sm:px-6">
-            {previewCats.length === 0 ? (
-              <div className="rounded-xl border border-border bg-muted px-3 py-6 text-center text-[12px] font-semibold text-muted-foreground">
-                Cadastre pratos disponíveis pra ver a prévia do app.
-              </div>
-            ) : (
-              <>
-                {/* Abas navegáveis: filtram a prévia por categoria. */}
-                <div className="flex flex-wrap gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedPreviewCat("")}
-                    className={cn(
-                      "rounded-full px-3 py-1.5 text-[11.5px] font-bold transition-colors",
-                      selectedPreviewCat === ""
-                        ? "bg-zinc-900 text-white"
-                        : "border border-border bg-card text-foreground hover:bg-muted",
-                    )}
-                  >
-                    Todos
-                  </button>
-                  {previewCats.map((category) => (
-                    <button
-                      key={category}
-                      type="button"
-                      onClick={() => setSelectedPreviewCat(category)}
-                      className={cn(
-                        "rounded-full px-3 py-1.5 text-[11.5px] font-semibold transition-colors",
-                        selectedPreviewCat === category
-                          ? "bg-zinc-900 text-white"
-                          : "border border-border bg-card text-foreground hover:bg-muted",
-                      )}
-                    >
-                      {category}
-                    </button>
-                  ))}
-                </div>
-
-                <MenuItemsList
-                  className="mt-4"
-                  categories={previewListCategories}
-                  groupedItems={previewGrouped}
-                  onSelectItem={setPreviewItem}
-                />
-              </>
-            )}
-          </div>
-        </SheetContent>
-      </Sheet>
+      <MenuAppPreview
+        open={showPreview}
+        onOpenChange={setShowPreview}
+        categories={previewCats}
+        groupedItems={previewGrouped}
+        onSelectItem={setPreviewItem}
+      />
 
       {previewItem && (
         <CustomizeOrder
