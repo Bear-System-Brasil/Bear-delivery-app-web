@@ -16,7 +16,7 @@ import {
   TrendsBand,
 } from "@/components/financial-dashboard/bands";
 import { PeriodSelector } from "@/components/financial-dashboard/period-selector";
-import { useFinancialDashboard } from "@/hooks";
+import { useFinancialDashboard } from "@/hooks/use-financial-dashboard";
 import { LayoutDashboard } from "lucide-react";
 
 export default function FinancialDashboardPage() {

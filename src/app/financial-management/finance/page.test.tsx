@@ -54,7 +54,9 @@ const HOOK = {
   isFailed: (p: Payment) => p.status === "FAILED",
 };
 
-vi.mock("@/hooks", () => ({ usePayment: () => HOOK }));
+vi.mock("@/hooks/use-payment", () => ({
+  usePayment: () => HOOK,
+}))
 
 const AUTH = { user: { role: "manager" } as { role: string } | null };
 vi.mock("@/stores", () => ({

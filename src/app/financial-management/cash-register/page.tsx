@@ -10,17 +10,8 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  useCashDeposit,
-  useCashMovementSummary,
-  useCashMovements,
-  useCashRefund,
-  useCashRegister,
-  useCashSale,
-  useCashWithdrawal,
-  useCloseCashRegister,
-  useOpenCashRegister,
-} from "@/hooks";
+import { useCashDeposit, useCashMovementSummary, useCashMovements, useCashRefund, useCashSale, useCashWithdrawal } from "@/hooks/use-cash-movement";
+import { useCashRegister, useCloseCashRegister, useOpenCashRegister } from "@/hooks/use-cash-register";
 import { cn } from "@/lib/utils";
 import {
   type CashMovement,

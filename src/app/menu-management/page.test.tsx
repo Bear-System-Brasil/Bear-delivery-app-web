@@ -78,11 +78,15 @@ vi.mock("@/components/admin-page-layout", () => ({
   AdminPageLayout: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
 
-vi.mock("@/hooks", () => ({
+vi.mock("@/hooks/use-menu-management", () => ({
   useMenuManagement: () => menuHookState,
+}))
+vi.mock("@/hooks/use-product-variations", () => ({
   useProductVariations: () => variationsState,
+}))
+vi.mock("@/hooks/use-product-add-ons", () => ({
   useProductAddOns: () => addOnsState,
-}));
+}))
 
 vi.mock("@/contexts/confirm-provider", () => ({
   useConfirm: () => ({ confirm: vi.fn().mockResolvedValue(true) }),

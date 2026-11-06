@@ -21,7 +21,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useTeamManagement, type StaffMember, type StaffRole } from "@/hooks";
+import { useTeamManagement, type StaffMember, type StaffRole } from "@/hooks/use-team-management";
 import { useAuthStore } from "@/stores/auth-store";
 import { canRemoveStaffMember, isManagementRole } from "@/utils/role-helpers";
 import {

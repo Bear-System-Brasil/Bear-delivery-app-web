@@ -29,12 +29,9 @@ import { StockQuantityInput } from "@/components/ui/stock-quantity-input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { isUnlimitedStock, UNLIMITED_STOCK } from "@/lib/unlimited-stock";
-import {
-  useMenuManagement,
-  useProductAddOns,
-  useProductVariations,
-  type MenuModalTab,
-} from "@/hooks";
+import { useMenuManagement, type MenuModalTab } from "@/hooks/use-menu-management";
+import { useProductAddOns } from "@/hooks/use-product-add-ons";
+import { useProductVariations } from "@/hooks/use-product-variations";
 import {
   Building2,
   GripHorizontal,

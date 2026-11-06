@@ -2,7 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { DeliveryInfo } from "@/hooks";
+import type { DeliveryInfo } from "@/hooks/use-checkout-process";
 import type { CheckoutFieldErrors } from "@/lib/checkout-validation";
 import { DeliveryForm } from "./index";
 

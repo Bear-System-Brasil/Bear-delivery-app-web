@@ -12,7 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { usePayment } from "@/hooks";
+import { usePayment } from "@/hooks/use-payment";
 import { buildPaymentMethodUpdate } from "@/lib/payment-update";
 import { cn } from "@/lib/utils";
 // Linha separada de propósito, pra não conflitar com o PR do LDMF-429, que

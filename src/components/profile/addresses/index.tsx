@@ -2,7 +2,7 @@
 
 import { Dispatch, SetStateAction } from "react";
 import { UseFormReturn } from "react-hook-form";
-import { AddressFormData } from "@/hooks";
+import { AddressFormData } from "@/hooks/use-form-validation";
 import type {
   CoordinateSource,
   SourcedCoords,

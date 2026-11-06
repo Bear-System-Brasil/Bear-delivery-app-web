@@ -14,9 +14,9 @@ import type { Restaurant } from "@/types/restaurant";
 let dishes: NewDish[] = [];
 let loadingDishes = false;
 
-vi.mock("@/hooks", () => ({
+vi.mock("@/hooks/use-new-dishes", () => ({
   useNewDishes: () => ({ data: dishes, isLoading: loadingDishes }),
-}));
+}))
 
 // O modal real puxa restaurante, tamanhos e complementos da API - aqui só
 // interessa saber se abriu e com qual prato.
