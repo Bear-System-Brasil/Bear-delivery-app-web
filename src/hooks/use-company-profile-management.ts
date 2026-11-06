@@ -1,48 +1,17 @@
 import { apiService, type Address, type Specialty } from "@/services/api";
 import { PASSWORD_CHANGE_UNAVAILABLE } from "@/constants/password-change";
-import { CepNotFoundError, fetchCepAddress } from "@/lib/cep";
 import { unsetDefaultAddress } from "@/lib/default-address";
-import { geocodeAddress } from "@/lib/geocode";
 import { useAuthStore } from "@/stores";
 import { getErrorMessage, onlyNumbers } from "@/utils";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { useAddressEditor } from "./use-address-editor";
+import type { AddressFormData } from "./use-form-validation";
 
 /** Teto de tipos de restaurante por empresa. O back não garante o limite
  *  (não documentado); quem segura em 3 é o front (LDMF-395). */
 export const MAX_SPECIALTIES = 3;
-
-/**
- * A busca por proximidade do catalogo descarta qualquer loja sem
- * latitude/longitude cadastrada. Por isso geocodificações o endereço antes de
- * salvar - sem isso a loja fica invisível para todo cliente com localização .
- */
-async function withStoreCoordinates<T extends AddressFormData>(address: T) {
-  const coords = await geocodeAddress(address);
-
-  if (!coords) {
-    toast.warning("Nao localizamos esse endereço no mapa", {
-      description:
-        "Confira CEP, rua e numero. Sem isso a loja não aparece nas buscas por proximidade.",
-      duration: 6000,
-    });
-
-    return address;
-  }
-
-  return { ...address, latitude: coords.lat, longitude: coords.lng };
-}
-
-// Mesmas mensagens do checkout (LDMF-350): as duas telas se comportam igual.
-const CITY_WIDE_CEP_HINT =
-  "Este CEP vale para a cidade inteira. Preencha rua, número e bairro abaixo.";
-const NO_NEIGHBORHOOD_CEP_HINT =
-  "Este CEP não traz o bairro. Preencha o bairro abaixo.";
-const CEP_NOT_FOUND_HINT =
-  "CEP não encontrado. Confira o número ou preencha cidade, UF, rua, número e bairro à mão.";
-const CEP_LOOKUP_FAILED_HINT =
-  "Não conseguimos consultar o CEP agora. Preencha cidade, UF, rua, número e bairro à mão.";
 
 /**
  * complement/reference no formulário sempre são string ("" quando vazio),
@@ -63,18 +32,6 @@ interface CompanyFormData {
   phone: string;
   logo_url: string;
   cover_url: string;
-}
-
-interface AddressFormData {
-  zipCode: string;
-  state: string;
-  city: string;
-  neighborhood: string;
-  street: string;
-  number: string;
-  complement: string;
-  reference: string;
-  isDefault?: boolean;
 }
 
 interface PasswordFormData {
@@ -129,30 +86,24 @@ export const useCompanyProfileManagement = () => {
   // Address management state
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [isLoadingAddresses, setIsLoadingAddresses] = useState(true);
-  const [isAddingAddress, setIsAddingAddress] = useState(false);
+  const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
+  const [isSavingAddress, setIsSavingAddress] = useState(false);
   const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
   const [editingAddressOriginal, setEditingAddressOriginal] = useState<{
     complement: string;
     reference: string;
   }>({ complement: "", reference: "" });
-  const [newAddress, setNewAddress] = useState<AddressFormData>({
-    zipCode: "",
-    state: "",
-    city: "",
-    neighborhood: "",
-    street: "",
-    number: "",
-    complement: "",
-    reference: "",
-    isDefault: false,
-  });
-  const [isSearchingZipCode, setIsSearchingZipCode] = useState(false);
-  // Orientação abaixo do CEP: cidade de CEP único, CEP sem bairro ou busca
-  // que falhou. null = sem aviso.
-  const [zipCodeHint, setZipCodeHint] = useState<string | null>(null);
-  // Último CEP pedido: resposta de um CEP anterior que chegue atrasada não
-  // pode preencher o formulário.
-  const lastZipCodeSearch = useRef<string | null>(null);
+
+  // Mesmo modal do perfil do cliente: CEP, campos em ordem e pino (LDMF-263).
+  const addressEditor = useAddressEditor({ enabled: isAddressModalOpen });
+
+  // A loja tem um único endereço (LDMF-263): o padrão, ou o primeiro ativo
+  // se nenhum estiver marcado. Enquanto o filtro por raio do back usar o
+  // primeiro endereço com coordenada (LDMF-256), outro endereço só atrapalha.
+  const storeAddress = useMemo<Address | null>(
+    () => addresses.find((addr) => addr.isDefault) ?? addresses[0] ?? null,
+    [addresses],
+  );
 
   // Password change state
   const [isChangingPassword, setIsChangingPassword] = useState(false);
@@ -568,319 +519,149 @@ export const useCompanyProfileManagement = () => {
   };
 
   /**
-   * Adiciona novo endereço
+   * Abre o modal do endereço da loja: editar o que existe ou, sem nenhum,
+   * cadastrar o primeiro. Não há "adicionar outro" (LDMF-263).
    */
-  const handleAddAddress = async () => {
-    // Validar campos obrigatórios
-    if (
-      !newAddress.zipCode ||
-      !newAddress.street ||
-      !newAddress.number ||
-      !newAddress.neighborhood ||
-      !newAddress.city ||
-      !newAddress.state
-    ) {
-      toast.error("Preencha todos os campos obrigatórios do endereço");
-      return;
-    }
-
-    try {
-      const addressData = await withStoreCoordinates({
-        ...newAddress,
-        zipCode: newAddress.zipCode.replace(/\D/g, ""),
-        isDefault: newAddress.isDefault ?? false,
+  const openAddressModal = () => {
+    if (storeAddress) {
+      addressEditor.loadAddress(storeAddress);
+      setEditingAddressId(storeAddress.id);
+      setEditingAddressOriginal({
+        complement: storeAddress.complement || "",
+        reference: storeAddress.reference || "",
       });
-      const payload = {
-        ...addressData,
-        complement: sanitizeOptionalText(addressData.complement),
-        reference: sanitizeOptionalText(addressData.reference),
-      };
-
-      const response = await apiService.address.createCompanyAddress(payload);
-
-      if (response.success && response.data) {
-        const failedToUnsetDefault = addressData.isDefault
-          ? await unsetOtherDefaults(response.data.id)
-          : false;
-
-        toast.success("Endereço adicionado com sucesso!");
-        if (failedToUnsetDefault) {
-          toast.warning(
-            "Não conseguimos desmarcar todos os endereços padrão antigos. Confira a lista de endereços.",
-          );
-        }
-        await fetchAddresses();
-        setIsAddingAddress(false);
-        resetAddressForm();
-      } else {
-        toast.error(response.message || "Erro ao adicionar endereço");
-      }
-    } catch (error) {
-      toast.error("Erro ao adicionar endereço");
+    } else {
+      addressEditor.resetEditor();
+      setEditingAddressId(null);
+      setEditingAddressOriginal({ complement: "", reference: "" });
     }
+    setIsAddressModalOpen(true);
   };
 
   /**
-   * Remove endereço
+   * Fecha o modal e descarta o que foi digitado
    */
-  const handleDeleteAddress = async (addressId: string) => {
-    if (!confirm("Tem certeza que deseja excluir este endereço?")) return;
-
-    try {
-      const response = await apiService.address.deleteCompanyAddress(addressId);
-      if (response.success) {
-        toast.success("Endereço removido com sucesso!");
-        setAddresses((prevAddresses) =>
-          prevAddresses.filter((addr) => addr.id !== addressId),
-        );
-      } else {
-        toast.error(response.message || "Erro ao remover endereço");
-      }
-    } catch (error) {
-      toast.error("Erro ao remover endereço");
-    }
+  const closeAddressModal = () => {
+    addressEditor.resetEditor();
+    setEditingAddressId(null);
+    setEditingAddressOriginal({ complement: "", reference: "" });
+    setIsAddressModalOpen(false);
   };
 
   /**
-   * Busca endereço pelo CEP (BrasilAPI, a mesma fonte do checkout).
-   *
-   * Só sobrescreve o que o CEP trouxe. Antes cada campo recebia
-   * `data.x || ""`, e um CEP sem rua (cidade de CEP único, como 29360000
-   * Castelo e 29500000 Alegre) apagava a rua e o bairro que o dono já tinha
-   * digitado (LDMF-364). Se a busca falhar, nada é apagado e os campos
-   * continuam editáveis para preencher à mão.
+   * Salva o endereço da loja: atualiza o existente (mesmo id) ou cria o
+   * primeiro. Sai sempre como padrão e com exatamente a posição do pino -
+   * sem pino não salva, nada de geocodificação escondida (LDMF-263).
    */
-  const handleSearchZipCode = async (zipCode: string) => {
-    const cleanZip = zipCode.replace(/\D/g, "");
-    if (cleanZip.length !== 8) return;
-
-    lastZipCodeSearch.current = cleanZip;
-    setIsSearchingZipCode(true);
-    setZipCodeHint(null);
-
-    try {
-      const result = await fetchCepAddress(cleanZip);
-      if (lastZipCodeSearch.current !== cleanZip) return;
-
-      setNewAddress((prevAddress) => ({
-        ...prevAddress,
-        zipCode: cleanZip,
-        street: result.street || prevAddress.street,
-        neighborhood: result.neighborhood || prevAddress.neighborhood,
-        city: result.city || prevAddress.city,
-        state: result.state || prevAddress.state,
-      }));
-
-      setZipCodeHint(
-        !result.street
-          ? CITY_WIDE_CEP_HINT
-          : !result.neighborhood
-            ? NO_NEIGHBORHOOD_CEP_HINT
-            : null,
-      );
-      toast.success(
-        !result.street
-          ? "CEP da cidade encontrado. Preencha rua, número e bairro."
-          : !result.neighborhood
-            ? "CEP encontrado. Preencha o bairro."
-            : "CEP encontrado!",
-      );
-    } catch (error) {
-      if (lastZipCodeSearch.current !== cleanZip) return;
-
-      if (error instanceof CepNotFoundError) {
-        setZipCodeHint(CEP_NOT_FOUND_HINT);
-        toast.error("CEP não encontrado");
-      } else {
-        setZipCodeHint(CEP_LOOKUP_FAILED_HINT);
-        toast.error("Erro ao buscar CEP. Preencha o endereço à mão.");
-      }
-    } finally {
-      if (lastZipCodeSearch.current === cleanZip) setIsSearchingZipCode(false);
-    }
-  };
-
-  /**
-   * Limpa o aviso do CEP e descarta busca em andamento
-   */
-  const clearZipCodeSearch = () => {
-    lastZipCodeSearch.current = null;
-    setIsSearchingZipCode(false);
-    setZipCodeHint(null);
-  };
-
-  /**
-   * Atualiza campo de endereço
-   */
-  const updateAddressField = (
-    field: keyof AddressFormData,
-    value: string | boolean,
-  ) => {
-    // CEP mudou: o aviso e a busca anteriores não valem mais.
-    if (field === "zipCode") clearZipCodeSearch();
-    setNewAddress((prev) => ({ ...prev, [field]: value }));
-  };
-
-  /**
-   * Abrir formulário para editar endereço
-   */
-  const handleEditAddress = (address: Address) => {
-    clearZipCodeSearch();
-    setEditingAddressId(address.id);
-    setEditingAddressOriginal({
-      complement: address.complement || "",
-      reference: address.reference || "",
-    });
-    setNewAddress({
-      zipCode: address.zipCode,
-      state: address.state,
-      city: address.city,
-      neighborhood: address.neighborhood,
-      street: address.street,
-      number: address.number,
-      complement: address.complement || "",
-      reference: address.reference || "",
-      isDefault: address.isDefault || false,
-    });
-    setIsAddingAddress(true);
-  };
-
-  /**
-   * Atualizar endereço existente
-   */
-  const handleUpdateAddress = async () => {
-    if (!editingAddressId) return;
-
-    // Validar campos obrigatórios
-    if (
-      !newAddress.zipCode ||
-      !newAddress.street ||
-      !newAddress.number ||
-      !newAddress.neighborhood ||
-      !newAddress.city ||
-      !newAddress.state
-    ) {
-      toast.error("Preencha todos os campos obrigatórios do endereço");
-      return;
-    }
-
+  const handleSaveAddress = async (data: AddressFormData) => {
     // No PATCH (diferente do POST), complement/reference exigem mínimo de 5
     // caracteres quando preenchidos (ver adress.md). Endereços antigos criados
     // via POST podem ter valores curtos - só bloqueamos se o usuário de fato
     // digitou um valor novo inválido; se não mexeu no campo, o valor herdado é
     // omitido do PATCH para não travar o resto do formulário.
-    const trimmedComplement = newAddress.complement.trim();
-    const trimmedReference = newAddress.reference.trim();
+    const trimmedComplement = data.complement?.trim() ?? "";
+    const trimmedReference = data.reference?.trim() ?? "";
     const complementUnchanged =
       trimmedComplement === editingAddressOriginal.complement.trim();
     const referenceUnchanged =
       trimmedReference === editingAddressOriginal.reference.trim();
 
-    if (
-      trimmedComplement.length > 0 &&
-      trimmedComplement.length < 5 &&
-      !complementUnchanged
-    ) {
-      toast.error(
-        "Complemento deve ter pelo menos 5 caracteres (ou ficar vazio)",
-      );
-      return;
-    }
-    if (
-      trimmedReference.length > 0 &&
-      trimmedReference.length < 5 &&
-      !referenceUnchanged
-    ) {
-      toast.error(
-        "Referência deve ter pelo menos 5 caracteres (ou ficar vazia)",
-      );
-      return;
-    }
-
-    try {
-      const addressData = await withStoreCoordinates({
-        ...newAddress,
-        zipCode: newAddress.zipCode.replace(/\D/g, ""),
-        isDefault: newAddress.isDefault ?? false,
-      });
-      const payload = {
-        ...addressData,
-        complement:
-          complementUnchanged && trimmedComplement.length < 5
-            ? undefined
-            : sanitizeOptionalText(addressData.complement),
-        reference:
-          referenceUnchanged && trimmedReference.length < 5
-            ? undefined
-            : sanitizeOptionalText(addressData.reference),
-      };
-
-      const response = await apiService.address.updateCompanyAddress(
-        editingAddressId,
-        payload,
-      );
-
-      if (response.success) {
-        const failedToUnsetDefault = addressData.isDefault
-          ? await unsetOtherDefaults(editingAddressId)
-          : false;
-
-        toast.success("Endereço atualizado com sucesso!");
-        if (failedToUnsetDefault) {
-          toast.warning(
-            "Não conseguimos desmarcar todos os endereços padrão antigos. Confira a lista de endereços.",
-          );
-        }
-        await fetchAddresses();
-        setIsAddingAddress(false);
-        setEditingAddressId(null);
-        setEditingAddressOriginal({ complement: "", reference: "" });
-        resetAddressForm();
-      } else {
-        toast.error(response.message || "Erro ao atualizar endereço");
-      }
-    } catch (error) {
-      toast.error("Erro ao atualizar endereço");
-    }
-  };
-
-  /**
-   * Salvar endereço (criar ou atualizar)
-   */
-  const handleSaveAddress = () => {
     if (editingAddressId) {
-      return handleUpdateAddress();
-    } else {
-      return handleAddAddress();
+      if (
+        trimmedComplement.length > 0 &&
+        trimmedComplement.length < 5 &&
+        !complementUnchanged
+      ) {
+        toast.error(
+          "Complemento deve ter pelo menos 5 caracteres (ou ficar vazio)",
+        );
+        return;
+      }
+      if (
+        trimmedReference.length > 0 &&
+        trimmedReference.length < 5 &&
+        !referenceUnchanged
+      ) {
+        toast.error(
+          "Referência deve ter pelo menos 5 caracteres (ou ficar vazia)",
+        );
+        return;
+      }
     }
-  };
 
-  /**
-   * Cancelar edição/adição de endereço
-   */
-  const handleCancelAddressEdit = () => {
-    setEditingAddressId(null);
-    setEditingAddressOriginal({ complement: "", reference: "" });
-    setIsAddingAddress(false);
-    resetAddressForm();
-  };
+    const pinCoords = addressEditor.getPinForSave(data);
+    if (!pinCoords) return;
 
-  /**
-   * Limpa formulário de endereço
-   */
-  const resetAddressForm = () => {
-    clearZipCodeSearch();
-    setNewAddress({
-      zipCode: "",
-      state: "",
-      city: "",
-      neighborhood: "",
-      street: "",
-      number: "",
-      complement: "",
-      reference: "",
-      isDefault: false,
-    });
+    const omitShortInherited = (unchanged: boolean, trimmed: string) =>
+      Boolean(editingAddressId) &&
+      unchanged &&
+      trimmed.length > 0 &&
+      trimmed.length < 5;
+
+    const payload = {
+      zipCode: onlyNumbers(data.zipCode),
+      state: data.state,
+      city: data.city,
+      neighborhood: data.neighborhood,
+      street: data.street,
+      number: data.number,
+      complement: omitShortInherited(complementUnchanged, trimmedComplement)
+        ? undefined
+        : sanitizeOptionalText(trimmedComplement),
+      reference: omitShortInherited(referenceUnchanged, trimmedReference)
+        ? undefined
+        : sanitizeOptionalText(trimmedReference),
+      latitude: pinCoords.lat,
+      longitude: pinCoords.lng,
+      isDefault: true,
+    };
+
+    setIsSavingAddress(true);
+    try {
+      const response = editingAddressId
+        ? await apiService.address.updateCompanyAddress(
+            editingAddressId,
+            payload,
+          )
+        : await apiService.address.createCompanyAddress(payload);
+
+      if (!response.success) {
+        toast.error(
+          response.message ||
+            (editingAddressId
+              ? "Erro ao atualizar endereço"
+              : "Erro ao adicionar endereço"),
+        );
+        return;
+      }
+
+      // O back não desmarca o padrão anterior sozinho (ver adress.md).
+      const savedId = editingAddressId ?? response.data?.id;
+      const failedToUnsetDefault = savedId
+        ? await unsetOtherDefaults(savedId)
+        : false;
+
+      toast.success(
+        editingAddressId
+          ? "Endereço atualizado com sucesso!"
+          : "Endereço adicionado com sucesso!",
+      );
+      if (failedToUnsetDefault) {
+        toast.warning(
+          "Não conseguimos desmarcar todos os endereços padrão antigos. Confira a lista de endereços.",
+        );
+      }
+      await fetchAddresses();
+      closeAddressModal();
+    } catch {
+      toast.error(
+        editingAddressId
+          ? "Erro ao atualizar endereço"
+          : "Erro ao adicionar endereço",
+      );
+    } finally {
+      setIsSavingAddress(false);
+    }
   };
 
   /**
@@ -991,20 +772,15 @@ export const useCompanyProfileManagement = () => {
 
     // Addresses
     addresses,
+    storeAddress,
     isLoadingAddresses,
-    isAddingAddress,
+    isAddressModalOpen,
+    isSavingAddress,
     editingAddressId,
-    newAddress,
-    setIsAddingAddress,
+    openAddressModal,
+    closeAddressModal,
     handleSaveAddress,
-    handleEditAddress,
-    handleCancelAddressEdit,
-    handleDeleteAddress,
-    handleSearchZipCode,
-    isSearchingZipCode,
-    zipCodeHint,
-    updateAddressField,
-    resetAddressForm,
+    addressEditor,
     formatZipCode,
 
     // Password

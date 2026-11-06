@@ -3,6 +3,7 @@
 import { AdminPageLayout } from "@/components/admin-page-layout";
 import { CompanyCoverUpload } from "@/components/company-cover-upload";
 import { CompanyLogoUpload } from "@/components/company-logo-upload";
+import { DeliveryForm } from "@/components/profile/delivery-form";
 import { OpeningHoursCopy } from "@/components/opening-hours-copy";
 import ProtectedRoute from "@/components/protected-route";
 import { TimeInput } from "@/components/time-input";
@@ -47,8 +48,6 @@ import {
   Phone,
   Plus,
   Save,
-  Star,
-  Trash2,
   TriangleAlert,
   User,
   UtensilsCrossed,
@@ -216,19 +215,14 @@ function CompanyProfileContent() {
     handleCancelEdit,
     setIsEditing,
     updateFormField,
-    addresses,
-    newAddress,
-    isAddingAddress,
+    storeAddress,
+    isAddressModalOpen,
+    isSavingAddress,
     editingAddressId,
-    setIsAddingAddress,
+    openAddressModal,
+    closeAddressModal,
     handleSaveAddress,
-    handleEditAddress,
-    handleCancelAddressEdit,
-    handleDeleteAddress,
-    handleSearchZipCode,
-    isSearchingZipCode,
-    zipCodeHint,
-    updateAddressField,
+    addressEditor,
     formatZipCode,
     passwordData,
     passwordErrors,
@@ -280,6 +274,45 @@ function CompanyProfileContent() {
   }
 
   const companyId = user.companyId || user.id;
+
+  // Barra global de Salvar/Descartar (LDMF-464): coordena as 3 seções de campo
+  // que têm salvamento próprio (Especialidades, Horários, Pagamento). Cada
+  // seção segue dona do seu dirty/handler; a barra só dispara as sujas, em
+  // paralelo e independentes (uma falha não barra a outra — Promise.allSettled),
+  // e cada handler já dá o próprio toast. Só aparece quando há mudança pendente.
+  // Dados fiscais, Endereço e Senha ficam de fora (fluxo próprio).
+  const globalSaveSections = [
+    {
+      dirty: hasSpecialtyChanges,
+      save: handleSaveSpecialties,
+      discard: discardSpecialtyChanges,
+    },
+    {
+      dirty: hasHoursChanges,
+      save: handleSaveHours,
+      discard: discardHoursChanges,
+    },
+    {
+      dirty: hasPaymentMethodsChanges,
+      save: handleSavePaymentMethods,
+      discard: discardPaymentMethodsChanges,
+    },
+  ];
+  const pendingSaveSections = globalSaveSections.filter(
+    (section) => section.dirty,
+  );
+  const pendingSaveCount = pendingSaveSections.length;
+  const isSavingAnySection =
+    isSavingSpecialty || isSavingHours || isSavingPaymentMethods;
+
+  const handleSaveAllSections = async () => {
+    await Promise.allSettled(
+      pendingSaveSections.map((section) => section.save()),
+    );
+  };
+  const handleDiscardAllSections = () => {
+    pendingSaveSections.forEach((section) => section.discard());
+  };
 
   return (
     <AdminPageLayout
@@ -536,42 +569,13 @@ function CompanyProfileContent() {
                 Pagamento (LDMF-351). */}
             <div className="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] lg:grid-rows-[auto_1fr] lg:items-start">
               {/* Tipo de restaurante (até 3) — LDMF-395. Saiu das Informações
-                  e virou seção própria. Salva no botão, como as outras. */}
+                  e virou seção própria. Salva pela barra global (LDMF-464). */}
               <SectionCard
                 icon={UtensilsCrossed}
                 title="Tipo de restaurante"
                 subtitle={`até ${MAX_SPECIALTIES} — o que o cliente vê no app`}
                 subtitleBelow
                 className="lg:col-start-2 lg:row-start-1"
-                actions={
-                  availableSpecialties.length === 0 ? undefined : (
-                    <div className="flex gap-2">
-                      {hasSpecialtyChanges && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={discardSpecialtyChanges}
-                          disabled={isSavingSpecialty}
-                          className="h-8 rounded-md px-3 text-xs font-semibold"
-                        >
-                          Descartar
-                        </Button>
-                      )}
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={handleSaveSpecialties}
-                        disabled={isSavingSpecialty || !hasSpecialtyChanges}
-                        className="h-8 rounded-md px-3.5 text-xs font-semibold"
-                      >
-                        <div className="flex gap-2">
-                          <Save className="h-3.5 w-3.5" />
-                          {isSavingSpecialty ? "Salvando..." : "Salvar"}
-                        </div>
-                      </Button>
-                    </div>
-                  )
-                }
               >
                 {isLoadingProfile ? (
                   <div className="grid grid-cols-1 gap-3 @lg:grid-cols-3">
@@ -635,7 +639,7 @@ function CompanyProfileContent() {
                       })}
                     </div>
                     <p className="mt-2.5 text-[11.5px] text-muted-foreground">
-                      Escolha os tipos e clique em Salvar. Até {MAX_SPECIALTIES}{" "}
+                      Escolha os tipos e salve na barra. Até {MAX_SPECIALTIES}{" "}
                       tipos.
                     </p>
                   </>
@@ -649,33 +653,6 @@ function CompanyProfileContent() {
                 subtitle="Dias e horários em que a loja aceita pedidos"
                 subtitleBelow
                 className="lg:col-start-1 lg:row-span-2 lg:row-start-1"
-                actions={
-                  <div className="flex gap-2">
-                    {hasHoursChanges && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={discardHoursChanges}
-                        disabled={isSavingHours}
-                        className="h-8 rounded-md px-3 text-xs font-semibold"
-                      >
-                        Descartar
-                      </Button>
-                    )}
-                    <Button
-                      size="sm"
-                      variant={"secondary"}
-                      onClick={handleSaveHours}
-                      disabled={isSavingHours || isLoadingHours}
-                      className="h-8 rounded-md px-3.5 text-xs font-semibold"
-                    >
-                      <div className="flex gap-2">
-                        <Save className="h-3.5 w-3.5" />
-                        {isSavingHours ? "Salvando..." : "Salvar"}
-                      </div>
-                    </Button>
-                  </div>
-                }
               >
                 {linkedToCashRegister && (
                   <SectionNotice>
@@ -895,38 +872,6 @@ function CompanyProfileContent() {
                 subtitle="O checkout só oferece ao cliente as formas marcadas"
                 subtitleBelow
                 className="lg:col-start-2 lg:row-start-2"
-                actions={
-                  <div className="flex gap-2">
-                    {hasPaymentMethodsChanges && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={discardPaymentMethodsChanges}
-                        disabled={isSavingPaymentMethods}
-                        className="h-8 rounded-md px-3 text-xs font-semibold"
-                      >
-                        Descartar
-                      </Button>
-                    )}
-                    <Button
-                      size="sm"
-                      variant={"secondary"}
-                      onClick={handleSavePaymentMethods}
-                      disabled={
-                        isSavingPaymentMethods ||
-                        isLoadingPaymentMethods ||
-                        isPaymentMethodsError ||
-                        !hasPaymentMethodsChanges
-                      }
-                      className="h-8 rounded-md px-3.5 text-xs font-semibold"
-                    >
-                      <div className="flex gap-2">
-                        <Save className="h-3.5 w-3.5" />
-                        {isSavingPaymentMethods ? "Salvando..." : "Salvar"}
-                      </div>
-                    </Button>
-                  </div>
-                }
               >
                 {/* Sem a lista gravada a tela mostraria o padrão (todas), e
                     salvar por cima apagaria a configuração real: trava até
@@ -983,32 +928,17 @@ function CompanyProfileContent() {
               </SectionCard>
             </div>
 
-            {/* Endereço da Empresa */}
+            {/* Endereço da Empresa: um único endereço, editado no mesmo
+                modal do perfil do cliente (LDMF-263). */}
             <SectionCard
               icon={MapPin}
               title="Endereço da Empresa"
-              subtitle="O endereço padrão define o raio de entrega"
+              subtitle="O endereço da loja define o raio de entrega"
               className="mb-4"
-              actions={
-                !isLoadingAddresses && !isAddingAddress ? (
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    className="h-8 rounded-md text-xs font-semibold"
-                    onClick={() => setIsAddingAddress(true)}
-                  >
-                    <span className="flex items-center gap-1">
-                      <Plus className="h-3.5 w-3.5" />
-                      Adicionar
-                    </span>
-                  </Button>
-                ) : null
-              }
             >
               {isLoadingAddresses ? (
                 <Skeleton className="h-14 w-full rounded-md" />
-              ) : (!Array.isArray(addresses) || addresses.length === 0) &&
-                !isAddingAddress ? (
+              ) : !storeAddress ? (
                 <div className="py-6 text-center">
                   <MapPin className="mx-auto mb-2 h-8 w-8 text-muted-foreground/40" />
                   <p className="mb-3 text-[12.5px] text-muted-foreground">
@@ -1018,7 +948,7 @@ function CompanyProfileContent() {
                     variant="secondary"
                     size="sm"
                     className="h-8 rounded-md text-xs font-semibold"
-                    onClick={() => setIsAddingAddress(true)}
+                    onClick={openAddressModal}
                   >
                     <span className="flex items-center gap-1">
                       <Plus className="h-3.5 w-3.5" />
@@ -1027,204 +957,66 @@ function CompanyProfileContent() {
                   </Button>
                 </div>
               ) : (
-                <div className="space-y-2">
-                  {Array.isArray(addresses) &&
-                    addresses.map((address) => (
-                      <div
-                        key={address.id}
-                        className="flex items-center gap-3 rounded-md border border-border px-3 py-2.5"
-                      >
-                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-brand-50 text-brand-600 dark:bg-brand-950/40 dark:text-brand-400">
-                          <MapPin className="h-[15px] w-[15px]" />
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-[13px] font-semibold text-foreground">
-                              {address.street}, {address.number}
-                            </span>
-                            {address.isDefault && (
-                              <span className="flex shrink-0 items-center gap-1 rounded bg-brand-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-brand-600 dark:bg-brand-950/40 dark:text-brand-400">
-                                <Star className="h-2.5 w-2.5 fill-current" />
-                                Padrão
-                              </span>
-                            )}
-                          </div>
-                          <div className="mt-0.5 truncate text-xs text-muted-foreground">
-                            {address.neighborhood} - {address.city}/
-                            {address.state} · CEP{" "}
-                            {formatZipCode(address.zipCode)}
-                          </div>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 shrink-0 rounded-md"
-                          aria-label="Editar endereço"
-                          onClick={() => handleEditAddress(address)}
-                        >
-                          <Pencil className="h-[13px] w-[13px]" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 shrink-0 rounded-md text-destructive hover:bg-destructive/10 hover:text-destructive"
-                          aria-label="Excluir endereço"
-                          onClick={() => handleDeleteAddress(address.id)}
-                        >
-                          <Trash2 className="h-[13px] w-[13px]" />
-                        </Button>
-                      </div>
-                    ))}
-
-                  {isAddingAddress && (
-                    <div className="rounded-md border border-dashed border-border bg-muted/30 p-4">
-                      <h3 className="mb-3 text-[13px] font-semibold text-foreground">
-                        {editingAddressId ? "Editar Endereço" : "Novo Endereço"}
-                      </h3>
-                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                        <div className="sm:col-span-2">
-                          <IconInput
-                            label="CEP"
-                            icon={MapPin}
-                            value={formatZipCode(newAddress.zipCode)}
-                            onChange={(e) => {
-                              const value = e.target.value.replace(/\D/g, "");
-                              updateAddressField("zipCode", value);
-                              if (value.length === 8)
-                                handleSearchZipCode(value);
-                            }}
-                            placeholder="00000-000"
-                            maxLength={9}
-                          />
-                          {/* Cidade de CEP único volta sem rua e bairro, e a
-                              busca pode falhar: a tela diz o que preencher. */}
-                          {(isSearchingZipCode || zipCodeHint) && (
-                            <p
-                              role="status"
-                              className={cn(
-                                "mt-1.5 text-xs font-semibold",
-                                zipCodeHint && !isSearchingZipCode
-                                  ? "text-amber-700 dark:text-amber-400"
-                                  : "text-muted-foreground",
-                              )}
-                            >
-                              {isSearchingZipCode
-                                ? "Buscando CEP..."
-                                : zipCodeHint}
-                            </p>
-                          )}
-                        </div>
-                        <IconInput
-                          label="Rua"
-                          icon={MapPin}
-                          value={newAddress.street}
-                          onChange={(e) =>
-                            updateAddressField("street", e.target.value)
-                          }
-                          placeholder="Nome da rua"
-                        />
-                        <IconInput
-                          label="Número"
-                          icon={MapPin}
-                          value={newAddress.number}
-                          onChange={(e) =>
-                            updateAddressField("number", e.target.value)
-                          }
-                          placeholder="123"
-                        />
-                        <IconInput
-                          label="Bairro"
-                          icon={MapPin}
-                          value={newAddress.neighborhood}
-                          onChange={(e) =>
-                            updateAddressField("neighborhood", e.target.value)
-                          }
-                          placeholder="Nome do bairro"
-                        />
-                        <IconInput
-                          label="Cidade"
-                          icon={MapPin}
-                          value={newAddress.city}
-                          onChange={(e) =>
-                            updateAddressField("city", e.target.value)
-                          }
-                          placeholder="Nome da cidade"
-                        />
-                        <IconInput
-                          label="Estado"
-                          icon={MapPin}
-                          value={newAddress.state}
-                          onChange={(e) =>
-                            updateAddressField("state", e.target.value)
-                          }
-                          placeholder="UF"
-                          maxLength={2}
-                        />
-                        <IconInput
-                          label="Complemento"
-                          icon={MapPin}
-                          value={newAddress.complement}
-                          onChange={(e) =>
-                            updateAddressField("complement", e.target.value)
-                          }
-                          placeholder="Apto, sala, etc (opcional)"
-                        />
-                        <div className="sm:col-span-2">
-                          <IconInput
-                            label="Referência"
-                            icon={MapPin}
-                            value={newAddress.reference}
-                            onChange={(e) =>
-                              updateAddressField("reference", e.target.value)
-                            }
-                            placeholder="Ponto de referência (opcional)"
-                          />
-                        </div>
-                        <div className="flex items-center gap-2 sm:col-span-2">
-                          <Checkbox
-                            id="isDefault"
-                            checked={newAddress.isDefault}
-                            onCheckedChange={(checked) =>
-                              updateAddressField("isDefault", checked === true)
-                            }
-                            className="h-4 w-4 border-border data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
-                          />
-                          <Label
-                            htmlFor="isDefault"
-                            className="cursor-pointer text-[12.5px] font-semibold text-foreground/80"
-                          >
-                            Definir como endereço padrão
-                          </Label>
-                        </div>
-                      </div>
-                      <div className="mt-4 flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-8 flex-1 rounded-md text-xs font-semibold"
-                          onClick={handleCancelAddressEdit}
-                        >
-                          <span className="flex items-center justify-center gap-1.5">
-                            <X className="h-3.5 w-3.5" />
-                            Cancelar
-                          </span>
-                        </Button>
-                        <GradientButton
-                          onClick={handleSaveAddress}
-                          size="sm"
-                          className="h-8 flex-1 rounded-md text-xs"
-                        >
-                          <Save className="h-3.5 w-3.5" />
-                          {editingAddressId
-                            ? "Atualizar Endereço"
-                            : "Salvar Endereço"}
-                        </GradientButton>
-                      </div>
+                <div className="flex items-center gap-3 rounded-md border border-border px-3 py-2.5">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-brand-50 text-brand-600 dark:bg-brand-950/40 dark:text-brand-400">
+                    <MapPin className="h-[15px] w-[15px]" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <span className="text-[13px] font-semibold text-foreground">
+                      {storeAddress.street}, {storeAddress.number}
+                    </span>
+                    <div className="mt-0.5 truncate text-xs text-muted-foreground">
+                      {storeAddress.neighborhood} - {storeAddress.city}/
+                      {storeAddress.state} · CEP{" "}
+                      {formatZipCode(storeAddress.zipCode)}
                     </div>
-                  )}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 shrink-0 rounded-md"
+                    aria-label="Editar endereço"
+                    onClick={openAddressModal}
+                  >
+                    <Pencil className="h-[13px] w-[13px]" />
+                  </Button>
                 </div>
               )}
             </SectionCard>
+
+            {isAddressModalOpen && (
+              <DeliveryForm
+                handleCloseAddressModal={closeAddressModal}
+                handleAddAddress={handleSaveAddress}
+                applyCoords={addressEditor.applyCoords}
+                addressForm={addressEditor.addressForm}
+                addressCoords={addressEditor.addressCoords}
+                isSavingAddress={isSavingAddress}
+                isLoadingCep={addressEditor.isLoadingCep}
+                zipCodeHint={addressEditor.zipCodeHint}
+                isEditing={!!editingAddressId}
+                neighborhoodOptions={addressEditor.neighborhoodOptions}
+                isLocatingPin={addressEditor.isLocatingPin}
+                stateOptions={addressEditor.stateOptions}
+                cityOptions={addressEditor.cityOptions}
+                isLoadingCities={addressEditor.isLoadingCities}
+                citiesError={addressEditor.citiesError}
+                fieldLocks={addressEditor.fieldLocks}
+                onStateChange={addressEditor.changeState}
+                onCityChange={addressEditor.changeCity}
+                onNeighborhoodChange={addressEditor.changeNeighborhood}
+                isOtherNeighborhood={addressEditor.isOtherNeighborhood}
+                onSelectOtherNeighborhood={addressEditor.selectOtherNeighborhood}
+                onOtherNeighborhoodChange={addressEditor.changeOtherNeighborhood}
+                isSearchingAddress={addressEditor.isSearchingAddress}
+                addressNotFound={addressEditor.addressNotFound}
+                pinZoom={addressEditor.pinZoom}
+                pinRecenterKey={addressEditor.pinRecenterKey}
+                showReference
+                showDefaultOption={false}
+                placeLabel="sua loja"
+              />
+            )}
 
             {/* Segurança */}
             <SectionCard
@@ -1320,6 +1112,52 @@ function CompanyProfileContent() {
                 </div>
               )}
             </SectionCard>
+          </>
+        )}
+
+        {/* Barra global de Salvar/Descartar (LDMF-464): só aparece com mudança
+            pendente. Fixa no rodapé no mobile (acima da navegação), estática no
+            fim do conteúdo no desktop. Um único elemento responsivo (fixed no
+            mobile, static no md+) pra não duplicar o nó. */}
+        {pendingSaveCount > 0 && (
+          <>
+            {/* Respiro no mobile pra barra fixa não cobrir a última seção. */}
+            <div className="h-24 md:hidden" aria-hidden />
+            <div
+              className={cn(
+                "fixed inset-x-4 bottom-[calc(4rem+env(safe-area-inset-bottom)+0.5rem)] z-40",
+                "flex items-center gap-2 rounded-xl border border-border bg-card p-2.5 shadow-lg",
+                "md:static md:inset-x-0 md:bottom-auto md:z-auto md:mt-4 md:rounded-lg md:p-3 md:shadow-none",
+              )}
+            >
+              <span className="min-w-0 flex-1 text-xs font-semibold text-muted-foreground">
+                {pendingSaveCount}{" "}
+                {pendingSaveCount === 1
+                  ? "alteração não salva"
+                  : "alterações não salvas"}
+              </span>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={handleDiscardAllSections}
+                disabled={isSavingAnySection}
+                className="h-9 rounded-md px-3 text-xs font-semibold"
+              >
+                Descartar
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={handleSaveAllSections}
+                disabled={isSavingAnySection}
+                className="h-9 rounded-md px-3.5 text-xs font-semibold"
+              >
+                <div className="flex items-center gap-2">
+                  <Save className="h-3.5 w-3.5" />
+                  {isSavingAnySection ? "Salvando..." : "Salvar alterações"}
+                </div>
+              </Button>
+            </div>
           </>
         )}
       </div>

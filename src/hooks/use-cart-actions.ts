@@ -5,6 +5,10 @@ import { fetchFreshRestaurantOpeningHours } from "@/hooks/use-opening-hours";
 import type { Product, ProductVariation } from "@/services/api";
 import { apiService } from "@/services/api";
 import { getCartItemStock, getCartStockIssues } from "@/lib/cart-stock";
+import {
+  getCartLimitError,
+  getQuantityLimitError,
+} from "@/lib/order-quantity-limit";
 import { getRestaurant } from "@/services/restaurant";
 import { useCartStore } from "@/stores";
 import { useAuthStore } from "@/stores/auth-store";
@@ -667,6 +671,22 @@ export const useCartActions = () => {
       return false;
     }
 
+    // Teto de quantidade temporário no front (LDMF-333). Só conta o carrinho
+    // da mesma loja: de outra loja, ele vai ser trocado.
+    const { items: storeItems, restaurant: storeRestaurant } =
+      useCartStore.getState();
+    const sameStoreItems =
+      storeRestaurant?.id === item.restaurantId ? storeItems : [];
+    const limitError = getQuantityLimitError(
+      sameStoreItems,
+      item.id,
+      item.quantity || 1,
+    );
+    if (limitError) {
+      toast.error(limitError);
+      return false;
+    }
+
     try {
       setLoading(true);
 
@@ -1205,6 +1225,16 @@ export const useCartActions = () => {
 
     // Se a quantidade estiver aumentando, valida contra o estoque se disponível
     if (newQuantity > item.quantity) {
+      const limitError = getQuantityLimitError(
+        items,
+        item.productId,
+        newQuantity - item.quantity,
+      );
+      if (limitError) {
+        toast.error(limitError);
+        return;
+      }
+
       const targetRestaurantId = restaurant?.id || item.restaurantId;
       if (targetRestaurantId) {
         const cachedVariations = queryClient.getQueryData<ProductVariation[]>([
@@ -1307,6 +1337,12 @@ export const useCartActions = () => {
   const handleGoToCheckout = async () => {
     if (items.length === 0) {
       toast.error("Seu carrinho está vazio");
+      return;
+    }
+
+    const limitError = getCartLimitError(items);
+    if (limitError) {
+      toast.error(limitError);
       return;
     }
 

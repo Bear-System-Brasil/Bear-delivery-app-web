@@ -28,6 +28,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { StockQuantityInput } from "@/components/ui/stock-quantity-input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { isUnlimitedStock, UNLIMITED_STOCK } from "@/lib/unlimited-stock";
 import {
   Sheet,
   SheetContent,
@@ -173,6 +174,11 @@ function MenuManagementContent() {
   const addOnsCount = editingProduct
     ? existingAddOns.length
     : draftAddOns.length;
+
+  // Campo vazio no formulário é "ainda não preenchido", não "sem controle".
+  const isDishStockUnlimited =
+    formData.stockQuantity !== undefined &&
+    isUnlimitedStock(formData.stockQuantity);
 
   const variationsTabLabel = editingProduct
     ? `Tamanhos (${variationsCount})`
@@ -965,17 +971,38 @@ function MenuManagementContent() {
                   Qtd. Estoque
                 </Label>
 
-                <StockQuantityInput
-                  id="stockQuantity"
-                  value={formData.stockQuantity}
-                  onValueChange={(value) =>
-                    updateFormField("stockQuantity", value)
-                  }
-                  placeholder="1"
-                  minValue={1}
-                  maxValue={9999}
-                  className={fieldClassName}
-                />
+                {isDishStockUnlimited ? (
+                  <p className="flex h-10 items-center rounded-[10px] border border-dashed border-border bg-muted px-3 text-xs font-semibold text-muted-foreground">
+                    Sem controle de estoque
+                  </p>
+                ) : (
+                  <StockQuantityInput
+                    id="stockQuantity"
+                    value={formData.stockQuantity}
+                    onValueChange={(value) =>
+                      updateFormField("stockQuantity", value)
+                    }
+                    placeholder="1"
+                    minValue={1}
+                    maxValue={9999}
+                    className={fieldClassName}
+                  />
+                )}
+
+                <label className="flex cursor-pointer items-center gap-2 text-xs font-semibold text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={isDishStockUnlimited}
+                    onChange={(e) =>
+                      updateFormField(
+                        "stockQuantity",
+                        e.target.checked ? UNLIMITED_STOCK : undefined,
+                      )
+                    }
+                    className="h-3.5 w-3.5 cursor-pointer accent-brand-500"
+                  />
+                  Não controlo estoque deste prato
+                </label>
               </div>
 
               <div className="flex items-center gap-2 rounded-[10px] border border-border bg-muted px-3 py-2">

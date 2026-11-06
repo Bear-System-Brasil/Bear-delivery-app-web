@@ -1375,6 +1375,138 @@ describe("useProfileManagement", () => {
       expect(result.current.addressForm.getValues("street")).toBeUndefined();
     });
 
+    it("CEP de rua completo não mostra aviso", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            street: "Rua XV de Novembro",
+            neighborhood: "Centro",
+            city: "Curitiba",
+            state: "PR",
+          }),
+        }),
+      );
+      const { result } = await renderProfile();
+
+      act(() => result.current.addressForm.setValue("zipCode", "80020-310"));
+
+      await waitFor(() => expect(result.current.isLoadingCep).toBe(false));
+      await waitFor(() =>
+        expect(result.current.addressForm.getValues("street")).toBe("Rua XV de Novembro"),
+      );
+      expect(result.current.zipCodeHint).toBeNull();
+    });
+
+    it("CEP da cidade inteira (Castelo) avisa e não apaga bairro e rua digitados", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (url: string) => ({
+          ok: true,
+          status: 200,
+          json: async () =>
+            String(url).includes("brasilapi")
+              ? { cep: "29360000", state: "ES", city: "Castelo", street: "", neighborhood: "" }
+              : [],
+        })),
+      );
+      const { result } = await renderProfile();
+      act(() => {
+        result.current.addressForm.setValue("state", "ES");
+        result.current.addressForm.setValue("city", "Castelo");
+        result.current.addressForm.setValue("neighborhood", "Centro");
+        result.current.addressForm.setValue("street", "Rua Principal");
+      });
+
+      act(() => result.current.addressForm.setValue("zipCode", "29360-000"));
+
+      await waitFor(() =>
+        expect(result.current.zipCodeHint).toBe(
+          "Este CEP vale para a cidade inteira. Preencha bairro, rua e número abaixo.",
+        ),
+      );
+      expect(result.current.addressForm.getValues()).toMatchObject({
+        neighborhood: "Centro",
+        street: "Rua Principal",
+      });
+      expect(toast.success).toHaveBeenCalledWith(
+        "CEP da cidade encontrado. Preencha bairro, rua e número.",
+      );
+    });
+
+    it("CEP sem bairro pede só o bairro", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue({
+          ok: true,
+          status: 200,
+          json: async () => ({ street: "Rua A", neighborhood: "", city: "Curitiba", state: "PR" }),
+        }),
+      );
+      const { result } = await renderProfile();
+
+      act(() => result.current.addressForm.setValue("zipCode", "80000-000"));
+
+      await waitFor(() =>
+        expect(result.current.zipCodeHint).toBe(
+          "Este CEP não traz o bairro. Preencha o bairro abaixo.",
+        ),
+      );
+    });
+
+    it("CEP inexistente deixa aviso para conferir ou preencher à mão", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 404 }));
+      const { result } = await renderProfile();
+
+      act(() => result.current.addressForm.setValue("zipCode", "99999999"));
+
+      await waitFor(() =>
+        expect(result.current.zipCodeHint).toBe(
+          "CEP não encontrado. Confira o número ou preencha estado, cidade, bairro, rua e número à mão.",
+        ),
+      );
+    });
+
+    it("busca fora do ar não apaga nada e pede preenchimento à mão", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 500 }));
+      const { result } = await renderProfile();
+      act(() => result.current.addressForm.setValue("street", "Rua Digitada"));
+
+      act(() => result.current.addressForm.setValue("zipCode", "80020-310"));
+
+      await waitFor(() =>
+        expect(result.current.zipCodeHint).toBe(
+          "Não conseguimos consultar o CEP agora. Preencha estado, cidade, bairro, rua e número à mão.",
+        ),
+      );
+      expect(toast.error).toHaveBeenCalledWith("Erro ao buscar CEP. Preencha o endereço à mão.");
+      expect(result.current.addressForm.getValues("street")).toBe("Rua Digitada");
+    });
+
+    it("trocar o CEP limpa o aviso anterior", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 404 }));
+      const { result } = await renderProfile();
+      act(() => result.current.addressForm.setValue("zipCode", "99999999"));
+      await waitFor(() => expect(result.current.zipCodeHint).not.toBeNull());
+
+      act(() => result.current.addressForm.setValue("zipCode", "9999"));
+
+      await waitFor(() => expect(result.current.zipCodeHint).toBeNull());
+    });
+
+    it("fechar o modal limpa o aviso", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 404 }));
+      const { result } = await renderProfile();
+      act(() => result.current.addressForm.setValue("zipCode", "99999999"));
+      await waitFor(() => expect(result.current.zipCodeHint).not.toBeNull());
+
+      act(() => result.current.handleCloseAddressModal());
+
+      expect(result.current.zipCodeHint).toBeNull();
+    });
+
     it("CEP incompleto não busca", async () => {
       const fetchMock = vi.fn();
       vi.stubGlobal("fetch", fetchMock);
