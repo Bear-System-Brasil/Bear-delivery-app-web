@@ -153,8 +153,15 @@ export function AddressCoreFields({
   const streetParts = splitStreet(currentStreet);
   const [chosenStreetType, setChosenStreetType] =
     useState<StreetType>(DEFAULT_STREET_TYPE);
-  const streetType = streetParts.type ?? chosenStreetType;
-  // Endereço salvo sem tipo reconhecido: o texto inteiro aparece como nome.
+  // Endereço salvo sem tipo reconhecido ("MACHADO DE ASSIS"): o seletor
+  // pede o tipo em vez de mostrar "Rua", e nada é posto na frente do nome
+  // sem o cliente escolher. Endereço novo (rua vazia) vem com Rua.
+  const legacyWithoutType = !streetParts.type && currentStreet.trim() !== "";
+  const streetType: StreetType | null = streetParts.type
+    ? streetParts.type
+    : legacyWithoutType
+      ? null
+      : chosenStreetType;
   const streetName = streetParts.type ? streetParts.name : currentStreet;
 
   const setStreet = (value: string) =>
@@ -168,7 +175,8 @@ export function AddressCoreFields({
   const changeStreetName = (value: string) => {
     const typed = splitStreet(value).type;
     if (typed) setChosenStreetType(typed);
-    setStreet(joinStreet(typed ?? streetType, value));
+    const type = typed ?? streetType;
+    setStreet(type ? joinStreet(type, value) : value);
   };
 
   const changeStreetType = (type: StreetType) => {
@@ -384,10 +392,16 @@ export function AddressCoreFields({
           <select
             id="address-street-type"
             className={selectClass}
-            value={streetType}
-            onChange={(e) => changeStreetType(e.target.value as StreetType)}
+            value={streetType ?? ""}
+            onChange={(e) =>
+              e.target.value && changeStreetType(e.target.value as StreetType)
+            }
             disabled={fieldLocks.street}
+            aria-describedby={
+              legacyWithoutType ? "address-street-type-hint" : undefined
+            }
           >
+            {streetType === null && <option value="">Escolha</option>}
             {STREET_TYPES.map((type) => (
               <option key={type} value={type}>
                 {type}
@@ -417,6 +431,15 @@ export function AddressCoreFields({
         {errors.street && (
           <p className="col-span-2 text-sm text-destructive">
             {errors.street.message}
+          </p>
+        )}
+        {legacyWithoutType && (
+          <p
+            id="address-street-type-hint"
+            className="col-span-2 text-xs text-amber-700 dark:text-amber-400"
+          >
+            Escolha o tipo da rua (Rua, Avenida, Travessa...) para o
+            entregador achar o endereço.
           </p>
         )}
         {/* Retorno da busca junto do campo: é para cá que o cliente olha

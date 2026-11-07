@@ -36,6 +36,8 @@ type Extra = {
   defaultOptionLockedHint?: string | null;
   streetSuggestion?: string | null;
   isLoadingNeighborhoods?: boolean;
+  /** Endereço salvo aberto para edição (só para o teste). */
+  initialStreet?: string;
   onAcceptStreetSuggestion?: () => void;
   onDismissStreetSuggestion?: () => void;
   placeLabel?: string;
@@ -43,8 +45,12 @@ type Extra = {
   isLoadingCep?: boolean;
 };
 
-function Harness(extra: Extra) {
-  const form = useAddressForm();
+function Harness({ initialStreet, ...extra }: Extra) {
+  const form = useAddressForm(
+    initialStreet
+      ? { state: "ES", city: "Castelo", neighborhood: "Centro", street: initialStreet }
+      : undefined,
+  );
   const fields = useAddressFields({ form, enabled: true, onPreviousFieldChange });
   const city = form.watch("city");
 
@@ -516,6 +522,19 @@ describe("DeliveryForm: ordem e trava dos campos", () => {
       fireEvent.change(field(/Nome da rua/), { target: { value: "Brasil" } });
 
       expect(await submitStreet()).toBe("Avenida Brasil");
+    });
+
+    it("endereço salvo sem tipo pede o tipo e não ganha Rua escondido", async () => {
+      renderForm({ initialStreet: "MACHADO DE ASSIS" });
+      await waitFor(() => expect(field(/Nome da rua/).disabled).toBe(false));
+
+      expect(field(/Tipo/).value).toBe("");
+      expect(screen.getByText(/Escolha o tipo da rua/)).toBeTruthy();
+      expect(field(/Nome da rua/).value).toBe("MACHADO DE ASSIS");
+
+      fireEvent.change(field(/Tipo/), { target: { value: "Rua" } });
+      expect(screen.queryByText(/Escolha o tipo da rua/)).toBeNull();
+      expect(await submitStreet()).toBe("Rua MACHADO DE ASSIS");
     });
 
     it("nome achado com outro tipo pede confirmação", async () => {
