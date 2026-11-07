@@ -21,6 +21,7 @@ import {
   type PinStatusProps,
 } from "../delivery-form";
 import { cn } from "@/lib/utils";
+import { formatCep } from "@/utils";
 
 type AddingAddressState = {
   isOpen: boolean;
@@ -167,17 +168,18 @@ export function Addresses({
         </div>
       ) : (
         <div className="space-y-4">
-          {addresses.map((address) => (
+          {/* O padrão primeiro: é o que vale para entrega e para a home. */}
+          {[...addresses]
+            .sort((a, b) => Number(!!b.isDefault) - Number(!!a.isDefault))
+            .map((address) => (
             <div
               key={address.id}
               className="border border-border rounded-xl p-4"
             >
               <div className="flex items-start justify-between mb-4">
+                {/* Sem o selo "Endereço" repetido em todo cartão: só o
+                    padrão ganha selo. */}
                 <div className="flex items-center space-x-2">
-                  <Badge variant="secondary" className="text-xs">
-                    <MapPin className="h-3 w-3 mr-1" />
-                    {address.type}
-                  </Badge>
                   {address.isDefault && (
                     <Badge className="bg-linear-to-r from-brand-500 to-brand-500 text-white border-0 text-xs flex items-center gap-1">
                       <Star className="h-3 w-3 fill-current" />
@@ -234,7 +236,7 @@ export function Addresses({
                 <p>
                   {address.neighborhood} - {address.city}/{address.state}
                 </p>
-                <p>CEP: {address.zipCode}</p>
+                <p>CEP: {formatCep(address.zipCode ?? "")}</p>
                 {address.reference && <p>Referência: {address.reference}</p>}
               </div>
             </div>
