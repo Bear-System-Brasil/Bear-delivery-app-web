@@ -596,6 +596,7 @@ function CategoryManagementContent() {
                     read-only (componente compartilhado, LDMF-454). */}
                 <MenuItemsList
                   className="mt-3"
+                  mobileLayout
                   categories={previewListCategories}
                   groupedItems={previewGrouped}
                   onSelectItem={setPreviewItem}
