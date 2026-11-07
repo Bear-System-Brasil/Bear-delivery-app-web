@@ -967,6 +967,20 @@ describe("useProfileManagement", () => {
       expect(api.address.updateUserAddress.mock.calls[0][1].isDefault).toBe(true);
     });
 
+    it("cancelar a edição não deixa o endereço no próximo Adicionar", async () => {
+      savedAddresses = [stored("a1", { isDefault: true, street: "Rua Antiga", zipCode: "29360000" })];
+      const { result } = await renderProfile();
+
+      act(() => result.current.handleEditAddress(result.current.addresses[0]));
+      await waitFor(() => expect(result.current.addressForm.getValues("street")).toBe("Rua Antiga"));
+      act(() => result.current.handleCloseAddressModal());
+      act(() => result.current.addingAddressState.open());
+
+      expect(result.current.addressForm.getValues("street") ?? "").toBe("");
+      expect(result.current.addressForm.getValues("zipCode") ?? "").toBe("");
+      expect(result.current.addressForm.getValues("city") ?? "").toBe("");
+    });
+
     it("modal aberto antes da lista carregar não deixa a caixa marcada por engano", async () => {
       savedAddresses = [stored("a1", { isDefault: true })];
       api.address.createUserAddress.mockResolvedValue({ success: true, data: stored("novo") });

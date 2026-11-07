@@ -390,20 +390,26 @@ export const useAddressEditor = ({
    * complemento mantém.
    */
   const loadAddress = (address: EditableAddress) => {
-    addressForm.reset({
-      street: address.street || "",
-      number: String(address.number ?? ""),
-      neighborhood: address.neighborhood || "",
-      city: address.city || "",
-      state: address.state || "",
-      zipCode: address.zipCode || "",
-      type: address.type,
-      complement: address.complement || "",
-      reference: address.reference || "",
-      longitude: address.longitude ?? undefined,
-      latitude: address.latitude ?? undefined,
-      isDefault: address.isDefault ?? false,
-    });
+    // keepDefaultValues: sem ele o endereço aberto vira o "padrão" do
+    // formulário, e o reset() de limpar (Cancelar, depois de salvar) o
+    // trazia de volta - "Adicionar" abria com o último endereço editado.
+    addressForm.reset(
+      {
+        street: address.street || "",
+        number: String(address.number ?? ""),
+        neighborhood: address.neighborhood || "",
+        city: address.city || "",
+        state: address.state || "",
+        zipCode: address.zipCode || "",
+        type: address.type,
+        complement: address.complement || "",
+        reference: address.reference || "",
+        longitude: address.longitude ?? undefined,
+        latitude: address.latitude ?? undefined,
+        isDefault: address.isDefault ?? false,
+      },
+      { keepDefaultValues: true },
+    );
 
     const storedCoords = parseCoords(address.latitude, address.longitude);
 
