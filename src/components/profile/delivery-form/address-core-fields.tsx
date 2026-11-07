@@ -79,7 +79,7 @@ export type AddressCoreFieldsProps = AddressFieldProps &
     collapseOptionalFields?: boolean;
     /** Mostra o campo "Complemento". */
     showComplement?: boolean;
-    /** Mostra o campo "Referência" (endereço da loja). */
+    /** Mostra o campo "Referência" (loja, perfil do cliente e checkout). */
     showReference?: boolean;
     /** Mostra a caixa "Definir como endereço padrão". A loja não mostra: o
      *  endereço dela é sempre o padrão (LDMF-263). */
@@ -584,7 +584,7 @@ export function AddressCoreFields({
           </div>
         )}
 
-        {/* Referência (só endereço da loja) */}
+        {/* Referência (loja, cliente no perfil e checkout) */}
         {showReference && (
           <div className="md:col-span-2 space-y-2">
             <label htmlFor="address-reference" className="text-sm font-medium">

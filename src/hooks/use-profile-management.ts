@@ -65,6 +65,7 @@ export const useProfileManagement = () => {
         street: addr.street || "",
         number: String(addr.number ?? ""),
         complement: addr.complement || "",
+        reference: addr.reference || "",
         neighborhood: addr.neighborhood || "",
         longitude: addr.longitude ?? undefined,
         latitude: addr.latitude ?? undefined,
@@ -77,6 +78,8 @@ export const useProfileManagement = () => {
   );
   const [isSavingAddress, setIsSavingAddress] = useState(false);
   const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
+  const [editingAddressOriginalReference, setEditingAddressOriginalReference] =
+    useState<string>("");
   const [editingAddressOriginalComplement, setEditingAddressOriginalComplement] =
     useState<string>("");
 
@@ -319,6 +322,7 @@ export const useProfileManagement = () => {
     addressEditor.loadAddress(address);
     setEditingAddressId(address.id);
     setEditingAddressOriginalComplement(address.complement || "");
+    setEditingAddressOriginalReference(address.reference || "");
     addingAddressState.open();
   };
 
@@ -351,6 +355,27 @@ export const useProfileManagement = () => {
       trimmedComplement.length > 0 &&
       trimmedComplement.length < 5;
 
+    // Mesma regra para a referência (o PATCH também exige 5+ caracteres).
+    const trimmedReference = data.reference?.trim() ?? "";
+    const referenceUnchanged =
+      trimmedReference === editingAddressOriginalReference.trim();
+
+    if (
+      editingAddressId &&
+      trimmedReference.length > 0 &&
+      trimmedReference.length < 5 &&
+      !referenceUnchanged
+    ) {
+      toast.error("Referência deve ter pelo menos 5 caracteres (ou ficar vazia)");
+      return;
+    }
+
+    const shouldOmitReference =
+      editingAddressId &&
+      referenceUnchanged &&
+      trimmedReference.length > 0 &&
+      trimmedReference.length < 5;
+
     const pinCoords = addressEditor.getPinForSave(data);
     if (!pinCoords) return;
 
@@ -363,6 +388,9 @@ export const useProfileManagement = () => {
         street: data.street,
         number: data.number,
         complement: shouldOmitComplement ? undefined : data.complement || undefined,
+        // Vazio sai como ausente: "" no PATCH conta como valor e cai no
+        // mínimo de 5 caracteres.
+        reference: shouldOmitReference ? undefined : trimmedReference || undefined,
         neighborhood: data.neighborhood,
         city: data.city,
         state: data.state,
@@ -422,6 +450,7 @@ export const useProfileManagement = () => {
         addressEditor.resetEditor();
         setEditingAddressId(null);
         setEditingAddressOriginalComplement("");
+        setEditingAddressOriginalReference("");
         addingAddressState.close();
 
         toast.success(
@@ -461,6 +490,7 @@ export const useProfileManagement = () => {
     addressEditor.resetEditor();
     setEditingAddressId(null);
     setEditingAddressOriginalComplement("");
+    setEditingAddressOriginalReference("");
     addingAddressState.close();
   };
 

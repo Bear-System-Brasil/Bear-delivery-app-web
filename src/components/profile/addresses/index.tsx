@@ -235,6 +235,7 @@ export function Addresses({
                   {address.neighborhood} - {address.city}/{address.state}
                 </p>
                 <p>CEP: {address.zipCode}</p>
+                {address.reference && <p>Referência: {address.reference}</p>}
               </div>
             </div>
           ))}
@@ -244,6 +245,9 @@ export function Addresses({
       {/* Modal */}
       {addingAddressState.isOpen && (
         <DeliveryForm
+          // Em cidade pequena, "casa amarela ao lado da igreja" é o que
+          // mais ajuda o entregador (o back guarda em `reference`).
+          showReference
           handleCloseAddressModal={handleCloseAddressModal}
           handleAddAddress={handleAddAddress}
           applyCoords={applyCoords}

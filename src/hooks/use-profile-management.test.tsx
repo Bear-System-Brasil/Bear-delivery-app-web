@@ -909,6 +909,55 @@ describe("useProfileManagement", () => {
     });
   });
 
+  describe("ponto de referência do cliente", () => {
+    it("sai no POST, sem espaços; vazia não vai", async () => {
+      savedAddresses = [stored("a0", { isDefault: true })];
+      api.address.createUserAddress.mockResolvedValue({ success: true, data: stored("novo") });
+      const { result } = await renderProfile();
+      placePin(result);
+
+      await act(async () => {
+        await result.current.handleAddAddress(formData({ reference: "  Casa amarela ao lado da igreja " }));
+      });
+      expect(api.address.createUserAddress.mock.calls[0][0].reference).toBe(
+        "Casa amarela ao lado da igreja",
+      );
+
+      placePin(result);
+      await act(async () => {
+        await result.current.handleAddAddress(formData({ reference: "" }));
+      });
+      expect(api.address.createUserAddress.mock.calls[1][0].reference).toBeUndefined();
+    });
+
+    it("na edição, referência curta digitada agora é barrada; a herdada é omitida", async () => {
+      savedAddresses = [
+        stored("a1", { isDefault: true, reference: "Bar" } as Partial<Address>),
+        stored("a2"),
+      ];
+      api.address.updateUserAddress.mockResolvedValue({ success: true, data: stored("a1") });
+      const { result } = await renderProfile();
+
+      act(() => result.current.handleEditAddress(result.current.addresses[0]));
+      expect(result.current.addresses[0].reference).toBe("Bar");
+      placePin(result);
+      await act(async () => {
+        await result.current.handleAddAddress(formData({ reference: "Bar" }));
+      });
+      expect(api.address.updateUserAddress.mock.calls[0][1].reference).toBeUndefined();
+
+      act(() => result.current.handleEditAddress(result.current.addresses[0]));
+      placePin(result);
+      await act(async () => {
+        await result.current.handleAddAddress(formData({ reference: "Ali" }));
+      });
+      expect(toast.error).toHaveBeenCalledWith(
+        "Referência deve ter pelo menos 5 caracteres (ou ficar vazia)",
+      );
+      expect(api.address.updateUserAddress).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe("cliente logado sempre com endereço padrão (LDMF-262)", () => {
     it("não exclui o único endereço", async () => {
       vi.stubGlobal("confirm", vi.fn(() => true));
