@@ -71,7 +71,8 @@ export function DeliveryForm({
           })}
           className="space-y-4"
         >
-          <AddressCoreFields {...coreFields} />
+          {/* Perfil e loja: quem cadastra costuma estar no lugar. */}
+          <AddressCoreFields showUseLocation {...coreFields} />
 
           <DialogFooter className="gap-2 sm:gap-0">
             <Button

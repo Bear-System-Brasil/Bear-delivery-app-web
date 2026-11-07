@@ -1,7 +1,7 @@
 "use client";
 
 import { formatCep } from "@/utils";
-import { Search } from "lucide-react";
+import { LocateFixed, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import type { AddressForm } from "@/components/profile/addresses";
@@ -87,6 +87,11 @@ export type AddressCoreFieldsProps = AddressFieldProps &
     /** Preenchido quando o endereço tem que ser o padrão (LDMF-262): a caixa
      *  fica marcada e travada, com este texto explicando o porquê. */
     defaultOptionLockedHint?: string | null;
+    /**
+     * Botão "Usar minha localização" no mapa (perfil e loja). O checkout tem
+     * o dele no cabeçalho do bloco, e o seletor da home usa o GPS do topo.
+     */
+    showUseLocation?: boolean;
     /** Onde o pino deve ficar, nos textos do mapa ("sua casa", "sua loja"). */
     placeLabel?: string;
   };
@@ -125,6 +130,7 @@ export function AddressCoreFields({
   showDefaultOption = true,
   defaultOptionLockedHint = null,
   placeLabel = "sua casa",
+  showUseLocation = false,
   stateOptions,
   cityOptions,
   isLoadingCities = false,
@@ -151,6 +157,36 @@ export function AddressCoreFields({
   // "Sem número" é o próprio valor S/N no campo: endereço salvo assim já abre
   // com a caixa marcada, e trocar rua/bairro (que limpa o número) desmarca.
   const noNumber = isNoNumber(currentNumber);
+
+  // GPS só no toque do cliente: diz onde ele está agora, que nem sempre é o
+  // endereço que está cadastrando - por isso vale como gesto explícito
+  // ("manual", prioridade máxima) e o texto pede para conferir.
+  const [locatingDevice, setLocatingDevice] = useState(false);
+  const [deviceLocationError, setDeviceLocationError] = useState<string | null>(null);
+  const locateDevice = () => {
+    setDeviceLocationError(null);
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      setDeviceLocationError("Este aparelho não informa a localização. Arraste o pino.");
+      return;
+    }
+    setLocatingDevice(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setLocatingDevice(false);
+        applyCoords(
+          { lat: position.coords.latitude, lng: position.coords.longitude },
+          "manual",
+        );
+      },
+      () => {
+        setLocatingDevice(false);
+        setDeviceLocationError(
+          "Não conseguimos sua localização (permissão negada ou sem sinal). Arraste o pino.",
+        );
+      },
+      { enableHighAccuracy: true, timeout: 15000 },
+    );
+  };
 
   // Opcionais recolhidos (checkout): abrem no botão, ou sozinhos quando já
   // têm valor (endereço preenchido pelo CEP ou aberto para edição).
@@ -593,6 +629,29 @@ export function AddressCoreFields({
         <p className="text-xs text-muted-foreground">
           Confira se o pino está na {placeLabel}. Se não estiver, arraste.
         </p>
+        {showUseLocation && (
+          <div className="space-y-1">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={locateDevice}
+              disabled={locatingDevice}
+              className="gap-2"
+            >
+              <LocateFixed className="h-4 w-4" />
+              {locatingDevice ? "Localizando..." : "Usar minha localização"}
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              Use se você está na {placeLabel} agora.
+            </p>
+            {deviceLocationError && (
+              <p role="alert" className="text-xs font-medium text-amber-700 dark:text-amber-400">
+                {deviceLocationError}
+              </p>
+            )}
+          </div>
+        )}
         <AddressMap
           mapHeight={220}
           value={addressCoords?.coords ?? null}

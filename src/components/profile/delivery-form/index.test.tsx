@@ -36,6 +36,7 @@ type Extra = {
   defaultOptionLockedHint?: string | null;
   streetSuggestion?: { road: string; place: string } | null;
   isLoadingNeighborhoods?: boolean;
+  applyCoords?: (coords: { lat: number; lng: number } | null, source: string) => void;
   /** Endereço salvo aberto para edição (só para o teste). */
   initialStreet?: string;
   onAcceptStreetSuggestion?: () => void;
@@ -596,6 +597,43 @@ describe("DeliveryForm: ordem e trava dos campos", () => {
     await screen.findByRole("dialog");
 
     expect(document.activeElement).not.toBe(field(/CEP/));
+  });
+
+  describe("Usar minha localização (perfil e loja)", () => {
+    afterEach(() => {
+      Object.defineProperty(navigator, "geolocation", { value: undefined, configurable: true });
+    });
+
+    it("põe o pino onde o aparelho está, como gesto do cliente", async () => {
+      const applyCoords = vi.fn();
+      Object.defineProperty(navigator, "geolocation", {
+        configurable: true,
+        value: {
+          getCurrentPosition: (ok: PositionCallback) =>
+            ok({ coords: { latitude: -20.6, longitude: -41.2 } } as GeolocationPosition),
+        },
+      });
+      renderForm({ applyCoords });
+
+      fireEvent.click(screen.getByRole("button", { name: "Usar minha localização" }));
+
+      expect(applyCoords).toHaveBeenCalledWith({ lat: -20.6, lng: -41.2 }, "manual");
+    });
+
+    it("sem permissão, explica e pede para arrastar o pino", async () => {
+      Object.defineProperty(navigator, "geolocation", {
+        configurable: true,
+        value: {
+          getCurrentPosition: (_ok: PositionCallback, fail: PositionErrorCallback) =>
+            fail({ code: 1 } as GeolocationPositionError),
+        },
+      });
+      renderForm();
+
+      fireEvent.click(screen.getByRole("button", { name: "Usar minha localização" }));
+
+      expect(await screen.findByText(/Não conseguimos sua localização/)).toBeTruthy();
+    });
   });
 
   describe("aviso do CEP", () => {
