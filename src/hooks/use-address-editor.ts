@@ -3,7 +3,7 @@ import {
   type CoordinateSource,
   type SourcedCoords,
 } from "@/lib/address-coordinates";
-import { CepNotFoundError, fetchCepAddress } from "@/lib/cep";
+import { CepNotFoundError, fetchCepAddress, findCepByStreet } from "@/lib/cep";
 import { parseCoords } from "@/lib/geocode";
 import { findNeighborhood, neighborhoodLabel } from "@/services/neighborhoods";
 import { Coords } from "@/types/restaurant";
@@ -30,6 +30,12 @@ export const CEP_NOT_FOUND_HINT =
   "CEP não encontrado. Confira o número ou preencha estado, cidade, bairro, rua e número à mão.";
 export const CITY_CEP_FILLED_HINT =
   "Preenchemos o CEP da cidade, que vale para a cidade inteira.";
+export const STREET_CEP_FILLED_HINT =
+  "Preenchemos o CEP pela rua. Confira se está certo.";
+export const STREET_CEP_NOT_FOUND_HINT =
+  "Não achamos o CEP desta rua. Digite o CEP para salvar.";
+/** Pausa depois da última tecla antes de procurar o CEP pela rua. */
+export const STREET_CEP_DELAY_MS = 1200;
 export const CEP_LOOKUP_FAILED_HINT =
   "Não conseguimos consultar o CEP agora. Preencha estado, cidade, bairro, rua e número à mão.";
 
@@ -198,6 +204,72 @@ export const useAddressEditor = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [addressPin.neighborhoodList]);
 
+  // CEP pela rua (LDMF-258): quem não sabe o CEP preenche a rua e o CEP vem
+  // da ViaCEP. Só mexe em CEP vazio ou no que ele mesmo pôs - CEP digitado
+  // pelo cliente, ou o da cidade de CEP único (efeito acima), fica.
+  const streetFilledCep = useRef<string | null>(null);
+  useEffect(() => {
+    if (zipCodeOptional) return;
+    if (addressPin.neighborhoodList?.cep) return;
+
+    const street = watchedStreet?.trim() ?? "";
+    const city = watchedCity?.trim() ?? "";
+    const state = watchedState?.trim() ?? "";
+    const currentCep = onlyNumbers(addressForm.getValues("zipCode") ?? "");
+    const ours = !!streetFilledCep.current && currentCep === streetFilledCep.current;
+    if (currentCep && !ours) return;
+
+    if (!street || !city || !state) {
+      // A rua foi apagada (ou a cidade trocada): o CEP que veio dela sai.
+      if (ours) {
+        streetFilledCep.current = null;
+        lastCepRequest.current = null;
+        setLastFetchedCep(null);
+        addressForm.setValue("zipCode", "", { shouldValidate: true });
+        setZipCodeHint(null);
+      }
+      return;
+    }
+
+    let active = true;
+    const timer = setTimeout(async () => {
+      const cep = await findCepByStreet({
+        state,
+        city,
+        street,
+        neighborhood: watchedNeighborhood,
+      });
+      if (!active) return;
+
+      if (!cep) {
+        if (!onlyNumbers(addressForm.getValues("zipCode") ?? "")) {
+          setZipCodeHint(STREET_CEP_NOT_FOUND_HINT);
+        }
+        return;
+      }
+
+      streetFilledCep.current = cep;
+      // Marcado como já buscado: o CEP preenchido não dispara a busca de
+      // CEP, que trocaria a rua e o bairro digitados pelos do CEP.
+      lastCepRequest.current = cep;
+      setLastFetchedCep(cep);
+      addressForm.setValue("zipCode", formatCep(cep), { shouldValidate: true });
+      setZipCodeHint(STREET_CEP_FILLED_HINT);
+    }, STREET_CEP_DELAY_MS);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    watchedStreet,
+    watchedCity,
+    watchedState,
+    watchedNeighborhood,
+    addressPin.neighborhoodList,
+  ]);
+
   /**
    * Auto-fetch CEP when complete (8 digits)
    */
@@ -355,6 +427,7 @@ export const useAddressEditor = ({
     setLastFetchedCep(onlyNumbers(address.zipCode ?? ""));
     lastCepRequest.current = null;
     autoFilledCep.current = null;
+    streetFilledCep.current = null;
     setZipCodeHint(null);
     addressFields.resetOtherNeighborhood();
   };
@@ -365,6 +438,7 @@ export const useAddressEditor = ({
     setLastFetchedCep(null);
     lastCepRequest.current = null;
     autoFilledCep.current = null;
+    streetFilledCep.current = null;
     setZipCodeHint(null);
     setPin(null);
     addressPin.resetBaseline();

@@ -1612,6 +1612,74 @@ describe("useProfileManagement", () => {
       );
     });
 
+    function stubViaCepStreet(results: unknown[]) {
+      const fetchMock = vi.fn(async (url: string) => ({
+        ok: true,
+        status: 200,
+        json: async () => (String(url).includes("viacep.com.br") ? results : []),
+      }));
+      vi.stubGlobal("fetch", fetchMock);
+      return fetchMock;
+    }
+
+    function fillBeloHorizonte(result: ProfileHook, street = "Avenida Afonso Pena") {
+      act(() => {
+        result.current.addressForm.setValue("state", "MG");
+        result.current.addressForm.setValue("city", "Belo Horizonte");
+        result.current.addressForm.setValue("neighborhood", "Funcionários");
+        result.current.addressForm.setValue("street", street);
+      });
+    }
+
+    it("sem CEP, a rua preenche o CEP pela ViaCEP, com aviso (LDMF-258)", async () => {
+      vi.mocked(getNeighborhoods).mockResolvedValue(null);
+      const fetchMock = stubViaCepStreet([
+        { cep: "30130-905", bairro: "Centro" },
+        { cep: "30140-071", bairro: "Funcionários" },
+      ]);
+      const { result } = await renderProfile();
+      fillBeloHorizonte(result);
+
+      await waitFor(
+        () => expect(result.current.addressForm.getValues("zipCode")).toBe("30140-071"),
+        { timeout: 4000 },
+      );
+      expect(result.current.zipCodeHint).toBe("Preenchemos o CEP pela rua. Confira se está certo.");
+      // O CEP preenchido não busca o CEP de volta (trocaria a rua digitada).
+      expect(fetchMock.mock.calls.some(([url]) => /brasilapi/.test(String(url)))).toBe(false);
+      expect(result.current.addressForm.getValues("street")).toBe("Avenida Afonso Pena");
+    });
+
+    it("CEP digitado pelo cliente não é trocado pela busca da rua", async () => {
+      vi.mocked(getNeighborhoods).mockResolvedValue(null);
+      const fetchMock = stubViaCepStreet([{ cep: "30130-905", bairro: "Centro" }]);
+      const { result } = await renderProfile();
+      act(() => {
+        result.current.addressForm.setValue("zipCode", "30130-100");
+      });
+      fillBeloHorizonte(result);
+
+      await new Promise((resolve) => setTimeout(resolve, 1600));
+      expect(result.current.addressForm.getValues("zipCode")).toBe("30130-100");
+      expect(fetchMock.mock.calls.some(([url]) => /viacep\.com\.br\/ws\/MG/.test(String(url)))).toBe(false);
+    });
+
+    it("rua sem CEP achado: avisa para digitar o CEP", async () => {
+      vi.mocked(getNeighborhoods).mockResolvedValue(null);
+      stubViaCepStreet([]);
+      const { result } = await renderProfile();
+      fillBeloHorizonte(result, "Rua Que Nao Existe");
+
+      await waitFor(
+        () =>
+          expect(result.current.zipCodeHint).toBe(
+            "Não achamos o CEP desta rua. Digite o CEP para salvar.",
+          ),
+        { timeout: 4000 },
+      );
+      expect(result.current.addressForm.getValues("zipCode") ?? "").toBe("");
+    });
+
     it("CEP completo busca na BrasilAPI e preenche o endereço", async () => {
       const fetchMock = vi.fn().mockResolvedValue({
         ok: true,

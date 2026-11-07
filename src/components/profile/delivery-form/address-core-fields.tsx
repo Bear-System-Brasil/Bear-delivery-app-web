@@ -237,7 +237,9 @@ export function AddressCoreFields({
           <p className="text-xs text-muted-foreground">
             {isLoadingCep
               ? "Buscando CEP..."
-              : "Digite o CEP e os campos serão preenchidos automaticamente"}
+              : zipCodeRequired
+                ? "Digite o CEP e os campos serão preenchidos. Não sabe o CEP? Preencha o endereço que a gente acha."
+                : "Digite o CEP e os campos serão preenchidos automaticamente"}
           </p>
         )}
       </div>

@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { CepNotFoundError, fetchCepAddress } from "./cep";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { CepNotFoundError, fetchCepAddress, findCepByStreet } from "./cep";
 
 /**
  * CEP com API principal e reserva (LDMF-260): BrasilAPI v2 e ViaCEP.
@@ -129,6 +129,72 @@ describe("fetchCepAddress", () => {
     const fetchMock = stubApis({ brasilapi: json({}), viacep: json({}) });
 
     await expect(fetchCepAddress("2936")).rejects.toThrow("CEP incompleto");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("findCepByStreet (CEP pela rua)", () => {
+  const fetchMock = vi.fn();
+  beforeEach(() => {
+    fetchMock.mockReset();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  const viaCep = (body: unknown, ok = true) =>
+    Promise.resolve({ ok, status: ok ? 200 : 500, json: () => Promise.resolve(body) });
+
+  it("cidade de CEP único: devolve o CEP da cidade", async () => {
+    fetchMock.mockReturnValue(viaCep([{ cep: "29500-000", bairro: "" }]));
+
+    expect(
+      await findCepByStreet({ state: "es", city: "Alegre", street: "Rua Sete de Setembro" }),
+    ).toBe("29500000");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://viacep.com.br/ws/ES/Alegre/Rua%20Sete%20de%20Setembro/json/",
+    );
+  });
+
+  it("vários CEPs na rua: vale o do bairro escolhido", async () => {
+    fetchMock.mockReturnValue(
+      viaCep([
+        { cep: "30130-905", bairro: "Centro" },
+        { cep: "30140-071", bairro: "Funcionários" },
+      ]),
+    );
+
+    expect(
+      await findCepByStreet({
+        state: "MG",
+        city: "Belo Horizonte",
+        street: "Avenida Afonso Pena",
+        neighborhood: "funcionarios",
+      }),
+    ).toBe("30140071");
+  });
+
+  it("sem resultado com o tipo, tenta só com o nome", async () => {
+    fetchMock
+      .mockReturnValueOnce(viaCep([]))
+      .mockReturnValueOnce(viaCep([{ cep: "01310-100", bairro: "Bela Vista" }]));
+
+    expect(
+      await findCepByStreet({ state: "SP", city: "São Paulo", street: "Rua Paulista" }),
+    ).toBe("01310100");
+    expect(fetchMock.mock.calls[1][0]).toBe("https://viacep.com.br/ws/SP/S%C3%A3o%20Paulo/Paulista/json/");
+  });
+
+  it("não acha ou a consulta falha: null", async () => {
+    fetchMock.mockReturnValue(viaCep({ erro: true }));
+    expect(await findCepByStreet({ state: "ES", city: "Castelo", street: "Rua X Y Z" })).toBeNull();
+
+    fetchMock.mockRejectedValue(new Error("offline"));
+    expect(await findCepByStreet({ state: "ES", city: "Castelo", street: "Rua X Y Z" })).toBeNull();
+  });
+
+  it("sem UF válida, cidade ou rua curta, nem consulta", async () => {
+    expect(await findCepByStreet({ state: "", city: "Castelo", street: "Rua A" })).toBeNull();
+    expect(await findCepByStreet({ state: "ES", city: "Castelo", street: "Ab" })).toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });

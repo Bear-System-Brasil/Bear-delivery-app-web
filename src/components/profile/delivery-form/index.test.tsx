@@ -580,7 +580,7 @@ describe("DeliveryForm: ordem e trava dos campos", () => {
     it("sem aviso, mostra a dica de sempre", () => {
       renderForm();
 
-      expect(screen.getByText("Digite o CEP e os campos serão preenchidos automaticamente")).toBeTruthy();
+      expect(screen.getByText(/Digite o CEP e os campos serão preenchidos/)).toBeTruthy();
       expect(screen.queryByRole("status")).toBeNull();
     });
 
@@ -590,7 +590,7 @@ describe("DeliveryForm: ordem e trava dos campos", () => {
       expect(screen.getByRole("status").textContent).toBe(
         "Este CEP vale para a cidade inteira. Preencha bairro, rua e número abaixo.",
       );
-      expect(screen.queryByText("Digite o CEP e os campos serão preenchidos automaticamente")).toBeNull();
+      expect(screen.queryByText(/Digite o CEP e os campos serão preenchidos/)).toBeNull();
     });
 
     it("enquanto busca, diz que está buscando", () => {
