@@ -454,6 +454,7 @@ export function DeliveryForm({
                 pinZoom={addressEditor.pinZoom}
                 pinRecenterKey={addressEditor.pinRecenterKey}
                 showReference
+                collapseOptionalFields
                 showDefaultOption={false}
               />
 

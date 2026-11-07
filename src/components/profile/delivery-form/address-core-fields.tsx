@@ -71,6 +71,11 @@ export type AddressCoreFieldsProps = AddressFieldProps &
     isLocatingPin?: boolean;
     /** CEP obrigatório (perfil e loja). No seletor da home é opcional. */
     zipCodeRequired?: boolean;
+    /**
+     * Complemento e referência ficam atrás de um botão até o cliente abrir
+     * (checkout: a tela já é longa e os dois são opcionais).
+     */
+    collapseOptionalFields?: boolean;
     /** Mostra o campo "Complemento". */
     showComplement?: boolean;
     /** Mostra o campo "Referência" (endereço da loja). */
@@ -114,6 +119,7 @@ export function AddressCoreFields({
   isLocatingPin = false,
   zipCodeRequired = true,
   showComplement = true,
+  collapseOptionalFields = false,
   showReference = false,
   showDefaultOption = true,
   defaultOptionLockedHint = null,
@@ -144,6 +150,18 @@ export function AddressCoreFields({
   // "Sem número" é o próprio valor S/N no campo: endereço salvo assim já abre
   // com a caixa marcada, e trocar rua/bairro (que limpa o número) desmarca.
   const noNumber = isNoNumber(currentNumber);
+
+  // Opcionais recolhidos (checkout): abrem no botão, ou sozinhos quando já
+  // têm valor (endereço preenchido pelo CEP ou aberto para edição).
+  const [optionalFieldsOpen, setOptionalFieldsOpen] = useState(false);
+  const [currentComplement, currentReference] = addressForm.watch([
+    "complement",
+    "reference",
+  ]);
+  const hasOptionalValue = !!(currentComplement?.trim() || currentReference?.trim());
+  const showOptionalFields =
+    !collapseOptionalFields || optionalFieldsOpen || hasOptionalValue;
+  const hasOptionalFields = showComplement || showReference;
 
   // Tipo de logradouro + nome (LDMF-282). O formulário guarda só `street`,
   // o logradouro completo ("Rua Sete de Setembro"), que é o que vai para o
@@ -509,33 +527,52 @@ export function AddressCoreFields({
         )}
       </div>
 
-      {/* Complemento (o seletor da home não guarda: não mostra) */}
-      {showComplement && (
-        <div className="space-y-2">
-          <label htmlFor="address-complement" className="text-sm font-medium">
-            Complemento
-          </label>
-          <Input
-            id="address-complement"
-            {...addressForm.register("complement")}
-            placeholder="Apto, bloco, etc"
-            disabled={fieldLocks.rest}
-          />
-        </div>
-      )}
+      {!hasOptionalFields ? null : showOptionalFields ? (
+        <>
+        {/* Complemento (o seletor da home não guarda: não mostra) */}
+        {showComplement && (
+          <div className="space-y-2">
+            <label htmlFor="address-complement" className="text-sm font-medium">
+              Complemento
+            </label>
+            <Input
+              id="address-complement"
+              {...addressForm.register("complement")}
+              placeholder="Apto, bloco, etc"
+              disabled={fieldLocks.rest}
+            />
+          </div>
+        )}
 
-      {/* Referência (só endereço da loja) */}
-      {showReference && (
-        <div className="md:col-span-2 space-y-2">
-          <label htmlFor="address-reference" className="text-sm font-medium">
-            Referência
-          </label>
-          <Input
-            id="address-reference"
-            {...addressForm.register("reference")}
-            placeholder="Ponto de referência (opcional)"
-            disabled={fieldLocks.rest}
-          />
+        {/* Referência (só endereço da loja) */}
+        {showReference && (
+          <div className="md:col-span-2 space-y-2">
+            <label htmlFor="address-reference" className="text-sm font-medium">
+              Referência
+            </label>
+            <Input
+              id="address-reference"
+              {...addressForm.register("reference")}
+              placeholder="Ponto de referência (opcional)"
+              disabled={fieldLocks.rest}
+            />
+          </div>
+        )}
+        </>
+      ) : (
+        <div className="md:col-span-2">
+          <button
+            type="button"
+            onClick={() => setOptionalFieldsOpen(true)}
+            className="text-sm font-medium text-brand-600 hover:underline dark:text-brand-400"
+          >
+            + {showComplement && showReference
+              ? "Complemento e ponto de referência"
+              : showReference
+                ? "Ponto de referência"
+                : "Complemento"}{" "}
+            (opcional)
+          </button>
         </div>
       )}
 
