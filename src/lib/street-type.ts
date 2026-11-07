@@ -40,6 +40,9 @@ const ABBREVIATIONS: Record<string, StreetType> = {
   lgo: "Largo",
 };
 
+/** Abreviações aceitas também sem ponto. */
+const NO_DOT_ABBREVIATIONS = new Set(["r", "av", "ave", "tv", "trav", "rod", "pca"]);
+
 function typeFromWord(word: string): StreetType | null {
   const key = normalizeText(word).replace(/\.$/, "");
   if (!key) return null;
@@ -47,9 +50,11 @@ function typeFromWord(word: string): StreetType | null {
   const full = STREET_TYPES.find((type) => normalizeText(type) === key);
   if (full) return full;
 
-  // Abreviação só com ponto ("R.", "Av."): sem o ponto, "Al" ou "R" podem
-  // ser parte do nome.
-  return word.endsWith(".") ? (ABBREVIATIONS[key] ?? null) : null;
+  // Com ponto ("Al.", "Est."), qualquer abreviação. Sem ponto, só as que
+  // não começam nome de rua - "Av Brasil" e "R Sete" são o jeito comum de
+  // digitar, mas "Al" ou "Est" sem ponto podem ser o começo do nome.
+  if (word.endsWith(".")) return ABBREVIATIONS[key] ?? null;
+  return NO_DOT_ABBREVIATIONS.has(key) ? ABBREVIATIONS[key] : null;
 }
 
 /**

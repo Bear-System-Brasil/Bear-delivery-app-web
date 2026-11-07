@@ -20,6 +20,12 @@ describe("splitStreet", () => {
     expect(splitStreet("Av. Nossa Senhora da Penha").type).toBe("Avenida");
   });
 
+  it("Av e R sem ponto também valem (é o jeito comum de digitar)", () => {
+    expect(splitStreet("Av Brasil")).toEqual({ type: "Avenida", name: "Brasil" });
+    expect(splitStreet("R Sete de Setembro")).toEqual({ type: "Rua", name: "Sete de Setembro" });
+    expect(splitStreet("Trav São João").type).toBe("Travessa");
+  });
+
   it("sem tipo no começo, tudo é nome", () => {
     expect(splitStreet("Sete de Setembro")).toEqual({
       type: null,
@@ -45,6 +51,7 @@ describe("joinStreet", () => {
   it("tipo digitado no nome vale sobre o escolhido", () => {
     expect(joinStreet("Rua", "Avenida Brasil")).toBe("Avenida Brasil");
     expect(joinStreet("Rua", "Av. Brasil")).toBe("Avenida Brasil");
+    expect(joinStreet("Rua", "Av Brasil")).toBe("Avenida Brasil");
   });
 
   it("nome vazio é rua vazia e o espaço do fim fica enquanto se digita", () => {
