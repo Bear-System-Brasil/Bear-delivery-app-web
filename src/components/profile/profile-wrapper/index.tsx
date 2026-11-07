@@ -15,6 +15,7 @@ import { OrderHistory } from "@/components/profile/order-history";
 import { PersonalInformation } from "@/components/profile/personal-information";
 import { Security } from "@/components/profile/security";
 import { UserPhotoUpload } from "@/components/user-photo-upload";
+import { isClientRole } from "@/utils/role-helpers";
 
 function ProfileShell({
   cartItems,
@@ -99,6 +100,8 @@ export function ProfileWrapper() {
     isLoadingCep,
     zipCodeHint,
   } = useProfileManagement();
+
+  const isClient = isClientRole(user?.role);
 
   // Redirect if not authenticated - só depois que o Zustand persist hidratar
   // (lê a sessão do localStorage de forma assíncrona). Antes disso
@@ -216,50 +219,54 @@ export function ProfileWrapper() {
           user={user}
         />
 
-        {/* Order History */}
-        <OrderHistory />
+        {/* Histórico de pedidos e endereços são do cliente. /profile também
+            atende gerente, financeiro, cozinheiro e entregador, que não fazem
+            pedido (/orders é só de cliente) e não têm endereço pessoal:
+            GET /address/me devolve o endereço da loja ou 403 (LDMF-481). */}
+        {isClient && <OrderHistory />}
 
-        {/* Addresses */}
-        <Addresses
-          handleCloseAddressModal={handleCloseAddressModal}
-          handleDeleteAddress={handleDeleteAddress}
-          handleAddAddress={handleAddAddress}
-          handleEditAddress={handleEditAddress}
-          handleSetDefaultAddress={handleSetDefaultAddress}
-          settingDefaultAddressId={settingDefaultAddressId}
-          applyCoords={applyCoords}
-          editingAddressId={editingAddressId}
-          addingAddressState={addingAddressState}
-          isLoadingAddresses={isLoadingAddresses}
-          isSavingAddress={isSavingAddress}
-          isLoadingCep={isLoadingCep}
-          zipCodeHint={zipCodeHint}
-          addressForm={addressForm}
-          addressCoords={addressCoords}
-          addresses={addresses}
-          neighborhoodOptions={neighborhoodOptions}
-          isLocatingPin={isLocatingPin}
-          defaultOptionLockedHint={defaultOptionLockedHint}
-          addressFieldProps={{
-            stateOptions,
-            cityOptions,
-            isLoadingCities,
-            citiesError,
-            fieldLocks,
-            onStateChange: changeState,
-            onCityChange: changeCity,
-            onNeighborhoodChange: changeNeighborhood,
-            isOtherNeighborhood,
-            onSelectOtherNeighborhood: selectOtherNeighborhood,
-            onOtherNeighborhoodChange: changeOtherNeighborhood,
-          }}
-          pinStatusProps={{
-            isSearchingAddress,
-            addressNotFound,
-            pinZoom,
-            pinRecenterKey,
-          }}
-        />
+        {isClient && (
+          <Addresses
+            handleCloseAddressModal={handleCloseAddressModal}
+            handleDeleteAddress={handleDeleteAddress}
+            handleAddAddress={handleAddAddress}
+            handleEditAddress={handleEditAddress}
+            handleSetDefaultAddress={handleSetDefaultAddress}
+            settingDefaultAddressId={settingDefaultAddressId}
+            applyCoords={applyCoords}
+            editingAddressId={editingAddressId}
+            addingAddressState={addingAddressState}
+            isLoadingAddresses={isLoadingAddresses}
+            isSavingAddress={isSavingAddress}
+            isLoadingCep={isLoadingCep}
+            zipCodeHint={zipCodeHint}
+            addressForm={addressForm}
+            addressCoords={addressCoords}
+            addresses={addresses}
+            neighborhoodOptions={neighborhoodOptions}
+            isLocatingPin={isLocatingPin}
+            defaultOptionLockedHint={defaultOptionLockedHint}
+            addressFieldProps={{
+              stateOptions,
+              cityOptions,
+              isLoadingCities,
+              citiesError,
+              fieldLocks,
+              onStateChange: changeState,
+              onCityChange: changeCity,
+              onNeighborhoodChange: changeNeighborhood,
+              isOtherNeighborhood,
+              onSelectOtherNeighborhood: selectOtherNeighborhood,
+              onOtherNeighborhoodChange: changeOtherNeighborhood,
+            }}
+            pinStatusProps={{
+              isSearchingAddress,
+              addressNotFound,
+              pinZoom,
+              pinRecenterKey,
+            }}
+          />
+        )}
 
         {/* Security */}
         <Security />
