@@ -495,10 +495,12 @@ export function getNextOpeningLabel(
       if (currentMinutes < openMin) {
         return `Abre hoje às ${dayEntry.openTime}`;
       }
+      // Pausa fechada com as duas pontas incluidas, igual ao status (e ao
+      // back): no minuto do fim da pausa a loja ainda reabre hoje.
       if (
         hasBreak &&
         currentMinutes >= breakStartMin &&
-        currentMinutes < breakEndMin
+        currentMinutes <= breakEndMin
       ) {
         return `Abre hoje às ${dayEntry.breakEnd}`;
       }

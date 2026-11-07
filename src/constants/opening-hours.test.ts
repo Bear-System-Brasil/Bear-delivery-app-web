@@ -172,6 +172,12 @@ describe("isOpenBySchedule e status pela grade (LDMF-469)", () => {
     expect(isOpenBySchedule(hours, at("15:01"))).toBe(true);
   });
 
+  it("no minuto do fim da pausa o rótulo ainda é \"Abre hoje\", não amanhã", () => {
+    const hours = wed({ breakStart: "14:00", breakEnd: "15:00" } as Partial<DayHours>);
+    expect(getNextOpeningLabel(hours, at("14:59"))).toBe("Abre hoje às 15:00");
+    expect(getNextOpeningLabel(hours, at("15:00"))).toBe("Abre hoje às 15:00");
+  });
+
   it("dia sem horário cadastrado é fechado", () => {
     const thursdayOnly = toDayHours([{ day: 4, openTime: "00:00", closeTime: "23:59" }]);
     expect(isOpenBySchedule(thursdayOnly, at("12:00"))).toBe(false);
