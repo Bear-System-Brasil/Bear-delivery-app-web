@@ -407,7 +407,7 @@ export function AddressCoreFields({
       </div>
 
       {/* Rua: tipo de logradouro + nome (LDMF-282) */}
-      <div className="md:col-span-2 grid grid-cols-[minmax(0,8.5rem)_1fr] gap-2">
+      <div className="md:col-span-2 grid grid-cols-[7rem_1fr] gap-2 sm:grid-cols-[8.5rem_1fr]">
         <div className="space-y-2">
           <label htmlFor="address-street-type" className="text-sm font-medium">
             Tipo
