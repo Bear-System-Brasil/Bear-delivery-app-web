@@ -477,8 +477,19 @@ describe("DeliveryForm: ordem e trava dos campos", () => {
     expect(screen.getByRole("option", { name: "Carregando bairros..." })).toBeTruthy();
   });
 
-  it("lista de bairros chegando: mostra Carregando, não um campo livre", () => {
+  it("sem cidade, o bairro é uma lista travada que diz o que falta", () => {
+    renderForm();
+
+    const bairro = field(/Bairro/);
+    expect(bairro.tagName).toBe("SELECT");
+    expect(bairro.disabled).toBe(true);
+    expect(screen.getByRole("option", { name: "Escolha a cidade primeiro" })).toBeTruthy();
+  });
+
+  it("lista de bairros chegando: mostra Carregando, não um campo livre", async () => {
     renderForm({ isLoadingNeighborhoods: true });
+    await pickState("ES");
+    await pickCity("Castelo");
 
     const bairro = field(/Bairro/);
     expect(bairro.tagName).toBe("SELECT");

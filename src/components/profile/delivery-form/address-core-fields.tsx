@@ -370,14 +370,20 @@ export function AddressCoreFields({
         </label>
         {/* Carregando vale também com uma lista na tela: ela é da cidade
             anterior até a nova chegar. */}
-        {isLoadingNeighborhoods ? (
+        {!currentCity?.trim() ? (
+          // Sem cidade ainda: lista travada que diz o que falta, em vez de
+          // um campo que parece aceitar o bairro digitado.
+          <select id="address-neighborhood" disabled className={selectClass}>
+            <option value="">Escolha a cidade primeiro</option>
+          </select>
+        ) : isLoadingNeighborhoods ? (
           <select
             id="address-neighborhood"
             disabled
             aria-busy="true"
             className={selectClass}
           >
-            <option>Carregando bairros...</option>
+            <option value="">Carregando bairros...</option>
           </select>
         ) : neighborhoodOptions ? (
           <>
