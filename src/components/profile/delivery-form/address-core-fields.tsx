@@ -50,6 +50,8 @@ export type AddressFieldProps = {
   onStateChange: (uf: string) => void;
   onCityChange: (city: string) => void;
   onNeighborhoodChange: (neighborhood: string) => void;
+  /** A lista de bairros da cidade ainda está chegando. */
+  isLoadingNeighborhoods?: boolean;
   /** Bairro em "Outro": a lista mostra "Outro" e aparece o campo de texto. */
   isOtherNeighborhood?: boolean;
   onSelectOtherNeighborhood?: () => void;
@@ -125,6 +127,7 @@ export function AddressCoreFields({
   onCityChange,
   onNeighborhoodChange,
   isOtherNeighborhood = false,
+  isLoadingNeighborhoods = false,
   onSelectOtherNeighborhood,
   onOtherNeighborhoodChange,
   isSearchingAddress = false,
@@ -300,7 +303,16 @@ export function AddressCoreFields({
         <label htmlFor="address-neighborhood" className="text-sm font-medium">
           Bairro *
         </label>
-        {neighborhoodOptions ? (
+        {isLoadingNeighborhoods && !neighborhoodOptions ? (
+          <select
+            id="address-neighborhood"
+            disabled
+            aria-busy="true"
+            className={selectClass}
+          >
+            <option>Carregando bairros...</option>
+          </select>
+        ) : neighborhoodOptions ? (
           <>
             <select
               id="address-neighborhood"

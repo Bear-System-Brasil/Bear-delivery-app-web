@@ -35,6 +35,7 @@ type Extra = {
   showDefaultOption?: boolean;
   defaultOptionLockedHint?: string | null;
   streetSuggestion?: string | null;
+  isLoadingNeighborhoods?: boolean;
   onAcceptStreetSuggestion?: () => void;
   onDismissStreetSuggestion?: () => void;
   placeLabel?: string;
@@ -456,6 +457,15 @@ describe("DeliveryForm: ordem e trava dos campos", () => {
         reference: "Ao lado da praça",
       });
     });
+  });
+
+  it("lista de bairros chegando: mostra Carregando, não um campo livre", () => {
+    renderForm({ isLoadingNeighborhoods: true });
+
+    const bairro = field(/Bairro/);
+    expect(bairro.tagName).toBe("SELECT");
+    expect(bairro.disabled).toBe(true);
+    expect(screen.getByRole("option", { name: "Carregando bairros..." })).toBeTruthy();
   });
 
   describe("tipo de logradouro (LDMF-282)", () => {

@@ -79,6 +79,7 @@ export function useAddressPin({ fields, onPin, otherNeighborhood = false }: Opti
   const [neighborhoodList, setNeighborhoodList] =
     useState<CityNeighborhoods | null>(null);
   const [isLocatingNeighborhood, setIsLocatingNeighborhood] = useState(false);
+  const [isLoadingNeighborhoods, setIsLoadingNeighborhoods] = useState(false);
   const [isSearchingAddress, setIsSearchingAddress] = useState(false);
   // A última busca de rua e número não achou nada dentro da cidade.
   const [addressNotFound, setAddressNotFound] = useState(false);
@@ -108,10 +109,17 @@ export function useAddressPin({ fields, onPin, otherNeighborhood = false }: Opti
 
   useEffect(() => {
     let active = true;
+    // Com estado e cidade, a lista pode vir do back (LDMF-264) e demorar:
+    // até chegar, o bairro mostra "Carregando", não um campo livre.
+    setIsLoadingNeighborhoods(Boolean(state && city));
 
-    getNeighborhoods(state, city).then((list) => {
-      if (active) setNeighborhoodList(list);
-    });
+    getNeighborhoods(state, city)
+      .then((list) => {
+        if (active) setNeighborhoodList(list);
+      })
+      .finally(() => {
+        if (active) setIsLoadingNeighborhoods(false);
+      });
 
     return () => {
       active = false;
@@ -291,6 +299,7 @@ export function useAddressPin({ fields, onPin, otherNeighborhood = false }: Opti
   return {
     /** Lista oficial de bairros da cidade, ou `null` sem lista. */
     neighborhoodList,
+    isLoadingNeighborhoods,
     isLocatingNeighborhood,
     isSearchingAddress,
     addressNotFound,

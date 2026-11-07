@@ -997,6 +997,19 @@ describe("useProfileManagement", () => {
       });
     }
 
+    it("enquanto a lista de bairros não chega, o bairro fica em Carregando", async () => {
+      let resolveList: (list: null) => void = () => {};
+      vi.mocked(getNeighborhoods).mockImplementation(
+        () => new Promise((resolve) => (resolveList = resolve)),
+      );
+      const { result } = await renderProfile();
+      fillCity(result);
+
+      await waitFor(() => expect(result.current.isLoadingNeighborhoods).toBe(true));
+      await act(async () => resolveList(null));
+      expect(result.current.isLoadingNeighborhoods).toBe(false);
+    });
+
     it("trocar estado, cidade ou bairro limpa os campos seguintes e o pino", async () => {
       const { result } = await renderProfile();
       act(() => {

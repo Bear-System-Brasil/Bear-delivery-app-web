@@ -422,6 +422,7 @@ export const useAddressEditor = ({
     selectOtherNeighborhood: addressFields.selectOtherNeighborhood,
     changeOtherNeighborhood: addressFields.changeOtherNeighborhood,
     isLocatingPin: addressPin.isLocatingNeighborhood,
+    isLoadingNeighborhoods: addressPin.isLoadingNeighborhoods,
     isSearchingAddress: addressPin.isSearchingAddress,
     addressNotFound: addressPin.addressNotFound,
     streetSuggestion: addressPin.streetSuggestion,

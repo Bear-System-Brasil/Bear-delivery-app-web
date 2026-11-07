@@ -79,6 +79,7 @@ export function ProfileWrapper() {
     applyCoords,
     neighborhoodOptions,
     isLocatingPin,
+    isLoadingNeighborhoods,
     defaultOptionLockedHint,
     stateOptions,
     cityOptions,
@@ -258,6 +259,7 @@ export function ProfileWrapper() {
               onCityChange: changeCity,
               onNeighborhoodChange: changeNeighborhood,
               isOtherNeighborhood,
+              isLoadingNeighborhoods,
               onSelectOtherNeighborhood: selectOtherNeighborhood,
               onOtherNeighborhoodChange: changeOtherNeighborhood,
             }}

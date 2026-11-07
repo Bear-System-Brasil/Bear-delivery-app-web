@@ -600,6 +600,7 @@ export const useProfileManagement = () => {
     selectOtherNeighborhood: addressEditor.selectOtherNeighborhood,
     changeOtherNeighborhood: addressEditor.changeOtherNeighborhood,
     isLocatingPin: addressEditor.isLocatingPin,
+    isLoadingNeighborhoods: addressEditor.isLoadingNeighborhoods,
     defaultOptionLockedHint,
     isSearchingAddress: addressEditor.isSearchingAddress,
     addressNotFound: addressEditor.addressNotFound,
