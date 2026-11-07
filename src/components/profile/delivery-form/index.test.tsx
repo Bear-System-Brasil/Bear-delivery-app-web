@@ -591,6 +591,13 @@ describe("DeliveryForm: ordem e trava dos campos", () => {
     });
   });
 
+  it("abrir o modal não põe o foco (nem o teclado do celular) no CEP", async () => {
+    renderForm();
+    await screen.findByRole("dialog");
+
+    expect(document.activeElement).not.toBe(field(/CEP/));
+  });
+
   describe("aviso do CEP", () => {
     it("sem aviso, mostra a dica de sempre", () => {
       renderForm();

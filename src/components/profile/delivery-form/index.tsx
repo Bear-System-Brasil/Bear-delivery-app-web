@@ -45,7 +45,16 @@ export function DeliveryForm({
 
   return (
     <Dialog open onOpenChange={(open) => !open && handleCloseAddressModal()}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent
+        className="sm:max-w-2xl max-h-[90vh] overflow-y-auto"
+        // Sem foco automático no CEP: no celular o teclado abria na hora e
+        // cobria metade do modal, num campo que quase ninguém sabe e que o
+        // app preenche sozinho. O foco fica na janela (Tab segue funcionando).
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+          (event.currentTarget as HTMLElement | null)?.focus?.();
+        }}
+      >
         <DialogHeader>
           <DialogTitle>
             {isEditing ? "Editar Endereço" : "Adicionar Novo Endereço"}
