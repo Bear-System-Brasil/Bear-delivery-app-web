@@ -19,7 +19,10 @@ vi.mock("@/services/ibge", () => ({
 }));
 vi.mock("@/lib/nominatim", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/nominatim")>()),
-  nominatim: { searchAddress: vi.fn(async () => null) },
+  nominatim: {
+      searchAddress: vi.fn(async () => null),
+      findStreet: vi.fn(async () => null),
+    },
 }));
 
 // Resposta real da BrasilAPI (medida em 17/10) para Castelo, CEP único:
@@ -121,13 +124,19 @@ describe("DeliveryForm - endereço novo pelo núcleo (LDMF-260)", () => {
     vi.restoreAllMocks();
   });
 
-  it("mostra os campos do núcleo em ordem e travados, com complemento e referência", () => {
+  it("mostra os campos do núcleo em ordem e travados; complemento e referência recolhidos", async () => {
+    const user = userEvent.setup();
     renderForm();
 
     expect(screen.getByLabelText("CEP *")).toBeEnabled();
     expect(screen.getByLabelText("Estado *")).toBeEnabled();
     expect(screen.getByLabelText("Cidade *")).toBeDisabled();
-    expect(screen.getByLabelText("Rua *")).toBeDisabled();
+    expect(screen.getByLabelText("Nome da rua *")).toBeDisabled();
+    // A tela do checkout já é longa: os opcionais abrem num botão.
+    expect(screen.queryByLabelText("Complemento")).not.toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: /Complemento e ponto de referência/ }),
+    );
     expect(screen.getByLabelText("Complemento")).toBeInTheDocument();
     expect(screen.getByLabelText("Referência")).toBeInTheDocument();
     // "Salvar para pedidos futuros" continua; a caixa de padrão do perfil não.
@@ -190,7 +199,7 @@ describe("DeliveryForm - campos faltando", () => {
   it("retirada não mostra endereço nem cobra os campos dele", () => {
     renderForm({ orderType: "pickup" });
 
-    expect(screen.queryByLabelText("Rua *")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Nome da rua *")).not.toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });

@@ -132,3 +132,113 @@ describe("createNominatimClient", () => {
     expect(clock.sleeps).toEqual([1000, 1000]);
   });
 });
+
+describe("findStreet: tentativas de rua (LDMF-282)", () => {
+  /** Responde por chamada: a fila do Nominatim mantém a ordem. */
+  function sequence(...answers: unknown[][]) {
+    const fetchFn = vi.fn();
+    for (const answer of answers) {
+      fetchFn.mockResolvedValueOnce({ ok: true, json: async () => answer });
+    }
+    fetchFn.mockResolvedValue({ ok: true, json: async () => [] });
+    return fetchFn;
+  }
+
+  const streetOf = (fetchFn: ReturnType<typeof vi.fn>, call: number) =>
+    new URL(fetchFn.mock.calls[call][0] as string).searchParams.get("street");
+
+  const avenida = {
+    ...inCastelo,
+    address: { ...inCastelo.address, road: "Avenida Nossa Senhora da Penha" },
+  };
+
+  it("acha de primeira com tipo e número e não pede confirmação", async () => {
+    const fetchFn = sequence([inCastelo]);
+    const client = createNominatimClient({ fetchFn, ...fakeClock() });
+
+    const match = await client.findStreet({
+      ...CASTELO,
+      street: "Rua Machado de Assis",
+      number: "304",
+    });
+
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    expect(streetOf(fetchFn, 0)).toBe("304 Rua Machado de Assis");
+    expect(match).toMatchObject({ coords: { lat: -20.6, lng: -41.2 }, withoutChosenType: false });
+  });
+
+  it("tenta sem número, depois sem o tipo, e devolve o nome da via achada", async () => {
+    const fetchFn = sequence([], [], [avenida]);
+    const client = createNominatimClient({ fetchFn, ...fakeClock() });
+
+    const match = await client.findStreet({
+      ...CASTELO,
+      street: "Rua Nossa Senhora da Penha",
+      number: "120",
+    });
+
+    expect([0, 1, 2].map((call) => streetOf(fetchFn, call))).toEqual([
+      "120 Rua Nossa Senhora da Penha",
+      "Rua Nossa Senhora da Penha",
+      "120 Nossa Senhora da Penha",
+    ]);
+    expect(match).toEqual({
+      coords: { lat: -20.6, lng: -41.2 },
+      road: "Avenida Nossa Senhora da Penha",
+      area: null,
+      withoutChosenType: true,
+    });
+  });
+
+  it("devolve o bairro da via (suburb, neighbourhood ou quarter)", async () => {
+    const comBairro = {
+      ...inCastelo,
+      address: { ...inCastelo.address, road: "Rua A", neighbourhood: "Santo Andrezinho" },
+    };
+    const client = createNominatimClient({ fetchFn: sequence([comBairro]), ...fakeClock() });
+
+    const match = await client.findStreet({ ...CASTELO, street: "Rua A", number: "1" });
+
+    expect(match?.area).toBe("Santo Andrezinho");
+  });
+
+  it("no máximo 4 chamadas, e nenhuma acha: null", async () => {
+    const fetchFn = sequence();
+    const client = createNominatimClient({ fetchFn, ...fakeClock() });
+
+    expect(
+      await client.findStreet({ ...CASTELO, street: "Rua Inexistente", number: "1" }),
+    ).toBeNull();
+    expect(fetchFn).toHaveBeenCalledTimes(4);
+  });
+
+  it("sem número: só duas tentativas (com e sem o tipo)", async () => {
+    const fetchFn = sequence();
+    const client = createNominatimClient({ fetchFn, ...fakeClock() });
+
+    await client.findStreet({ ...CASTELO, street: "Rua Inexistente", number: "" });
+
+    expect([0, 1].map((call) => streetOf(fetchFn, call))).toEqual([
+      "Rua Inexistente",
+      "Inexistente",
+    ]);
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+  });
+
+  it("busca cancelada não faz as tentativas seguintes", async () => {
+    const fetchFn = sequence();
+    const client = createNominatimClient({ fetchFn, ...fakeClock() });
+    let cancelled = false;
+    fetchFn.mockImplementationOnce(async () => {
+      cancelled = true;
+      return { ok: true, json: async () => [] };
+    });
+
+    await client.findStreet(
+      { ...CASTELO, street: "Rua A", number: "1" },
+      () => cancelled,
+    );
+
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
+});

@@ -34,13 +34,24 @@ type Extra = {
   showReference?: boolean;
   showDefaultOption?: boolean;
   defaultOptionLockedHint?: string | null;
+  streetSuggestion?: { road: string; place: string } | null;
+  isLoadingNeighborhoods?: boolean;
+  applyCoords?: (coords: { lat: number; lng: number } | null, source: string) => void;
+  /** Endereço salvo aberto para edição (só para o teste). */
+  initialStreet?: string;
+  onAcceptStreetSuggestion?: () => void;
+  onDismissStreetSuggestion?: () => void;
   placeLabel?: string;
   zipCodeHint?: string | null;
   isLoadingCep?: boolean;
 };
 
-function Harness(extra: Extra) {
-  const form = useAddressForm();
+function Harness({ initialStreet, ...extra }: Extra) {
+  const form = useAddressForm(
+    initialStreet
+      ? { state: "ES", city: "Castelo", neighborhood: "Centro", street: initialStreet }
+      : undefined,
+  );
   const fields = useAddressFields({ form, enabled: true, onPreviousFieldChange });
   const city = form.watch("city");
 
@@ -105,7 +116,7 @@ async function fillUntilNumber() {
   await pickState("ES");
   await pickCity("Castelo");
   fireEvent.change(field(/Bairro/), { target: { value: "Centro" } });
-  fireEvent.change(field(/Rua/), { target: { value: "Rua Principal" } });
+  fireEvent.change(field(/Nome da rua/), { target: { value: "Rua Principal" } });
   fireEvent.change(field(/Número/), { target: { value: "45" } });
   await waitFor(() => expect(field(/Complemento/).disabled).toBe(false));
 }
@@ -129,7 +140,7 @@ describe("DeliveryForm: ordem e trava dos campos", () => {
   it("campos na ordem CEP → Estado → Cidade → Bairro → Rua → Número → Complemento → Mapa", () => {
     renderForm();
 
-    const order = [/CEP/, /Estado/, /Cidade/, /Bairro/, /Rua/, /Número/, /Complemento/].map(
+    const order = [/CEP/, /Estado/, /Cidade/, /Bairro/, /Nome da rua/, /Número/, /Complemento/].map(
       (label) => field(label),
     );
     const mapa = screen.getByTestId("mapa");
@@ -149,7 +160,7 @@ describe("DeliveryForm: ordem e trava dos campos", () => {
 
     expect(field(/CEP/).disabled).toBe(false);
     expect(field(/Estado/).disabled).toBe(false);
-    for (const label of [/Cidade/, /Bairro/, /Rua/, /Número/, /Complemento/]) {
+    for (const label of [/Cidade/, /Bairro/, /Nome da rua/, /Número/, /Complemento/]) {
       expect(field(label).disabled).toBe(true);
     }
   });
@@ -164,13 +175,13 @@ describe("DeliveryForm: ordem e trava dos campos", () => {
     await pickCity("Castelo");
     expect(field(/Bairro/).disabled).toBe(false);
     expect(field(/Bairro/).tagName).toBe("SELECT");
-    expect(field(/Rua/).disabled).toBe(true);
+    expect(field(/Nome da rua/).disabled).toBe(true);
 
     fireEvent.change(field(/Bairro/), { target: { value: "Centro" } });
-    expect(field(/Rua/).disabled).toBe(false);
+    expect(field(/Nome da rua/).disabled).toBe(false);
     expect(field(/Número/).disabled).toBe(true);
 
-    fireEvent.change(field(/Rua/), { target: { value: "Rua Principal" } });
+    fireEvent.change(field(/Nome da rua/), { target: { value: "Rua Principal" } });
     await waitFor(() => expect(field(/Número/).disabled).toBe(false));
     expect(field(/Complemento/).disabled).toBe(true);
 
@@ -200,9 +211,9 @@ describe("DeliveryForm: ordem e trava dos campos", () => {
 
     expect(field(/Cidade/).value).toBe("Alegre");
     expect(field(/Bairro/).value).toBe("");
-    expect(field(/Rua/).value).toBe("");
+    expect(field(/Nome da rua/).value).toBe("");
     expect(field(/Número/).value).toBe("");
-    expect(field(/Rua/).disabled).toBe(true);
+    expect(field(/Nome da rua/).disabled).toBe(true);
     expect(onPreviousFieldChange).toHaveBeenCalledTimes(1);
   });
 
@@ -226,7 +237,7 @@ describe("DeliveryForm: ordem e trava dos campos", () => {
 
     fireEvent.change(field(/Bairro/), { target: { value: "Castelo III" } });
 
-    expect(field(/Rua/).value).toBe("");
+    expect(field(/Nome da rua/).value).toBe("");
     expect(field(/Número/).value).toBe("");
     expect(onPreviousFieldChange).toHaveBeenCalledTimes(1);
   });
@@ -238,7 +249,7 @@ describe("DeliveryForm: ordem e trava dos campos", () => {
 
     fireEvent.change(field(/Cidade/), { target: { value: "Castelo" } });
 
-    expect(field(/Rua/).value).toBe("Rua Principal");
+    expect(field(/Nome da rua/).value).toBe("Principal");
     expect(onPreviousFieldChange).not.toHaveBeenCalled();
   });
 
@@ -300,13 +311,13 @@ describe("DeliveryForm: ordem e trava dos campos", () => {
       const other = field(/Qual é o seu bairro/);
       expect(other.required).toBe(true);
       expect(other.value).toBe("");
-      expect(field(/Rua/).disabled).toBe(true);
+      expect(field(/Nome da rua/).disabled).toBe(true);
       expect(onPreviousFieldChange).toHaveBeenCalled();
 
       fireEvent.change(other, { target: { value: "Boa Fé" } });
 
       expect(screen.getByTestId("valor-bairro")).toHaveTextContent(/^Boa Fé$/);
-      expect(field(/Rua/).disabled).toBe(false);
+      expect(field(/Nome da rua/).disabled).toBe(false);
       expect((field(/Bairro/) as unknown as HTMLSelectElement).value).toBe("__outro__");
     });
 
@@ -347,7 +358,7 @@ describe("DeliveryForm: ordem e trava dos campos", () => {
       await pickState("ES");
       await pickCity("Castelo");
       fireEvent.change(field(/Bairro/), { target: { value: "Centro" } });
-      fireEvent.change(field(/Rua/), { target: { value: "Rua Principal" } });
+      fireEvent.change(field(/Nome da rua/), { target: { value: "Rua Principal" } });
     }
 
     it("recusa texto sem dígito (vtech) com a mensagem do Sem número", async () => {
@@ -446,7 +457,7 @@ describe("DeliveryForm: ordem e trava dos campos", () => {
 
       fireEvent.change(field(/Referência/), { target: { value: "Ao lado da praça" } });
       fireEvent.change(field(/CEP/), { target: { value: "29360000" } });
-      fireEvent.submit(field(/Rua/).closest("form")!);
+      fireEvent.submit(field(/Nome da rua/).closest("form")!);
 
       await waitFor(() => expect(handleAddAddress).toHaveBeenCalledTimes(1));
       expect(handleAddAddress.mock.calls[0][0]).toMatchObject({
@@ -455,11 +466,192 @@ describe("DeliveryForm: ordem e trava dos campos", () => {
     });
   });
 
+  it("cidade trocada: a lista antiga sai e fica Carregando até a nova chegar", async () => {
+    renderForm({ isLoadingNeighborhoods: true });
+    await pickState("ES");
+    await pickCity("Castelo");
+
+    // Castelo tem opções no Harness, mas a lista ainda está chegando.
+    expect(field(/Bairro/).disabled).toBe(true);
+    expect(screen.queryByRole("option", { name: "Centro" })).toBeNull();
+    expect(screen.getByRole("option", { name: "Carregando bairros..." })).toBeTruthy();
+  });
+
+  it("sem cidade, o bairro é uma lista travada que diz o que falta", () => {
+    renderForm();
+
+    const bairro = field(/Bairro/);
+    expect(bairro.tagName).toBe("SELECT");
+    expect(bairro.disabled).toBe(true);
+    expect(screen.getByRole("option", { name: "Escolha a cidade primeiro" })).toBeTruthy();
+  });
+
+  it("lista de bairros chegando: mostra Carregando, não um campo livre", async () => {
+    renderForm({ isLoadingNeighborhoods: true });
+    await pickState("ES");
+    await pickCity("Castelo");
+
+    const bairro = field(/Bairro/);
+    expect(bairro.tagName).toBe("SELECT");
+    expect(bairro.disabled).toBe(true);
+    expect(screen.getByRole("option", { name: "Carregando bairros..." })).toBeTruthy();
+  });
+
+  describe("tipo de logradouro (LDMF-282)", () => {
+    async function submitStreet() {
+      fireEvent.change(field(/Número/), { target: { value: "45" } });
+      fireEvent.change(field(/CEP/), { target: { value: "29360000" } });
+      fireEvent.submit(field(/Nome da rua/).closest("form")!);
+      await waitFor(() => expect(handleAddAddress).toHaveBeenCalledTimes(1));
+      return handleAddAddress.mock.calls[0][0].street;
+    }
+
+    async function untilStreet() {
+      await pickState("ES");
+      await pickCity("Castelo");
+      fireEvent.change(field(/Bairro/), { target: { value: "Centro" } });
+    }
+
+    it("vem com Rua e salva o logradouro completo", async () => {
+      renderForm();
+      await untilStreet();
+
+      expect(field(/Tipo/).value).toBe("Rua");
+      fireEvent.change(field(/Nome da rua/), { target: { value: "Sete de Setembro" } });
+
+      expect(await submitStreet()).toBe("Rua Sete de Setembro");
+    });
+
+    it("trocar o tipo troca o começo do logradouro", async () => {
+      renderForm();
+      await untilStreet();
+
+      fireEvent.change(field(/Nome da rua/), { target: { value: "Sete de Setembro" } });
+      fireEvent.change(field(/Tipo/), { target: { value: "Avenida" } });
+
+      expect(field(/Nome da rua/).value).toBe("Sete de Setembro");
+      expect(await submitStreet()).toBe("Avenida Sete de Setembro");
+    });
+
+    it("tipo digitado no nome não repete: vai para o seletor", async () => {
+      renderForm();
+      await untilStreet();
+
+      fireEvent.change(field(/Nome da rua/), { target: { value: "Rua Sete de Setembro" } });
+      expect(field(/Nome da rua/).value).toBe("Sete de Setembro");
+
+      fireEvent.change(field(/Nome da rua/), { target: { value: "Av. " } });
+      expect(field(/Tipo/).value).toBe("Avenida");
+      fireEvent.change(field(/Nome da rua/), { target: { value: "Brasil" } });
+
+      expect(await submitStreet()).toBe("Avenida Brasil");
+    });
+
+    it("endereço salvo sem tipo pede o tipo e não ganha Rua escondido", async () => {
+      renderForm({ initialStreet: "MACHADO DE ASSIS" });
+      await waitFor(() => expect(field(/Nome da rua/).disabled).toBe(false));
+
+      expect(field(/Tipo/).value).toBe("");
+      expect(screen.getByText(/Escolha o tipo da rua/)).toBeTruthy();
+      expect(field(/Nome da rua/).value).toBe("MACHADO DE ASSIS");
+
+      fireEvent.change(field(/Tipo/), { target: { value: "Rua" } });
+      expect(screen.queryByText(/Escolha o tipo da rua/)).toBeNull();
+      expect(await submitStreet()).toBe("Rua MACHADO DE ASSIS");
+    });
+
+    it("nome achado com outro tipo pede confirmação", async () => {
+      const onAccept = vi.fn();
+      const onDismiss = vi.fn();
+      renderForm({
+        streetSuggestion: { road: "Avenida Nossa Senhora da Penha", place: "Centro, Castelo - ES" },
+        onAcceptStreetSuggestion: onAccept,
+        onDismissStreetSuggestion: onDismiss,
+      });
+
+      expect(screen.getByText("Avenida Nossa Senhora da Penha")).toBeTruthy();
+      // Só o nome da rua pode ser de qualquer lugar: mostra onde fica.
+      expect(screen.getByRole("status").textContent).toContain(
+        "Avenida Nossa Senhora da Penha, em Centro, Castelo - ES. É essa?",
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Sim, usar esse nome" }));
+      fireEvent.click(screen.getByRole("button", { name: "Manter o que digitei" }));
+
+      expect(onAccept).toHaveBeenCalledTimes(1);
+      expect(onDismiss).toHaveBeenCalledTimes(1);
+    });
+
+    it("pergunta e busca aparecem junto do campo da rua, antes do mapa", () => {
+      const { rerender } = renderForm({ isSearchingAddress: true });
+      const mapLabel = screen.getByText("Localização no mapa");
+      const searching = screen.getByText("Procurando sua rua no mapa...");
+      expect(
+        searching.compareDocumentPosition(mapLabel) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+
+      rerender(
+        <QueryClientProvider client={new QueryClient()}>
+          <Harness streetSuggestion={{ road: "Avenida Brasil", place: "Castelo - ES" }} />
+        </QueryClientProvider>,
+      );
+      const question = screen.getByText(/É essa\?/);
+      expect(
+        question.compareDocumentPosition(screen.getByText("Localização no mapa")) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+      expect(screen.queryByText("Procurando sua rua no mapa...")).toBeNull();
+    });
+  });
+
+  it("abrir o modal não põe o foco (nem o teclado do celular) no CEP", async () => {
+    renderForm();
+    await screen.findByRole("dialog");
+
+    expect(document.activeElement).not.toBe(field(/CEP/));
+  });
+
+  describe("Usar minha localização (perfil e loja)", () => {
+    afterEach(() => {
+      Object.defineProperty(navigator, "geolocation", { value: undefined, configurable: true });
+    });
+
+    it("põe o pino onde o aparelho está, como gesto do cliente", async () => {
+      const applyCoords = vi.fn();
+      Object.defineProperty(navigator, "geolocation", {
+        configurable: true,
+        value: {
+          getCurrentPosition: (ok: PositionCallback) =>
+            ok({ coords: { latitude: -20.6, longitude: -41.2 } } as GeolocationPosition),
+        },
+      });
+      renderForm({ applyCoords });
+
+      fireEvent.click(screen.getByRole("button", { name: "Usar minha localização" }));
+
+      expect(applyCoords).toHaveBeenCalledWith({ lat: -20.6, lng: -41.2 }, "manual");
+    });
+
+    it("sem permissão, explica e pede para arrastar o pino", async () => {
+      Object.defineProperty(navigator, "geolocation", {
+        configurable: true,
+        value: {
+          getCurrentPosition: (_ok: PositionCallback, fail: PositionErrorCallback) =>
+            fail({ code: 1 } as GeolocationPositionError),
+        },
+      });
+      renderForm();
+
+      fireEvent.click(screen.getByRole("button", { name: "Usar minha localização" }));
+
+      expect(await screen.findByText(/Não conseguimos sua localização/)).toBeTruthy();
+    });
+  });
+
   describe("aviso do CEP", () => {
     it("sem aviso, mostra a dica de sempre", () => {
       renderForm();
 
-      expect(screen.getByText("Digite o CEP e os campos serão preenchidos automaticamente")).toBeTruthy();
+      expect(screen.getByText(/Digite o CEP e os campos serão preenchidos/)).toBeTruthy();
       expect(screen.queryByRole("status")).toBeNull();
     });
 
@@ -469,7 +661,7 @@ describe("DeliveryForm: ordem e trava dos campos", () => {
       expect(screen.getByRole("status").textContent).toBe(
         "Este CEP vale para a cidade inteira. Preencha bairro, rua e número abaixo.",
       );
-      expect(screen.queryByText("Digite o CEP e os campos serão preenchidos automaticamente")).toBeNull();
+      expect(screen.queryByText(/Digite o CEP e os campos serão preenchidos/)).toBeNull();
     });
 
     it("enquanto busca, diz que está buscando", () => {

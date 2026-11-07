@@ -44,6 +44,7 @@ import {
   type SavedDeliveryLocation,
 } from "./delivery-address-form";
 import { ThemeToggle } from "../ui/theme-toggle";
+import { useSyncedUserLocation } from "@/hooks/use-synced-user-location";
 import Link from "next/link";
 import { BearDeliveryLogo } from "../ui/bear-delivery-logo";
 import Image from "next/image";
@@ -132,6 +133,10 @@ export function MainHeader({
   const router = useRouter();
   const pathname = usePathname();
   const { showAuthModal, logout } = useAuth();
+  // O endereço padrão de quem está logado vira o ponto do app em qualquer
+  // tela que tenha o cabeçalho, não só na home: quem chega por link direto
+  // da loja ou do checkout via "Escolha seu endereço" mesmo tendo padrão.
+  useSyncedUserLocation();
   const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const storeTotalItems = useCartStore((s) =>

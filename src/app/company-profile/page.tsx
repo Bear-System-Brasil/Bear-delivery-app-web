@@ -1003,10 +1003,14 @@ function CompanyProfileContent() {
                 onCityChange={addressEditor.changeCity}
                 onNeighborhoodChange={addressEditor.changeNeighborhood}
                 isOtherNeighborhood={addressEditor.isOtherNeighborhood}
+                isLoadingNeighborhoods={addressEditor.isLoadingNeighborhoods}
                 onSelectOtherNeighborhood={addressEditor.selectOtherNeighborhood}
                 onOtherNeighborhoodChange={addressEditor.changeOtherNeighborhood}
                 isSearchingAddress={addressEditor.isSearchingAddress}
                 addressNotFound={addressEditor.addressNotFound}
+                streetSuggestion={addressEditor.streetSuggestion}
+                onAcceptStreetSuggestion={addressEditor.acceptStreetSuggestion}
+                onDismissStreetSuggestion={addressEditor.dismissStreetSuggestion}
                 pinZoom={addressEditor.pinZoom}
                 pinRecenterKey={addressEditor.pinRecenterKey}
                 showReference

@@ -121,10 +121,14 @@ export function DeliveryAddressForm({ onSave }: Props) {
         onCityChange={editor.changeCity}
         onNeighborhoodChange={editor.changeNeighborhood}
         isOtherNeighborhood={editor.isOtherNeighborhood}
+        isLoadingNeighborhoods={editor.isLoadingNeighborhoods}
         onSelectOtherNeighborhood={editor.selectOtherNeighborhood}
         onOtherNeighborhoodChange={editor.changeOtherNeighborhood}
         isSearchingAddress={editor.isSearchingAddress}
         addressNotFound={editor.addressNotFound}
+        streetSuggestion={editor.streetSuggestion}
+        onAcceptStreetSuggestion={editor.acceptStreetSuggestion}
+        onDismissStreetSuggestion={editor.dismissStreetSuggestion}
         pinZoom={editor.pinZoom}
         pinRecenterKey={editor.pinRecenterKey}
         zipCodeRequired={false}

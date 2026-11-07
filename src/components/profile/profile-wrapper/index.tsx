@@ -80,6 +80,7 @@ export function ProfileWrapper() {
     applyCoords,
     neighborhoodOptions,
     isLocatingPin,
+    isLoadingNeighborhoods,
     defaultOptionLockedHint,
     stateOptions,
     cityOptions,
@@ -94,6 +95,9 @@ export function ProfileWrapper() {
     changeOtherNeighborhood,
     isSearchingAddress,
     addressNotFound,
+    streetSuggestion,
+    acceptStreetSuggestion,
+    dismissStreetSuggestion,
     pinZoom,
     pinRecenterKey,
     // CEP
@@ -256,12 +260,16 @@ export function ProfileWrapper() {
               onCityChange: changeCity,
               onNeighborhoodChange: changeNeighborhood,
               isOtherNeighborhood,
+              isLoadingNeighborhoods,
               onSelectOtherNeighborhood: selectOtherNeighborhood,
               onOtherNeighborhoodChange: changeOtherNeighborhood,
             }}
             pinStatusProps={{
               isSearchingAddress,
               addressNotFound,
+              streetSuggestion,
+              onAcceptStreetSuggestion: acceptStreetSuggestion,
+              onDismissStreetSuggestion: dismissStreetSuggestion,
               pinZoom,
               pinRecenterKey,
             }}

@@ -13,7 +13,7 @@ import { formatDate, getErrorMessage, onlyNumbers } from "@/utils";
 import { isCompanyAdminRole } from "@/utils/role-helpers";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useAddressEditor } from "./use-address-editor";
 import { useUserAddresses } from "./use-addresses";
@@ -65,6 +65,7 @@ export const useProfileManagement = () => {
         street: addr.street || "",
         number: String(addr.number ?? ""),
         complement: addr.complement || "",
+        reference: addr.reference || "",
         neighborhood: addr.neighborhood || "",
         longitude: addr.longitude ?? undefined,
         latitude: addr.latitude ?? undefined,
@@ -77,6 +78,8 @@ export const useProfileManagement = () => {
   );
   const [isSavingAddress, setIsSavingAddress] = useState(false);
   const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
+  const [editingAddressOriginalReference, setEditingAddressOriginalReference] =
+    useState<string>("");
   const [editingAddressOriginalComplement, setEditingAddressOriginalComplement] =
     useState<string>("");
 
@@ -109,16 +112,30 @@ export const useProfileManagement = () => {
     editingAddressId &&
       addresses.find((addr) => addr.id === editingAddressId)?.isDefault,
   );
-  const defaultOptionLockedHint = editingAddressIsDefault
-    ? DEFAULT_LOCKED_EDITING_HINT
-    : !hasDefaultAddress
-      ? DEFAULT_LOCKED_FIRST_HINT
-      : null;
+  // Lista ainda carregando: não dá para saber se há padrão, então não trava.
+  const defaultOptionLockedHint = isLoadingAddresses
+    ? null
+    : editingAddressIsDefault
+      ? DEFAULT_LOCKED_EDITING_HINT
+      : !hasDefaultAddress
+        ? DEFAULT_LOCKED_FIRST_HINT
+        : null;
   const isDefaultLocked = defaultOptionLockedHint !== null;
 
+  // A trava marca a caixa; se ela destravar (a lista chegou e já tem padrão),
+  // a marca que a trava pôs sai junto - não vale como escolha do cliente.
+  const checkedByLock = useRef(false);
   useEffect(() => {
-    if (addingAddressState.isOpen && isDefaultLocked) {
+    if (!addingAddressState.isOpen) {
+      checkedByLock.current = false;
+      return;
+    }
+    if (isDefaultLocked) {
       addressForm.setValue("isDefault", true);
+      checkedByLock.current = true;
+    } else if (checkedByLock.current) {
+      addressForm.setValue("isDefault", false);
+      checkedByLock.current = false;
     }
   }, [addingAddressState.isOpen, isDefaultLocked, addressForm]);
 
@@ -305,6 +322,7 @@ export const useProfileManagement = () => {
     addressEditor.loadAddress(address);
     setEditingAddressId(address.id);
     setEditingAddressOriginalComplement(address.complement || "");
+    setEditingAddressOriginalReference(address.reference || "");
     addingAddressState.open();
   };
 
@@ -337,6 +355,27 @@ export const useProfileManagement = () => {
       trimmedComplement.length > 0 &&
       trimmedComplement.length < 5;
 
+    // Mesma regra para a referência (o PATCH também exige 5+ caracteres).
+    const trimmedReference = data.reference?.trim() ?? "";
+    const referenceUnchanged =
+      trimmedReference === editingAddressOriginalReference.trim();
+
+    if (
+      editingAddressId &&
+      trimmedReference.length > 0 &&
+      trimmedReference.length < 5 &&
+      !referenceUnchanged
+    ) {
+      toast.error("Referência deve ter pelo menos 5 caracteres (ou ficar vazia)");
+      return;
+    }
+
+    const shouldOmitReference =
+      editingAddressId &&
+      referenceUnchanged &&
+      trimmedReference.length > 0 &&
+      trimmedReference.length < 5;
+
     const pinCoords = addressEditor.getPinForSave(data);
     if (!pinCoords) return;
 
@@ -349,6 +388,9 @@ export const useProfileManagement = () => {
         street: data.street,
         number: data.number,
         complement: shouldOmitComplement ? undefined : data.complement || undefined,
+        // Vazio sai como ausente: "" no PATCH conta como valor e cai no
+        // mínimo de 5 caracteres.
+        reference: shouldOmitReference ? undefined : trimmedReference || undefined,
         neighborhood: data.neighborhood,
         city: data.city,
         state: data.state,
@@ -408,6 +450,7 @@ export const useProfileManagement = () => {
         addressEditor.resetEditor();
         setEditingAddressId(null);
         setEditingAddressOriginalComplement("");
+        setEditingAddressOriginalReference("");
         addingAddressState.close();
 
         toast.success(
@@ -447,6 +490,7 @@ export const useProfileManagement = () => {
     addressEditor.resetEditor();
     setEditingAddressId(null);
     setEditingAddressOriginalComplement("");
+    setEditingAddressOriginalReference("");
     addingAddressState.close();
   };
 
@@ -586,9 +630,13 @@ export const useProfileManagement = () => {
     selectOtherNeighborhood: addressEditor.selectOtherNeighborhood,
     changeOtherNeighborhood: addressEditor.changeOtherNeighborhood,
     isLocatingPin: addressEditor.isLocatingPin,
+    isLoadingNeighborhoods: addressEditor.isLoadingNeighborhoods,
     defaultOptionLockedHint,
     isSearchingAddress: addressEditor.isSearchingAddress,
     addressNotFound: addressEditor.addressNotFound,
+    streetSuggestion: addressEditor.streetSuggestion,
+    acceptStreetSuggestion: addressEditor.acceptStreetSuggestion,
+    dismissStreetSuggestion: addressEditor.dismissStreetSuggestion,
     pinZoom: addressEditor.pinZoom,
     pinRecenterKey: addressEditor.pinRecenterKey,
     // CEP

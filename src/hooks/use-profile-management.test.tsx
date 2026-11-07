@@ -909,6 +909,55 @@ describe("useProfileManagement", () => {
     });
   });
 
+  describe("ponto de referência do cliente", () => {
+    it("sai no POST, sem espaços; vazia não vai", async () => {
+      savedAddresses = [stored("a0", { isDefault: true })];
+      api.address.createUserAddress.mockResolvedValue({ success: true, data: stored("novo") });
+      const { result } = await renderProfile();
+      placePin(result);
+
+      await act(async () => {
+        await result.current.handleAddAddress(formData({ reference: "  Casa amarela ao lado da igreja " }));
+      });
+      expect(api.address.createUserAddress.mock.calls[0][0].reference).toBe(
+        "Casa amarela ao lado da igreja",
+      );
+
+      placePin(result);
+      await act(async () => {
+        await result.current.handleAddAddress(formData({ reference: "" }));
+      });
+      expect(api.address.createUserAddress.mock.calls[1][0].reference).toBeUndefined();
+    });
+
+    it("na edição, referência curta digitada agora é barrada; a herdada é omitida", async () => {
+      savedAddresses = [
+        stored("a1", { isDefault: true, reference: "Bar" } as Partial<Address>),
+        stored("a2"),
+      ];
+      api.address.updateUserAddress.mockResolvedValue({ success: true, data: stored("a1") });
+      const { result } = await renderProfile();
+
+      act(() => result.current.handleEditAddress(result.current.addresses[0]));
+      expect(result.current.addresses[0].reference).toBe("Bar");
+      placePin(result);
+      await act(async () => {
+        await result.current.handleAddAddress(formData({ reference: "Bar" }));
+      });
+      expect(api.address.updateUserAddress.mock.calls[0][1].reference).toBeUndefined();
+
+      act(() => result.current.handleEditAddress(result.current.addresses[0]));
+      placePin(result);
+      await act(async () => {
+        await result.current.handleAddAddress(formData({ reference: "Ali" }));
+      });
+      expect(toast.error).toHaveBeenCalledWith(
+        "Referência deve ter pelo menos 5 caracteres (ou ficar vazia)",
+      );
+      expect(api.address.updateUserAddress).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe("cliente logado sempre com endereço padrão (LDMF-262)", () => {
     it("não exclui o único endereço", async () => {
       vi.stubGlobal("confirm", vi.fn(() => true));
@@ -967,6 +1016,32 @@ describe("useProfileManagement", () => {
       expect(api.address.updateUserAddress.mock.calls[0][1].isDefault).toBe(true);
     });
 
+    it("cancelar a edição não deixa o endereço no próximo Adicionar", async () => {
+      savedAddresses = [stored("a1", { isDefault: true, street: "Rua Antiga", zipCode: "29360000" })];
+      const { result } = await renderProfile();
+
+      act(() => result.current.handleEditAddress(result.current.addresses[0]));
+      await waitFor(() => expect(result.current.addressForm.getValues("street")).toBe("Rua Antiga"));
+      act(() => result.current.handleCloseAddressModal());
+      act(() => result.current.addingAddressState.open());
+
+      expect(result.current.addressForm.getValues("street") ?? "").toBe("");
+      expect(result.current.addressForm.getValues("zipCode") ?? "").toBe("");
+      expect(result.current.addressForm.getValues("city") ?? "").toBe("");
+    });
+
+    it("modal aberto antes da lista carregar não deixa a caixa marcada por engano", async () => {
+      savedAddresses = [stored("a1", { isDefault: true })];
+      api.address.createUserAddress.mockResolvedValue({ success: true, data: stored("novo") });
+      const hook = renderHook(() => useProfileManagement(), { wrapper });
+      // Abre já, com a lista ainda carregando.
+      act(() => hook.result.current.addingAddressState.open());
+      await waitFor(() => expect(hook.result.current.isLoadingAddresses).toBe(false));
+
+      expect(hook.result.current.defaultOptionLockedHint).toBeNull();
+      expect(hook.result.current.addressForm.getValues("isDefault")).toBeFalsy();
+    });
+
     it("com outro padrão, a caixa fica livre", async () => {
       savedAddresses = [stored("a1", { isDefault: true }), stored("a2")];
       const { result } = await renderProfile();
@@ -984,6 +1059,19 @@ describe("useProfileManagement", () => {
         result.current.addressForm.setValue("city", "Castelo");
       });
     }
+
+    it("enquanto a lista de bairros não chega, o bairro fica em Carregando", async () => {
+      let resolveList: (list: null) => void = () => {};
+      vi.mocked(getNeighborhoods).mockImplementation(
+        () => new Promise((resolve) => (resolveList = resolve)),
+      );
+      const { result } = await renderProfile();
+      fillCity(result);
+
+      await waitFor(() => expect(result.current.isLoadingNeighborhoods).toBe(true));
+      await act(async () => resolveList(null));
+      expect(result.current.isLoadingNeighborhoods).toBe(false);
+    });
 
     it("trocar estado, cidade ou bairro limpa os campos seguintes e o pino", async () => {
       const { result } = await renderProfile();
@@ -1389,14 +1477,14 @@ describe("useProfileManagement", () => {
         result.current.addressForm.setValue("number", "45");
       });
 
-      await waitFor(() => expect(nominatimCalls(fetchMock)).toHaveLength(1), { timeout: 3000 });
-      await waitFor(() => expect(result.current.isLocatingPin).toBe(false));
+      // As 4 tentativas (LDMF-282), 1 por segundo: todas caem fora da cidade.
+      await waitFor(() => expect(result.current.addressNotFound).toBe(true), { timeout: 6000 });
+      expect(nominatimCalls(fetchMock)).toHaveLength(4);
       expect(result.current.addressCoords).toEqual({
         coords: { lat: -20.6, lng: -41.2 },
         source: "manual",
       });
-      expect(result.current.addressNotFound).toBe(true);
-    });
+    }, 10000);
 
     it("Nominatim sem resultado avisa e o aviso sai quando o cliente arrasta o pino", async () => {
       const fetchMock = stubNominatim([]);
@@ -1407,15 +1495,73 @@ describe("useProfileManagement", () => {
         result.current.addressForm.setValue("number", "7");
       });
 
-      await waitFor(() => expect(result.current.addressNotFound).toBe(true), { timeout: 3000 });
-      expect(nominatimCalls(fetchMock)).toHaveLength(1);
+      await waitFor(() => expect(result.current.addressNotFound).toBe(true), { timeout: 6000 });
+      // Com e sem número, com e sem o tipo (LDMF-282).
+      expect(nominatimCalls(fetchMock).map((url) => url.searchParams.get("street"))).toEqual([
+        "7 Rua Sem Mapa",
+        "Rua Sem Mapa",
+        "7 Sem Mapa",
+        "Sem Mapa",
+      ]);
       expect(result.current.addressCoords).toBeNull();
       expect(result.current.isSearchingAddress).toBe(false);
 
       placePin(result, { lat: -20.6, lng: -41.2 });
 
       expect(result.current.addressNotFound).toBe(false);
-    });
+    }, 10000);
+
+    it("tipo errado: acha sem o tipo, move o pino e só troca o nome se o cliente aceitar (LDMF-282)", async () => {
+      const fetchMock = vi.fn(async (url: string) => {
+        const street = new URL(url).searchParams.get("street") ?? "";
+        const body = street.includes("Rua")
+          ? []
+          : [
+              {
+                lat: "-20.6045",
+                lon: "-41.2039",
+                address: {
+                  road: "Avenida Nossa Senhora da Penha",
+                  suburb: "Centro",
+                  town: "Castelo",
+                  "ISO3166-2-lvl4": "BR-ES",
+                },
+              },
+            ];
+        return { ok: true, status: 200, json: async () => body };
+      });
+      vi.stubGlobal("fetch", fetchMock);
+      const { result } = await renderProfile();
+      fillCity(result);
+
+      act(() => {
+        result.current.addressForm.setValue("street", "Rua Nossa Senhora da Penha");
+        result.current.addressForm.setValue("number", "120");
+      });
+
+      await waitFor(
+        () =>
+          expect(result.current.streetSuggestion).toEqual({
+            road: "Avenida Nossa Senhora da Penha",
+            place: "Centro, Castelo - ES",
+          }),
+        { timeout: 6000 },
+      );
+      expect(result.current.addressCoords?.coords).toEqual({ lat: -20.6045, lng: -41.2039 });
+      // Nome não troca sozinho.
+      expect(result.current.addressForm.getValues("street")).toBe("Rua Nossa Senhora da Penha");
+
+      const calls = nominatimCalls(fetchMock).length;
+      act(() => result.current.acceptStreetSuggestion());
+
+      expect(result.current.addressForm.getValues("street")).toBe(
+        "Avenida Nossa Senhora da Penha",
+      );
+      expect(result.current.streetSuggestion).toBeNull();
+      // Aceitar não busca de novo: o pino já está na avenida.
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      expect(nominatimCalls(fetchMock)).toHaveLength(calls);
+    }, 10000);
 
     it("zoom de rua para a busca de rua e número, de cidade para o centro da cidade", async () => {
       const fetchMock = vi.fn(async (url: string) => {
@@ -1532,6 +1678,74 @@ describe("useProfileManagement", () => {
       await waitFor(() =>
         expect(result.current.addressForm.getValues("zipCode")).toBe(""),
       );
+    });
+
+    function stubViaCepStreet(results: unknown[]) {
+      const fetchMock = vi.fn(async (url: string) => ({
+        ok: true,
+        status: 200,
+        json: async () => (String(url).includes("viacep.com.br") ? results : []),
+      }));
+      vi.stubGlobal("fetch", fetchMock);
+      return fetchMock;
+    }
+
+    function fillBeloHorizonte(result: ProfileHook, street = "Avenida Afonso Pena") {
+      act(() => {
+        result.current.addressForm.setValue("state", "MG");
+        result.current.addressForm.setValue("city", "Belo Horizonte");
+        result.current.addressForm.setValue("neighborhood", "Funcionários");
+        result.current.addressForm.setValue("street", street);
+      });
+    }
+
+    it("sem CEP, a rua preenche o CEP pela ViaCEP, com aviso (LDMF-258)", async () => {
+      vi.mocked(getNeighborhoods).mockResolvedValue(null);
+      const fetchMock = stubViaCepStreet([
+        { cep: "30130-905", bairro: "Centro" },
+        { cep: "30140-071", bairro: "Funcionários" },
+      ]);
+      const { result } = await renderProfile();
+      fillBeloHorizonte(result);
+
+      await waitFor(
+        () => expect(result.current.addressForm.getValues("zipCode")).toBe("30140-071"),
+        { timeout: 4000 },
+      );
+      expect(result.current.zipCodeHint).toBe("Preenchemos o CEP pela rua. Confira se está certo.");
+      // O CEP preenchido não busca o CEP de volta (trocaria a rua digitada).
+      expect(fetchMock.mock.calls.some(([url]) => /brasilapi/.test(String(url)))).toBe(false);
+      expect(result.current.addressForm.getValues("street")).toBe("Avenida Afonso Pena");
+    });
+
+    it("CEP digitado pelo cliente não é trocado pela busca da rua", async () => {
+      vi.mocked(getNeighborhoods).mockResolvedValue(null);
+      const fetchMock = stubViaCepStreet([{ cep: "30130-905", bairro: "Centro" }]);
+      const { result } = await renderProfile();
+      act(() => {
+        result.current.addressForm.setValue("zipCode", "30130-100");
+      });
+      fillBeloHorizonte(result);
+
+      await new Promise((resolve) => setTimeout(resolve, 1600));
+      expect(result.current.addressForm.getValues("zipCode")).toBe("30130-100");
+      expect(fetchMock.mock.calls.some(([url]) => /viacep\.com\.br\/ws\/MG/.test(String(url)))).toBe(false);
+    });
+
+    it("rua sem CEP achado: avisa para digitar o CEP", async () => {
+      vi.mocked(getNeighborhoods).mockResolvedValue(null);
+      stubViaCepStreet([]);
+      const { result } = await renderProfile();
+      fillBeloHorizonte(result, "Rua Que Nao Existe");
+
+      await waitFor(
+        () =>
+          expect(result.current.zipCodeHint).toBe(
+            "Não achamos o CEP desta rua. Digite o CEP para salvar.",
+          ),
+        { timeout: 4000 },
+      );
+      expect(result.current.addressForm.getValues("zipCode") ?? "").toBe("");
     });
 
     it("CEP completo busca na BrasilAPI e preenche o endereço", async () => {
