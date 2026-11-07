@@ -28,6 +28,10 @@ export type CityRef = {
 export type NominatimAddress = {
   /** Nome da via, com o tipo ("Avenida Nossa Senhora da Penha"). */
   road?: string;
+  /** Bairro da via, no nome que o OpenStreetMap usa. */
+  suburb?: string;
+  neighbourhood?: string;
+  quarter?: string;
   city?: string;
   town?: string;
   village?: string;
@@ -41,6 +45,8 @@ export type StreetMatch = {
   coords: Coords;
   /** Nome da via no OpenStreetMap, quando veio. */
   road: string | null;
+  /** Bairro da via no OpenStreetMap, quando veio. */
+  area: string | null;
   /**
    * Achou só sem o tipo escolhido (ou o endereço não tinha tipo): o nome da
    * via pode ser outro ("Avenida", não "Rua") e o cliente precisa confirmar.
@@ -150,7 +156,7 @@ export function createNominatimClient({
   async function locateResult(
     params: Record<string, string>,
     ref: CityRef,
-  ): Promise<{ coords: Coords; road: string | null } | null> {
+  ): Promise<{ coords: Coords; road: string | null; area: string | null } | null> {
     try {
       const result = await search(params);
       if (!result || !isInCity(result.address, ref)) return null;
@@ -159,7 +165,14 @@ export function createNominatimClient({
       if (!coords) return null;
 
       const road = result.address?.road?.trim();
-      return { coords, road: road || null };
+      const area = [
+        result.address?.suburb,
+        result.address?.neighbourhood,
+        result.address?.quarter,
+      ]
+        .map((value) => value?.trim())
+        .find(Boolean);
+      return { coords, road: road || null, area: area || null };
     } catch {
       return null;
     }

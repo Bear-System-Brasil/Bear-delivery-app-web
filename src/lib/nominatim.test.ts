@@ -185,8 +185,21 @@ describe("findStreet: tentativas de rua (LDMF-282)", () => {
     expect(match).toEqual({
       coords: { lat: -20.6, lng: -41.2 },
       road: "Avenida Nossa Senhora da Penha",
+      area: null,
       withoutChosenType: true,
     });
+  });
+
+  it("devolve o bairro da via (suburb, neighbourhood ou quarter)", async () => {
+    const comBairro = {
+      ...inCastelo,
+      address: { ...inCastelo.address, road: "Rua A", neighbourhood: "Santo Andrezinho" },
+    };
+    const client = createNominatimClient({ fetchFn: sequence([comBairro]), ...fakeClock() });
+
+    const match = await client.findStreet({ ...CASTELO, street: "Rua A", number: "1" });
+
+    expect(match?.area).toBe("Santo Andrezinho");
   });
 
   it("no máximo 4 chamadas, e nenhuma acha: null", async () => {

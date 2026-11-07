@@ -14,6 +14,7 @@ import type { AddressFieldLocks } from "@/hooks/use-address-fields";
 import { isNoNumber, NO_NUMBER } from "@/hooks/use-form-validation";
 import type { IbgeState } from "@/services/ibge";
 import { Coords } from "@/types/restaurant";
+import type { StreetSuggestion } from "@/hooks/use-address-pin";
 import { cn } from "@/lib/utils";
 import {
   DEFAULT_STREET_TYPE,
@@ -32,7 +33,7 @@ export type PinStatusProps = {
   isSearchingAddress?: boolean;
   addressNotFound?: boolean;
   /** Logradouro achado com outro nome, para o cliente confirmar (LDMF-282). */
-  streetSuggestion?: string | null;
+  streetSuggestion?: StreetSuggestion | null;
   onAcceptStreetSuggestion?: () => void;
   onDismissStreetSuggestion?: () => void;
   pinZoom?: number;
@@ -477,7 +478,8 @@ export function AddressCoreFields({
             className="col-span-2 space-y-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-xs dark:border-amber-700 dark:bg-amber-950/40"
           >
             <p>
-              Encontramos <strong>{streetSuggestion}</strong>. É essa?
+              Encontramos <strong>{streetSuggestion.road}</strong>, em{" "}
+              {streetSuggestion.place}. É essa?
             </p>
             <div className="flex flex-wrap gap-2">
               <Button

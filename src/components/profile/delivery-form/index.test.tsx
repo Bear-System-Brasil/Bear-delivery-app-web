@@ -34,7 +34,7 @@ type Extra = {
   showReference?: boolean;
   showDefaultOption?: boolean;
   defaultOptionLockedHint?: string | null;
-  streetSuggestion?: string | null;
+  streetSuggestion?: { road: string; place: string } | null;
   isLoadingNeighborhoods?: boolean;
   /** Endereço salvo aberto para edição (só para o teste). */
   initialStreet?: string;
@@ -552,12 +552,16 @@ describe("DeliveryForm: ordem e trava dos campos", () => {
       const onAccept = vi.fn();
       const onDismiss = vi.fn();
       renderForm({
-        streetSuggestion: "Avenida Nossa Senhora da Penha",
+        streetSuggestion: { road: "Avenida Nossa Senhora da Penha", place: "Centro, Castelo - ES" },
         onAcceptStreetSuggestion: onAccept,
         onDismissStreetSuggestion: onDismiss,
       });
 
       expect(screen.getByText("Avenida Nossa Senhora da Penha")).toBeTruthy();
+      // Só o nome da rua pode ser de qualquer lugar: mostra onde fica.
+      expect(screen.getByRole("status").textContent).toContain(
+        "Avenida Nossa Senhora da Penha, em Centro, Castelo - ES. É essa?",
+      );
       fireEvent.click(screen.getByRole("button", { name: "Sim, usar esse nome" }));
       fireEvent.click(screen.getByRole("button", { name: "Manter o que digitei" }));
 
@@ -575,7 +579,7 @@ describe("DeliveryForm: ordem e trava dos campos", () => {
 
       rerender(
         <QueryClientProvider client={new QueryClient()}>
-          <Harness streetSuggestion="Avenida Brasil" />
+          <Harness streetSuggestion={{ road: "Avenida Brasil", place: "Castelo - ES" }} />
         </QueryClientProvider>,
       );
       const question = screen.getByText(/É essa\?/);

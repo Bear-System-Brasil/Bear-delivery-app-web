@@ -1473,6 +1473,7 @@ describe("useProfileManagement", () => {
                 lon: "-41.2039",
                 address: {
                   road: "Avenida Nossa Senhora da Penha",
+                  suburb: "Centro",
                   town: "Castelo",
                   "ISO3166-2-lvl4": "BR-ES",
                 },
@@ -1490,7 +1491,11 @@ describe("useProfileManagement", () => {
       });
 
       await waitFor(
-        () => expect(result.current.streetSuggestion).toBe("Avenida Nossa Senhora da Penha"),
+        () =>
+          expect(result.current.streetSuggestion).toEqual({
+            road: "Avenida Nossa Senhora da Penha",
+            place: "Centro, Castelo - ES",
+          }),
         { timeout: 6000 },
       );
       expect(result.current.addressCoords?.coords).toEqual({ lat: -20.6045, lng: -41.2039 });

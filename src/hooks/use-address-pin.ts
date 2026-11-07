@@ -27,6 +27,14 @@ export const CITY_ZOOM = 13;
 
 export type PinSource = "neighborhood" | "geocode";
 
+/** Via achada com outro nome, para o cliente confirmar (LDMF-282). */
+export type StreetSuggestion = {
+  /** Logradouro como está no mapa ("Avenida Nossa Senhora da Penha"). */
+  road: string;
+  /** Onde fica: bairro, quando o mapa sabe, e "Cidade - UF". */
+  place: string;
+};
+
 export type AddressPinFields = {
   state?: string;
   city?: string;
@@ -85,7 +93,8 @@ export function useAddressPin({ fields, onPin, otherNeighborhood = false }: Opti
   const [addressNotFound, setAddressNotFound] = useState(false);
   // Rua achada só sem o tipo escolhido, com outro nome ("Avenida ..."): o
   // pino já foi para lá, mas o nome só troca se o cliente aceitar (LDMF-282).
-  const [streetSuggestion, setStreetSuggestion] = useState<string | null>(null);
+  const [streetSuggestion, setStreetSuggestion] =
+    useState<StreetSuggestion | null>(null);
 
   const onPinRef = useRef(onPin);
   onPinRef.current = onPin;
@@ -212,7 +221,15 @@ export function useAddressPin({ fields, onPin, otherNeighborhood = false }: Opti
         match.road &&
         !isSameStreet(match.road, street)
       ) {
-        setStreetSuggestion(match.road);
+        // Onde fica, além do nome: "Avenida X" sozinho pode ser de qualquer
+        // lugar. A busca já só aceita ponto dentro da cidade escolhida; o
+        // bairro (do OSM), a cidade e a UF mostram isso ao cliente.
+        setStreetSuggestion({
+          road: match.road,
+          place: [match.area, `${city} - ${state.toUpperCase()}`]
+            .filter(Boolean)
+            .join(", "),
+        });
       }
     }, ADDRESS_SEARCH_DELAY_MS);
 
@@ -277,7 +294,7 @@ export function useAddressPin({ fields, onPin, otherNeighborhood = false }: Opti
    * e marca como já buscado (o pino já está nele, não busca de novo).
    */
   const acceptStreetSuggestion = useCallback(() => {
-    const road = streetSuggestion;
+    const road = streetSuggestion?.road;
     if (!road) return null;
 
     baseline.current.address = addressKey({
