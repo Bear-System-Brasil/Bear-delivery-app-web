@@ -331,7 +331,9 @@ export function AddressCoreFields({
         <label htmlFor="address-neighborhood" className="text-sm font-medium">
           Bairro *
         </label>
-        {isLoadingNeighborhoods && !neighborhoodOptions ? (
+        {/* Carregando vale também com uma lista na tela: ela é da cidade
+            anterior até a nova chegar. */}
+        {isLoadingNeighborhoods ? (
           <select
             id="address-neighborhood"
             disabled

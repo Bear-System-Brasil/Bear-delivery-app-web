@@ -465,6 +465,17 @@ describe("DeliveryForm: ordem e trava dos campos", () => {
     });
   });
 
+  it("cidade trocada: a lista antiga sai e fica Carregando até a nova chegar", async () => {
+    renderForm({ isLoadingNeighborhoods: true });
+    await pickState("ES");
+    await pickCity("Castelo");
+
+    // Castelo tem opções no Harness, mas a lista ainda está chegando.
+    expect(field(/Bairro/).disabled).toBe(true);
+    expect(screen.queryByRole("option", { name: "Centro" })).toBeNull();
+    expect(screen.getByRole("option", { name: "Carregando bairros..." })).toBeTruthy();
+  });
+
   it("lista de bairros chegando: mostra Carregando, não um campo livre", () => {
     renderForm({ isLoadingNeighborhoods: true });
 
