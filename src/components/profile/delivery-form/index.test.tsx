@@ -524,6 +524,27 @@ describe("DeliveryForm: ordem e trava dos campos", () => {
       expect(onAccept).toHaveBeenCalledTimes(1);
       expect(onDismiss).toHaveBeenCalledTimes(1);
     });
+
+    it("pergunta e busca aparecem junto do campo da rua, antes do mapa", () => {
+      const { rerender } = renderForm({ isSearchingAddress: true });
+      const mapLabel = screen.getByText("Localização no mapa");
+      const searching = screen.getByText("Procurando sua rua no mapa...");
+      expect(
+        searching.compareDocumentPosition(mapLabel) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+
+      rerender(
+        <QueryClientProvider client={new QueryClient()}>
+          <Harness streetSuggestion="Avenida Brasil" />
+        </QueryClientProvider>,
+      );
+      const question = screen.getByText(/É essa\?/);
+      expect(
+        question.compareDocumentPosition(screen.getByText("Localização no mapa")) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+      expect(screen.queryByText("Procurando sua rua no mapa...")).toBeNull();
+    });
   });
 
   describe("aviso do CEP", () => {

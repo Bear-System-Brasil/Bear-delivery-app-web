@@ -407,6 +407,40 @@ export function AddressCoreFields({
             {errors.street.message}
           </p>
         )}
+        {/* Retorno da busca junto do campo: é para cá que o cliente olha
+            enquanto digita, não para o mapa lá embaixo (LDMF-282). */}
+        {isSearchingAddress && !streetSuggestion && (
+          <p className="col-span-2 text-xs text-muted-foreground">
+            Procurando sua rua no mapa...
+          </p>
+        )}
+        {streetSuggestion && (
+          <div
+            role="status"
+            className="col-span-2 space-y-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-xs dark:border-amber-700 dark:bg-amber-950/40"
+          >
+            <p>
+              Encontramos <strong>{streetSuggestion}</strong>. É essa?
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                size="sm"
+                onClick={onAcceptStreetSuggestion}
+              >
+                Sim, usar esse nome
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={onDismissStreetSuggestion}
+              >
+                Manter o que digitei
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Número */}
@@ -496,33 +530,6 @@ export function AddressCoreFields({
             Não encontramos esse endereço no mapa. Arraste o pino até a{" "}
             {placeLabel}.
           </p>
-        )}
-        {streetSuggestion && (
-          <div
-            role="status"
-            className="space-y-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-xs dark:border-amber-700 dark:bg-amber-950/40"
-          >
-            <p>
-              Encontramos <strong>{streetSuggestion}</strong>. É essa?
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                size="sm"
-                onClick={onAcceptStreetSuggestion}
-              >
-                Sim, usar esse nome
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={onDismissStreetSuggestion}
-              >
-                Manter o que digitei
-              </Button>
-            </div>
-          </div>
         )}
         {!addressCoords && (
           <p className="text-xs font-medium text-destructive">
