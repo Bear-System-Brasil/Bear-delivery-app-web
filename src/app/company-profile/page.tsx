@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { GradientButton } from "@/components/ui/custom";
-import { Input } from "@/components/ui/input";
+import { Input, type InputProps } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -52,7 +52,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
-import { type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 // Valor-sentinela do item "remover" no seletor: o Radix Select não aceita
 // item com value vazio, então o "limpar" precisa de um valor próprio.
@@ -174,14 +174,14 @@ function IconInput({
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   className?: string;
-} & React.InputHTMLAttributes<HTMLInputElement>) {
+} & InputProps) {
   return (
     <div className={className}>
       <Label className="mb-1.5 block text-xs font-semibold text-foreground">
         {label}
       </Label>
       <div className="relative">
-        <Icon className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+        <Icon className="pointer-events-none absolute left-3 top-1/2 z-10 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
         <Input
           {...inputProps}
           className="h-9 rounded-md border-border bg-background pl-9 pr-3 text-[13px] text-foreground disabled:cursor-default disabled:opacity-70"
@@ -229,6 +229,8 @@ function CompanyProfileContent() {
     updatePasswordField,
     resetPasswordForm,
   } = useCompanyProfileManagement();
+
+  const [showNewPassword, setShowNewPassword] = useState(false);
 
   // O badge Aberto/Fechado vem da rota pública de horários, não mais do
   // `isOpen` que vinha junto com GET /company.
@@ -1061,6 +1063,8 @@ function CompanyProfileContent() {
                       updatePasswordField("newPassword", e.target.value)
                     }
                     placeholder="Digite a nova senha"
+                    isPasswordVisible={showNewPassword}
+                    onTogglePasswordVisibility={() => setShowNewPassword((prev) => !prev)}
                   />
                   {passwordErrors.length > 0 && (
                     <div className="space-y-1 text-[11.5px] text-destructive">
@@ -1081,6 +1085,8 @@ function CompanyProfileContent() {
                       updatePasswordField("confirmPassword", e.target.value)
                     }
                     placeholder="Digite a nova senha novamente"
+                    isPasswordVisible={showNewPassword}
+                    showPasswordToggle={false}
                   />
                   <div className="flex gap-2">
                     <Button
