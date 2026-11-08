@@ -751,6 +751,20 @@ export const useCheckoutProcess = () => {
         return;
       }
 
+      // Teto de quantidade (LDMF-333) no carrinho do back, que é o que vai
+      // ser finalizado: o desta tela pode estar velho se outra aba (ou uma
+      // chamada direta) somou itens depois que o checkout abriu.
+      const backendLimitError = cartResponse.success
+        ? getCartLimitError(
+            (cartResponse.data as { orderedItems?: unknown } | undefined)
+              ?.orderedItems,
+          )
+        : null;
+      if (backendLimitError) {
+        showCheckoutError(backendLimitError);
+        return;
+      }
+
       // Disponibilidade dos itens (LDMF-444): o carrinho local nao sabe se um
       // produto ficou indisponivel depois de adicionado, e o backend finaliza
       // mesmo assim. Conferimos agora contra a lista fresca da loja. Se a busca

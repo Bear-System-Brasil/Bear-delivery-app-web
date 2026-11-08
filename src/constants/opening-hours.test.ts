@@ -1,9 +1,13 @@
+import type { OpeningHoursResponse } from "@/services/api";
 import {
   DayHours,
   getNextOpeningLabel,
+  getStoreClock,
   getTodayKey,
+  isOpenBySchedule,
   parseOpeningHours,
   resolveRestaurantOpenStatus,
+  toDayHours,
 } from "./opening-hours";
 
 describe("parseOpeningHours", () => {
@@ -132,5 +136,83 @@ describe("resolveRestaurantOpenStatus", () => {
       isOpen: true,
       nextOpeningLabel: null,
     });
+  });
+});
+
+describe("isOpenBySchedule e status pela grade (LDMF-469)", () => {
+  // Quarta, 04/11/2026. São Paulo é UTC-3: 15:00Z = 12:00 em SP.
+  const at = (spTime: string) =>
+    new Date(`2026-11-04T${spTime}:00-03:00`);
+  const wed = (patch: Partial<DayHours> = {}): DayHours[] =>
+    toDayHours([
+      {
+        day: 3,
+        openTime: "11:00",
+        closeTime: "23:00",
+        ...patch,
+      },
+    ]);
+
+  it("aberto dentro do horário, com as duas pontas incluídas (igual ao back)", () => {
+    expect(isOpenBySchedule(wed(), at("12:00"))).toBe(true);
+    expect(isOpenBySchedule(wed(), at("11:00"))).toBe(true);
+    expect(isOpenBySchedule(wed(), at("23:00"))).toBe(true);
+  });
+
+  it("fechado antes de abrir e depois de fechar", () => {
+    expect(isOpenBySchedule(wed(), at("10:59"))).toBe(false);
+    expect(isOpenBySchedule(wed(), at("23:01"))).toBe(false);
+  });
+
+  it("fechado na pausa, com as duas pontas incluídas (igual ao back)", () => {
+    const hours = wed({ breakStart: "14:00", breakEnd: "15:00" } as Partial<DayHours>);
+    expect(isOpenBySchedule(hours, at("13:59"))).toBe(true);
+    expect(isOpenBySchedule(hours, at("14:00"))).toBe(false);
+    expect(isOpenBySchedule(hours, at("15:00"))).toBe(false);
+    expect(isOpenBySchedule(hours, at("15:01"))).toBe(true);
+  });
+
+  it("no minuto do fim da pausa o rótulo ainda é \"Abre hoje\", não amanhã", () => {
+    const hours = wed({ breakStart: "14:00", breakEnd: "15:00" } as Partial<DayHours>);
+    expect(getNextOpeningLabel(hours, at("14:59"))).toBe("Abre hoje às 15:00");
+    expect(getNextOpeningLabel(hours, at("15:00"))).toBe("Abre hoje às 15:00");
+  });
+
+  it("dia sem horário cadastrado é fechado", () => {
+    const thursdayOnly = toDayHours([{ day: 4, openTime: "00:00", closeTime: "23:59" }]);
+    expect(isOpenBySchedule(thursdayOnly, at("12:00"))).toBe(false);
+  });
+
+  it("usa o relógio de São Paulo, não o do aparelho", () => {
+    // 02:30Z de quinta = 23:30 de quarta em SP: fechado (fecha 23:00), e
+    // o dia certo é quarta, não quinta.
+    expect(getStoreClock(new Date("2026-11-05T02:30:00Z"))).toEqual({
+      dayNumber: 3,
+      minute: 23 * 60 + 30,
+    });
+    expect(isOpenBySchedule(wed(), new Date("2026-11-05T02:30:00Z"))).toBe(false);
+  });
+
+  it("o status ignora o isOpen guardado no back e segue a grade", () => {
+    const response = {
+      isOpen: true, // guardado, desatualizado
+      linkedToCashRegister: false,
+      days: [{ day: 3, openTime: "11:00", closeTime: "23:00", breakStart: "11:52", breakEnd: "23:52" }],
+    } as unknown as OpeningHoursResponse;
+    const status = resolveRestaurantOpenStatus(response, null, at("12:00"));
+    expect(status.isOpen).toBe(false);
+    expect(status.reason).toContain("Restaurante fechado");
+  });
+
+  it("loja ligada ao caixa continua seguindo o isOpen do back", () => {
+    const response = {
+      isOpen: true,
+      linkedToCashRegister: true,
+      days: [],
+    } as unknown as OpeningHoursResponse;
+    expect(resolveRestaurantOpenStatus(response, null, at("03:00")).isOpen).toBe(true);
+    expect(
+      resolveRestaurantOpenStatus({ ...response, isOpen: false }, null, at("12:00")).isOpen,
+    ).toBe(false);
   });
 });
