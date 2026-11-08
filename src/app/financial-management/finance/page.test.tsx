@@ -54,7 +54,9 @@ const HOOK = {
   isFailed: (p: Payment) => p.status === "FAILED",
 };
 
-vi.mock("@/hooks", () => ({ usePayment: () => HOOK }));
+vi.mock("@/hooks/use-payment", () => ({
+  usePayment: () => HOOK,
+}))
 
 const AUTH = { user: { role: "manager" } as { role: string } | null };
 vi.mock("@/stores", () => ({
@@ -86,8 +88,6 @@ const { default: FinancePage } = await import("./page");
 /** A tabela (desktop) fica escondida por CSS, mas existe no DOM; o card do celular também. */
 const changeLinks = () => screen.queryAllByRole("button", { name: "Alterar" });
 
-// Fica antes do describe de alterar forma: o PR do LDMF-391 acrescenta
-// teste no fim do arquivo, e os dois no mesmo lugar dariam conflito.
 describe("Finanças - Atualizar do header (LDMF-392)", () => {
   beforeEach(() => {
     fetchPaymentsByFilters.mockReset();
@@ -121,8 +121,7 @@ describe("Finanças - Atualizar do header (LDMF-392)", () => {
 
     await user.type(screen.getByPlaceholderText("Buscar por pedido"), "order-1");
     await user.click(screen.getByRole("button", { name: "Buscar" }));
-    // O 429 encurta pra "Limpar"; aceita os dois rótulos.
-    await user.click(screen.getByRole("button", { name: /^Limpar/ }));
+    await user.click(screen.getByRole("button", { name: "Limpar" }));
     fetchPaymentsByFilters.mockClear();
 
     await user.click(screen.getByRole("button", { name: "Atualizar" }));

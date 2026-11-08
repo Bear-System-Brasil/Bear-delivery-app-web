@@ -29,14 +29,17 @@ import { StockQuantityInput } from "@/components/ui/stock-quantity-input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { isUnlimitedStock, UNLIMITED_STOCK } from "@/lib/unlimited-stock";
-import {
-  useMenuManagement,
-  useProductAddOns,
-  useProductVariations,
-  type MenuModalTab,
-} from "@/hooks";
+import { CustomizeOrder } from "@/components/customize-order/customize-order";
+import { MenuAppPreview } from "@/components/menu-app-preview";
+import { useMenuManagement, type MenuModalTab } from "@/hooks/use-menu-management";
+import { useProductAddOns } from "@/hooks/use-product-add-ons";
+import { useProductVariations } from "@/hooks/use-product-variations";
+import { groupMenuByCategory } from "@/lib/menu-grouping";
+import { cn } from "@/lib/utils";
+import type { Product } from "@/services/api";
 import {
   Building2,
+  Eye,
   GripHorizontal,
   Loader2,
   MoveHorizontal,
@@ -84,6 +87,7 @@ function MenuManagementContent() {
 
   const {
     products,
+    allProducts,
     categories,
     companyId,
     isLoading: loading,
@@ -118,6 +122,25 @@ function MenuManagementContent() {
     draftAddOns,
     setDraftAddOns,
   } = useMenuManagement();
+
+  // Prévia interativa do app (Fase 2, LDMF-454): mesmos cards do cliente,
+  // read-only, num painel que abre/fecha. Usa a lista cheia (allProducts), e
+  // não a filtrada pela busca/aba do admin, pra refletir o que o cliente vê.
+  // O prato abre em modo read-only (CustomizeOrder preview), igual à Categoria.
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewItem, setPreviewItem] = useState<Product | null>(null);
+
+  const previewCategoryMap = useMemo(
+    () =>
+      Object.fromEntries(
+        categories.map((category) => [category.id, category.name]),
+      ),
+    [categories],
+  );
+  const { groupedItems: previewGrouped, categories: previewCats } = useMemo(
+    () => groupMenuByCategory(allProducts, previewCategoryMap),
+    [allProducts, previewCategoryMap],
+  );
 
   const editingProductId = editingProduct?.id ?? null;
   const { data: existingVariations = [] } = useProductVariations(
@@ -469,7 +492,7 @@ function MenuManagementContent() {
     <AdminPageLayout
       title="Cardápio"
       icon={UtensilsCrossed}
-      mainClassName="px-4 pb-20 pt-5 sm:px-6 md:pb-10 lg:pl-[252px] lg:pr-8 lg:pt-[26px]"
+      mainClassName="px-4 pb-20 pt-5 sm:px-6 md:pb-10 lg:px-8 lg:pt-[26px]"
       subtitle="Pratos e itens que o cliente vê no app"
     >
       <div className="mx-auto max-w-[1180px]">
@@ -493,6 +516,16 @@ function MenuManagementContent() {
               {availableCount}{" "}
               {availableCount === 1 ? "disponível" : "disponíveis"}
             </span>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowPreview(true)}
+              className="h-[34px] flex-1 cursor-pointer rounded-[9px] border-border bg-card px-3 text-[12.5px] font-bold text-foreground shadow-none transition-colors hover:border-brand-200 dark:hover:border-brand-800 hover:bg-card hover:text-brand-500 sm:flex-none"
+            >
+              <Eye className="h-4 w-4" />
+              Prévia
+            </Button>
+
             <Button
               asChild
               variant="outline"
@@ -1100,6 +1133,29 @@ function MenuManagementContent() {
           </div>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Prévia interativa do app (Fase 2, LDMF-454): mesmos cards read-only
+          do cliente; tela cheia no celular, moldura de celular no PC.
+          O prato abre no modal read-only do cliente (CustomizeOrder preview),
+          montado como irmão no topo pra não aninhar diálogos. */}
+      <MenuAppPreview
+        open={showPreview}
+        onOpenChange={setShowPreview}
+        categories={previewCats}
+        groupedItems={previewGrouped}
+        onSelectItem={setPreviewItem}
+      />
+
+      {previewItem && (
+        <CustomizeOrder
+          preview
+          productData={previewItem}
+          isModalOpen
+          setIsModalOpen={(open) => {
+            if (!open) setPreviewItem(null);
+          }}
+        />
+      )}
     </AdminPageLayout>
   );
 }

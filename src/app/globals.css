@@ -125,6 +125,10 @@
   --color-brand-900: oklch(40% 0.10 38);
   --color-brand-950: oklch(30% 0.07 38);
   --color-brand-deep: oklch(58% 0.18 42); /* laranja quente, não marrom */
+
+  /* Largura do menu lateral da gestão. Gera w-sidebar e ml-sidebar: o menu e
+     o recuo das telas leem daqui, então mudar a largura é mexer só nesta linha. */
+  --spacing-sidebar: 216px;
 }
 
 @theme inline {

@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 
-import { OrderInfo } from "@/hooks";
+import { OrderInfo } from "@/hooks/use-order-status";
 
 type Props = {
   order: OrderInfo | null;

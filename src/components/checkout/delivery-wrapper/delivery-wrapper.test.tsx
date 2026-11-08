@@ -19,10 +19,12 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 vi.mock("@/contexts/auth-provider", () => ({ useAuth: () => auth }));
 
-vi.mock("@/hooks", () => ({
+vi.mock("@/hooks/use-cart-actions", () => ({
   useCartActions: () => cart,
+}))
+vi.mock("@/hooks/use-checkout-process", () => ({
   useCheckoutProcess: () => checkout,
-}));
+}))
 
 // Filhos viram marcadores: aqui só importa a orquestração entre as etapas.
 vi.mock("@/components/checkout/delivery-form", () => ({

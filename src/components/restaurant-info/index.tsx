@@ -32,14 +32,12 @@ import {
   toDayHours,
   type RestaurantOpenStatus,
 } from "@/constants/opening-hours";
-import {
-  useAllCategories,
-  useCartActions,
-  useCompanyProducts,
-  usePublicCompanyProductVariations,
-  useRestaurant,
-  useRestaurantOpeningHours,
-} from "@/hooks";
+import { useAllCategories } from "@/hooks/use-categories";
+import { useCartActions } from "@/hooks/use-cart-actions";
+import { useCompanyProducts } from "@/hooks/use-products";
+import { usePublicCompanyProductVariations } from "@/hooks/use-product-variations";
+import { useRestaurant } from "@/hooks/use-restaurants";
+import { useRestaurantOpeningHours } from "@/hooks/use-opening-hours";
 import { useFavoritesStore } from "@/stores";
 import { useAuthStore } from "@/stores/auth-store";
 import { formatCurrency } from "@/utils/format-currency";

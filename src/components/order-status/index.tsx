@@ -1,5 +1,5 @@
 import { LoadingPage } from "@/components/order-status/loading";
-import { OrderInfo, OrderStatus as OrderStatusType } from "@/hooks";
+import { OrderInfo, OrderStatus as OrderStatusType } from "@/hooks/use-order-status";
 import { formatCurrency, formatPhoneDisplay } from "@/utils";
 import { Loader2, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
