@@ -93,7 +93,10 @@ vi.mock("@/contexts/confirm-provider", () => ({
 }));
 
 vi.mock("next/image", () => ({
-  default: (props: any) => <img {...props} />,
+  default: ({ alt = "", src = "" }: { alt?: string; src?: string }) => (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img alt={alt} src={src} />
+  ),
 }));
 
 import MenuManagementPage from "./page";

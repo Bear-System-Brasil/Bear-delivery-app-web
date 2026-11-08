@@ -179,7 +179,7 @@ export const useCompanyProfileManagement = () => {
         } else {
           setProfileError(response.message || "Erro ao carregar perfil");
         }
-      } catch (error) {
+      } catch (_error) {
         setProfileError("Erro de conexão ao carregar perfil");
       } finally {
         setIsLoadingProfile(false);
@@ -207,7 +207,7 @@ export const useCompanyProfileManagement = () => {
       } else if (!response.success) {
         setAddresses([]);
       }
-    } catch (error) {
+    } catch (_error) {
       setAddresses([]);
     } finally {
       setIsLoadingAddresses(false);

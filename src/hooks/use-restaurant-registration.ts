@@ -135,7 +135,7 @@ export const useRestaurantRegistration = () => {
         try {
           const jsonStr = JSON.stringify(msgObj, null, 2)
           errorMessage = `Erro ao cadastrar: ${jsonStr}`
-        } catch (e) {
+        } catch (_e) {
           errorMessage = 'Erro ao cadastrar restaurante. Verifique os dados e tente novamente.'
         }
       }

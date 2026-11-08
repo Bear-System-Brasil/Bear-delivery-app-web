@@ -119,7 +119,7 @@ describe("useCartActions", () => {
             closeTime: "23:59",
           },
         ],
-      } as any,
+      } as unknown as NonNullable<Awaited<ReturnType<typeof apiService.openingHours.getByCompany>>["data"]>,
     });
   });
 
@@ -160,7 +160,7 @@ describe("useCartActions", () => {
               closeTime: "23:00",
             },
           ],
-        } as any,
+        } as unknown as NonNullable<Awaited<ReturnType<typeof apiService.openingHours.getByCompany>>["data"]>,
       });
 
       const { result } = renderCartActions();

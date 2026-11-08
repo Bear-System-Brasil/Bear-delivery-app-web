@@ -120,7 +120,7 @@ export const useCompanyProfile = () => {
         setProfileError(response.message || "Erro ao carregar perfil");
         return null;
       }
-    } catch (error) {
+    } catch (_error) {
       setProfileError("Erro de conexão ao carregar perfil");
       return null;
     } finally {
