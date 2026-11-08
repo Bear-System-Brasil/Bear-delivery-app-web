@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { GradientButton } from "@/components/ui/gradient-button";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
-import { writeUserLocation } from "@/lib/user-location-cookie";
 
 type Props = {
   /**
@@ -98,8 +97,11 @@ export function GeolocationButton({
         postcode: data.postcode,
       };
 
-      // Toque do cliente: o GPS vale até ele escolher um endereço de novo.
-      writeUserLocation(coords, "gps");
+      // Salva no cookie
+      document.cookie = `userLocation=${encodeURIComponent(JSON.stringify(coords))}; path=/; max-age=86400; SameSite=Lax`;
+
+      // Dispara evento
+      window.dispatchEvent(new Event("locationChanged"));
 
       toast.success("Localização definida!", {
         description: fullAddress || data.city,

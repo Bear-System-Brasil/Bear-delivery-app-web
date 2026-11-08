@@ -1,7 +1,6 @@
 import { apiService } from "@/services/api";
 import { useAuthStore } from "@/stores";
 import { useQuery } from "@tanstack/react-query";
-import { isClientRole } from "@/utils/role-helpers";
 
 /**
  * Hook para buscar endereços do usuário
@@ -12,11 +11,6 @@ import { isClientRole } from "@/utils/role-helpers";
  * própria em use-profile-management.ts/use-company-profile-management.ts.
  * Removidas pra não ter duas implementações de CRUD de endereço divergindo
  * (uma delas sem os ajustes de complemento curto/lat-lng nulo).
- *
- * Só busca para cliente. GET /address/me decide o dono pela role do token:
- * cozinheiro e gerente recebem os endereços da LOJA e financeiro recebe
- * 403 "Usuário sem contexto válido para endereço." - nenhum dos dois é
- * endereço pessoal, e staff não faz pedido (LDMF-481).
  */
 export const useUserAddresses = () => {
   const { user } = useAuthStore();
@@ -38,7 +32,7 @@ export const useUserAddresses = () => {
       const addresses = Array.isArray(response.data) ? response.data : [];
       return addresses.filter((addr) => addr.isActive !== false);
     },
-    enabled: !!user?.id && isClientRole(user?.role),
+    enabled: !!user?.id,
     staleTime: 1000 * 60 * 5, // 5 minutos
   });
 };

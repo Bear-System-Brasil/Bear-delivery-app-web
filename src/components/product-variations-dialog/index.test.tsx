@@ -27,12 +27,12 @@ const createVariation = { mutateAsync: createMutateAsync, isPending: false };
 const updateVariation = { mutateAsync: vi.fn(), isPending: false };
 const deleteVariation = { mutateAsync: vi.fn(), isPending: false };
 
-vi.mock("@/hooks/use-product-variations", () => ({
+vi.mock("@/hooks", () => ({
   useProductVariations: () => variationsQuery,
   useCreateProductVariation: () => createVariation,
   useUpdateProductVariation: () => updateVariation,
   useDeleteProductVariation: () => deleteVariation,
-}))
+}));
 
 vi.mock("@/contexts/confirm-provider", () => ({
   useConfirm: () => ({ confirm: vi.fn() }),

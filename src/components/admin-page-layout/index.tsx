@@ -82,21 +82,18 @@ export function AdminPageLayout({
     <>
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      {/* O menu é fixed e não empurra nada: o recuo vem da mesma largura
-          (--spacing-sidebar) que o menu usa, e cada tela só cuida do
-          próprio respiro. */}
       <div
         className={cn(
-          "flex flex-col bg-muted text-foreground lg:ml-sidebar",
+          "flex flex-col bg-muted text-foreground",
           fillViewport
             ? "h-dvh overflow-hidden print:h-auto print:overflow-visible"
             : "min-h-screen",
         )}
       >
-        <header className="sticky top-0 z-10 border-b bg-card print:hidden">
+        <header className="sticky top-0 z-10 border-b bg-card print:hidden lg:pl-64">
           {/* Uma linha só em todas as larguras: o botão da tela vira só
               ícone no mobile, pra não empurrar o sino pra baixo. */}
-          <div className="flex min-h-[52px] items-center justify-between gap-2 p-3 sm:gap-3 lg:px-8">
+          <div className="flex min-h-[52px] items-center justify-between gap-2 p-3 sm:gap-3">
             <div className="flex min-w-0 items-center gap-2 sm:gap-3">
               <button
                 type="button"
@@ -179,7 +176,7 @@ export function AdminPageLayout({
 
         <main
           className={cn(
-            "flex-1 pb-20 md:pb-10",
+            "flex-1 pb-20 md:pb-10 lg:pl-64",
             fillViewport && "flex min-h-0 flex-col",
             mainClassName,
           )}

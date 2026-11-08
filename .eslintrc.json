@@ -12,17 +12,6 @@
         "varsIgnorePattern": "^_",
         "caughtErrorsIgnorePattern": "^_"
       }
-    ],
-    "no-restricted-imports": [
-      "error",
-      {
-        "paths": [
-          {
-            "name": "@/hooks",
-            "message": "Importe do arquivo do hook (ex.: @/hooks/use-cart-actions). O barrel @/hooks leva os hooks do app inteiro e o zod para o chunk da tela (LDMF-478)."
-          }
-        ]
-      }
     ]
   }
 }

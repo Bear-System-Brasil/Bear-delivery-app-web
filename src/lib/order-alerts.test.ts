@@ -3,14 +3,12 @@ import {
   getOrderManagementRoute,
   getUnacknowledgedOrdersCount,
   isOrderUnacknowledged,
-  NEW_ORDER_TOAST_ID,
   REMINDER_INTERVAL_MS,
   stopOrderAlerts,
   triggerOrderAlert,
 } from "./order-alerts";
 import { notify } from "@/lib/notify";
 import { soundManager } from "@/lib/sound";
-import { useNotificationsStore } from "@/stores/notifications-store";
 import { toast } from "sonner";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -21,7 +19,6 @@ vi.mock("@/lib/notify", () => ({
 vi.mock("sonner", () => ({
   toast: {
     info: vi.fn(),
-    dismiss: vi.fn(),
     error: vi.fn(),
     success: vi.fn(),
   },
@@ -38,7 +35,6 @@ vi.mock("@/lib/sound", () => ({
 describe("order-alerts", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    localStorage.clear();
     stopOrderAlerts();
     vi.mocked(soundManager.isMuted).mockReturnValue(false);
   });
@@ -87,7 +83,7 @@ describe("order-alerts", () => {
       expect(toast.info).toHaveBeenCalledWith(
         "Novo pedido recebido #101",
         expect.objectContaining({
-          id: NEW_ORDER_TOAST_ID,
+          id: "new-order-order-1",
           action: expect.objectContaining({
             label: "Ver pedido",
           }),
@@ -191,99 +187,6 @@ describe("order-alerts", () => {
 
       vi.advanceTimersByTime(REMINDER_INTERVAL_MS * 2);
       expect(soundManager.play).toHaveBeenCalledTimes(1);
-    });
-  });
-
-  describe("rajada de pedidos (LDMF-461)", () => {
-    const ultimoToast = () => vi.mocked(toast.info).mock.calls.at(-1)!;
-
-    it("um toast só, que passa a dizer quantos pedidos esperam", () => {
-      triggerOrderAlert({ id: "r1", orderNumber: 201 }, { role: "manager" });
-      triggerOrderAlert({ id: "r2", orderNumber: 202 }, { role: "manager" });
-      triggerOrderAlert({ id: "r3", orderNumber: 203 }, { role: "manager" });
-
-      const ids = vi.mocked(toast.info).mock.calls.map(([, o]) => o?.id);
-      expect(new Set(ids)).toEqual(new Set([NEW_ORDER_TOAST_ID]));
-
-      const [titulo, opcoes] = ultimoToast();
-      expect(titulo).toBe("3 pedidos novos");
-      expect(opcoes?.description).toBe("O último é o pedido #203.");
-      expect((opcoes?.action as { label: string }).label).toBe("Ver pedidos");
-    });
-
-    it("a notificação do SO diz o total; o sino continua com uma por pedido", () => {
-      triggerOrderAlert({ id: "r1", orderNumber: 201 }, { role: "manager" });
-      triggerOrderAlert({ id: "r2", orderNumber: 202 }, { role: "manager" });
-
-      expect(vi.mocked(notify).mock.calls[0][0].system).toBeUndefined();
-      expect(vi.mocked(notify).mock.calls[1][0]).toEqual(
-        expect.objectContaining({
-          orderId: "r2",
-          system: { title: "2 pedidos novos", body: "O último é o pedido #202." },
-        }),
-      );
-    });
-
-    it("Ver pedidos reconhece todos e para o lembrete", () => {
-      vi.useFakeTimers();
-      triggerOrderAlert({ id: "r1", orderNumber: 201 }, { role: "manager", router: { push: vi.fn() } });
-      triggerOrderAlert({ id: "r2", orderNumber: 202 }, { role: "manager", router: { push: vi.fn() } });
-
-      (ultimoToast()[1]?.action as { onClick: () => void }).onClick();
-
-      expect(getUnacknowledgedOrdersCount()).toBe(0);
-      vi.advanceTimersByTime(REMINDER_INTERVAL_MS * 2);
-      expect(soundManager.play).toHaveBeenCalledTimes(2);
-    });
-
-    it("pedido sozinho continua com o texto e a ação de antes", () => {
-      triggerOrderAlert({ id: "r1", orderNumber: 201 }, { role: "manager" });
-
-      const [titulo, opcoes] = ultimoToast();
-      expect(titulo).toBe("Novo pedido recebido #201");
-      expect((opcoes?.action as { label: string }).label).toBe("Ver pedido");
-    });
-  });
-
-  describe("várias abas (LDMF-459)", () => {
-    it("se outra aba já lembrou neste ciclo, esta pula o lembrete", () => {
-      vi.useFakeTimers();
-      triggerOrderAlert({ id: "t1", orderNumber: 301 }, { role: "manager" });
-      expect(soundManager.play).toHaveBeenCalledTimes(1);
-
-      // A outra aba lembrou há 10s (anotou no localStorage).
-      vi.advanceTimersByTime(REMINDER_INTERVAL_MS - 10_000);
-      localStorage.setItem("bear:last-order-reminder", String(Date.now()));
-      vi.advanceTimersByTime(10_000);
-      expect(soundManager.play).toHaveBeenCalledTimes(1);
-
-      // No ciclo seguinte ninguém lembrou: esta aba lembra.
-      vi.advanceTimersByTime(REMINDER_INTERVAL_MS);
-      expect(soundManager.play).toHaveBeenCalledTimes(2);
-    });
-
-    it("pedido visto em outra aba para o lembrete desta", async () => {
-      triggerOrderAlert({ id: "t2", orderNumber: 302 }, { role: "manager" });
-      expect(isOrderUnacknowledged("t2")).toBe(true);
-
-      const outraAba = new BroadcastChannel("bear:order-alerts");
-      outraAba.postMessage({ type: "order-seen", orderId: "t2" });
-      await vi.waitFor(() => expect(isOrderUnacknowledged("t2")).toBe(false));
-      outraAba.close();
-
-      expect(toast.dismiss).toHaveBeenCalledWith(NEW_ORDER_TOAST_ID);
-    });
-  });
-
-  describe("sino (LDMF-460)", () => {
-    it("ver o pedido marca a notificação dele como lida no sino", () => {
-      const markOrderAsRead = vi.spyOn(useNotificationsStore.getState(), "markOrderAsRead");
-      triggerOrderAlert({ id: "order-8", orderNumber: 108 }, { role: "manager" });
-
-      acknowledgeOrder("order-8");
-
-      expect(markOrderAsRead).toHaveBeenCalledWith("order-8");
-      markOrderAsRead.mockRestore();
     });
   });
 

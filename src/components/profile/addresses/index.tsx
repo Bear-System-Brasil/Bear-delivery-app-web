@@ -2,7 +2,7 @@
 
 import { Dispatch, SetStateAction } from "react";
 import { UseFormReturn } from "react-hook-form";
-import { AddressFormData } from "@/hooks/use-form-validation";
+import { AddressFormData } from "@/hooks";
 import type {
   CoordinateSource,
   SourcedCoords,
@@ -21,7 +21,6 @@ import {
   type PinStatusProps,
 } from "../delivery-form";
 import { cn } from "@/lib/utils";
-import { formatCep } from "@/utils";
 
 type AddingAddressState = {
   isOpen: boolean;
@@ -102,8 +101,6 @@ type Props = {
   editingAddressId?: string | null;
   neighborhoodOptions?: NeighborhoodOption[] | null;
   isLocatingPin?: boolean;
-  /** Ver `AddressCoreFields`: endereço que tem que ser o padrão (LDMF-262). */
-  defaultOptionLockedHint?: string | null;
   addressFieldProps: AddressFieldProps;
   pinStatusProps?: PinStatusProps;
 };
@@ -127,7 +124,6 @@ export function Addresses({
   editingAddressId,
   neighborhoodOptions,
   isLocatingPin,
-  defaultOptionLockedHint = null,
   addressFieldProps,
   pinStatusProps,
 }: Props) {
@@ -168,18 +164,17 @@ export function Addresses({
         </div>
       ) : (
         <div className="space-y-4">
-          {/* O padrão primeiro: é o que vale para entrega e para a home. */}
-          {[...addresses]
-            .sort((a, b) => Number(!!b.isDefault) - Number(!!a.isDefault))
-            .map((address) => (
+          {addresses.map((address) => (
             <div
               key={address.id}
               className="border border-border rounded-xl p-4"
             >
               <div className="flex items-start justify-between mb-4">
-                {/* Sem o selo "Endereço" repetido em todo cartão: só o
-                    padrão ganha selo. */}
                 <div className="flex items-center space-x-2">
+                  <Badge variant="secondary" className="text-xs">
+                    <MapPin className="h-3 w-3 mr-1" />
+                    {address.type}
+                  </Badge>
                   {address.isDefault && (
                     <Badge className="bg-linear-to-r from-brand-500 to-brand-500 text-white border-0 text-xs flex items-center gap-1">
                       <Star className="h-3 w-3 fill-current" />
@@ -236,8 +231,7 @@ export function Addresses({
                 <p>
                   {address.neighborhood} - {address.city}/{address.state}
                 </p>
-                <p>CEP: {formatCep(address.zipCode ?? "")}</p>
-                {address.reference && <p>Referência: {address.reference}</p>}
+                <p>CEP: {address.zipCode}</p>
               </div>
             </div>
           ))}
@@ -247,9 +241,6 @@ export function Addresses({
       {/* Modal */}
       {addingAddressState.isOpen && (
         <DeliveryForm
-          // Em cidade pequena, "casa amarela ao lado da igreja" é o que
-          // mais ajuda o entregador (o back guarda em `reference`).
-          showReference
           handleCloseAddressModal={handleCloseAddressModal}
           handleAddAddress={handleAddAddress}
           applyCoords={applyCoords}
@@ -261,7 +252,6 @@ export function Addresses({
           isEditing={!!editingAddressId}
           neighborhoodOptions={neighborhoodOptions}
           isLocatingPin={isLocatingPin}
-          defaultOptionLockedHint={defaultOptionLockedHint}
           {...addressFieldProps}
           {...pinStatusProps}
         />

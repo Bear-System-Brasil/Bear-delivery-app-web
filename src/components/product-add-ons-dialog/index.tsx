@@ -14,7 +14,12 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useConfirm } from "@/contexts/confirm-provider";
 import { cn } from "@/lib/utils";
-import { useCreateProductAddOn, useDeleteProductAddOn, useProductAddOns, useUpdateProductAddOn } from "@/hooks/use-product-add-ons";
+import {
+  useCreateProductAddOn,
+  useDeleteProductAddOn,
+  useProductAddOns,
+  useUpdateProductAddOn,
+} from "@/hooks";
 import type { ProductAddOn } from "@/services/api";
 import { formatCurrency } from "@/utils";
 import { Edit, Loader2, Plus, Sandwich, Trash2 } from "lucide-react";

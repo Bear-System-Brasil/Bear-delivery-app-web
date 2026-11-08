@@ -3,11 +3,13 @@
 import { AdminPageLayout } from "@/components/admin-page-layout";
 import { Button } from "@/components/ui/button";
 import { OrderDetailSheet } from "@/components/order-detail-sheet";
-import { toDateInputValue } from "./helpers";
+import { getCustomerName, getItemName, getOrderLabel, getPaymentLabel, toDateInputValue } from "./helpers";
 import { useKitchenOrders } from "@/hooks/use-kitchen-orders";
 import { useAuthStore } from "@/stores";
+import { getCashChange } from "@/lib/delivery";
 import { acknowledgeOrder } from "@/lib/order-alerts";
 import { cn } from "@/lib/utils";
+import { formatCurrency } from "@/utils";
 import {
   Ban,
   CheckCircle,
@@ -20,7 +22,12 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { CancelKitchenOrderDialog } from "./cancel-kitchen-order-dialog";
 import { KitchenColumn } from "./kitchen-column";
-import { KitchenPrintArea } from "./print-area";
+import { getNamedAddOns, getVariationName } from "./helpers";
+import {
+  formatAddOnLine,
+  getAddOnsHeading,
+  mergeIdenticalItems,
+} from "@/constants/order-management";
 import {
   KITCHEN_COLUMN_BY_STATUS,
   KITCHEN_PERIOD_LABELS,
@@ -29,8 +36,6 @@ import {
   type KitchenPeriod,
   type KitchenStatus,
 } from "./types";
-
-export { KitchenPrintArea };
 
 const PERIOD_PRESETS: KitchenPeriod[] = ["today", "7d", "all"];
 
@@ -81,6 +86,93 @@ function KitchenCounterTile({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Área de impressão (oculta — visível apenas em @media print)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function KitchenPrintArea({ order }: { order: KitchenOrder | null }) {
+  if (!order) return null;
+
+  // Linhas idênticas viram uma só ("6x"); qualquer diferença mantém separado.
+  const items = mergeIdenticalItems(order.orderedItems ?? []);
+  const observations = order.observations?.trim();
+  const deliveryObservations = order.delivery?.observations?.trim();
+  const change = getCashChange(order);
+
+  return (
+    <div className="print-area hidden print:mx-auto print:block print:w-[80mm] print:bg-card print:font-mono print:text-xs print:text-black">
+      <div className="mb-2 text-center">
+        <h2 className="text-base font-bold">COZINHA</h2>
+        <p>───────────────────────</p>
+      </div>
+
+      <div className="mb-2">
+        <p className="text-sm font-bold">PEDIDO #{getOrderLabel(order)}</p>
+        <p>Cliente: {getCustomerName(order)}</p>
+        <p>{order.fulfillmentType === "PICKUP" ? "Retirada no local" : "Entrega"}</p>
+        <p>Data: {new Date(order.created_at).toLocaleString("pt-BR")}</p>
+      </div>
+
+      <p>───────────────────────</p>
+
+      <div className="mb-2">
+        {items.map((item) => {
+          const addOns = getNamedAddOns(item);
+          return (
+            <div key={item.id} className="mb-1">
+              <p className="font-bold">
+                {item.quantity}x {getItemName(item)}
+              </p>
+              {item.observations && <p className="pl-2">Obs: {item.observations}</p>}
+              {item.variations?.map((variation) => {
+                const name = getVariationName(variation);
+                if (!name) return null;
+                return (
+                  <p key={variation.id} className="pl-2">
+                    Tamanho: {name}
+                    {variation.observations ? ` (${variation.observations})` : ""}
+                  </p>
+                );
+              })}
+              {addOns.length > 0 && <p className="pl-2">{getAddOnsHeading(item.quantity)}</p>}
+              {addOns.map((addon) => (
+                <p key={addon.id} className="pl-4">
+                  + {formatAddOnLine(addon.name, addon.quantity, item.quantity)}
+                  {addon.observations ? ` (${addon.observations})` : ""}
+                </p>
+              ))}
+            </div>
+          );
+        })}
+      </div>
+
+      {(observations || deliveryObservations) && (
+        <>
+          <p>───────────────────────</p>
+          {observations && <p className="font-bold">OBS: {observations}</p>}
+          {deliveryObservations && (
+            <p className="font-bold">ENTREGA: {deliveryObservations}</p>
+          )}
+        </>
+      )}
+
+      {change && (
+        <>
+          <p>───────────────────────</p>
+          <p>Pagamento: {getPaymentLabel(order)}</p>
+          <p>Cliente paga com {formatCurrency(change.paysWith)}</p>
+          <p className="font-bold">Separar {formatCurrency(change.changeDue)} de troco</p>
+        </>
+      )}
+
+      <p className="mt-2 text-center">───────────────────────</p>
+      <p className="text-center text-[10px]">
+        Impresso em {new Date().toLocaleString("pt-BR")}
+      </p>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Componente principal
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -110,8 +202,7 @@ export default function Kitchen() {
   } = useKitchenOrders();
 
   const restaurantUser = useAuthStore((state) => state.user);
-  const storeName = restaurantUser?.tradeName || restaurantUser?.legalName || null;
-  const restaurantName = storeName || "Cozinha";
+  const restaurantName = restaurantUser?.tradeName || restaurantUser?.legalName || "Cozinha";
   // `owner` não tem permissão pra cancelar pedido (order.md) - o backend
   // rejeita com 403. Sem esconder o botão, a pessoa só descobre isso depois
   // de tentar e ver o erro.
@@ -308,7 +399,7 @@ export default function Kitchen() {
           isUpdating={!!selectedOrder && advancingOrderId === selectedOrder.id}
         />
 
-        <KitchenPrintArea order={printOrder} restaurantName={storeName} />
+        <KitchenPrintArea order={printOrder} />
       </div>
     </AdminPageLayout>
   );

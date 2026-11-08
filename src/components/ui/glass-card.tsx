@@ -75,7 +75,7 @@ export interface GlassCardProps {
 }
 
 const variantClasses = {
-  glass: "bg-card/80",
+  glass: "bg-card/80 backdrop-blur-sm",
   solid: "bg-card",
   gradient: "bg-gradient-to-r from-brand-500 to-brand-500 text-white",
 };

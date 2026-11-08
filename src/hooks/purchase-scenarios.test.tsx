@@ -135,13 +135,12 @@ vi.mock("./use-addresses", () => ({
   }),
 }));
 
-// withCoords de verdade: o pino do endereço novo (núcleo, LDMF-260) passa
-// por ele.
-
-vi.mock("@/lib/geocode", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/geocode")>()),
-  parseCoords: vi.fn(),
+vi.mock("@/lib/address-coordinates", () => ({
+  resolveAddressCoordinates: vi.fn(),
+  withCoords: vi.fn(),
 }));
+
+vi.mock("@/lib/geocode", () => ({ parseCoords: vi.fn() }));
 
 function createWrapper() {
   const queryClient = new QueryClient({

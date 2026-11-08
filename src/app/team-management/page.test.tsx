@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { StaffMember } from "@/hooks/use-team-management";
+import type { StaffMember } from "@/hooks";
 import { useAuthStore } from "@/stores/auth-store";
 
 const {
@@ -66,9 +66,9 @@ vi.mock("@/components/admin-page-layout", () => ({
   ),
 }));
 
-vi.mock("@/hooks/use-team-management", () => ({
+vi.mock("@/hooks", () => ({
   useTeamManagement: () => mockHookState,
-}))
+}));
 
 import TeamManagementPage from "./page";
 

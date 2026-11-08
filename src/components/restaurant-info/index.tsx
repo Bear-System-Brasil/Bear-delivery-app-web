@@ -32,17 +32,19 @@ import {
   toDayHours,
   type RestaurantOpenStatus,
 } from "@/constants/opening-hours";
-import { useAllCategories } from "@/hooks/use-categories";
-import { useCartActions } from "@/hooks/use-cart-actions";
-import { useCompanyProducts } from "@/hooks/use-products";
-import { usePublicCompanyProductVariations } from "@/hooks/use-product-variations";
-import { useRestaurant } from "@/hooks/use-restaurants";
-import { useRestaurantOpeningHours } from "@/hooks/use-opening-hours";
+import {
+  useAllCategories,
+  useCartActions,
+  useCompanyProducts,
+  usePublicCompanyProductVariations,
+  useRestaurant,
+  useRestaurantOpeningHours,
+} from "@/hooks";
 import { useFavoritesStore } from "@/stores";
 import { useAuthStore } from "@/stores/auth-store";
 import { formatCurrency } from "@/utils/format-currency";
 import { formatDeliveryFee } from "@/utils/format-delivery-fee";
-import { isCompanyStaffRole } from "@/utils/role-helpers";
+import { toast } from "sonner";
 import type { Category, OpeningHoursResponse, Product } from "@/services/api";
 import type { Restaurant } from "@/types/restaurant";
 
@@ -224,15 +226,19 @@ export default function RestaurantPage() {
   // tem sessão (use-cart-actions.ts). Pedir login antes de deixar ver o
   // prato afastava o visitante na etapa em que ele ainda está decidindo.
   const handleOpenModal = (item: Product) => {
+    // Conta de restaurante segue bloqueada: ela tem sessão, mas não é quem
+    // faz pedido - o backend rejeitaria depois, e sem aviso aqui o clique
+    // simplesmente não fazia nada.
+    if (user?.role && user.role !== "client") {
+      toast.error(
+        "Contas de restaurante não podem fazer pedidos - entre com uma conta de cliente.",
+      );
+      return;
+    }
+
     setSelectedItem(item);
     setIsModalOpen(true);
   };
-
-  // Conta de restaurante tem sessão, mas não é quem faz pedido: vê o
-  // cardápio em modo read-only, igual à prévia do admin - card não
-  // clicável e sem "+" (LDMF-473). Antes o card parecia clicável e só
-  // mostrava um toast de erro.
-  const isStaffAccount = isCompanyStaffRole(user?.role);
 
   return (
     <AnimatedBackground showBlobs={false} className="bg-muted py-0">
@@ -404,7 +410,7 @@ export default function RestaurantPage() {
               {/* === BARRA DE NAVEGAÇÃO DE CATEGORIAS FIXA === */}
               <nav
                 ref={navRef}
-                className="sticky top-[72px] z-30 -mx-3 flex gap-2 overflow-x-auto bg-muted/95 px-3 py-3 scrollbar-hide sm:top-[82px] sm:-mx-5 sm:px-5"
+                className="sticky top-[72px] z-30 -mx-3 flex gap-2 overflow-x-auto bg-muted/95 px-3 py-3 backdrop-blur scrollbar-hide sm:top-[82px] sm:-mx-5 sm:px-5"
               >
                 {categories.map((category) => {
                   const isActive = selectedCategory === category;
@@ -433,7 +439,7 @@ export default function RestaurantPage() {
                 categories={categories}
                 groupedItems={groupedItems}
                 minVariationByProduct={minVariationModifierByProduct}
-                onSelectItem={isStaffAccount ? undefined : handleOpenModal}
+                onSelectItem={handleOpenModal}
               />
             </>
           )}

@@ -1,31 +1,18 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { DeliveryInfo } from "@/hooks/use-checkout-process";
+import type { DeliveryInfo } from "@/hooks";
 import type { CheckoutFieldErrors } from "@/lib/checkout-validation";
 import { DeliveryForm } from "./index";
 
-vi.mock("sonner", () => ({
-  toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
-}));
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/components/address-map", () => ({
   AddressMap: () => <div data-testid="mapa" />,
 }));
-vi.mock("@/services/ibge", () => ({
-  getStates: vi.fn(async () => [{ uf: "ES", name: "Espírito Santo" }]),
-  getCities: vi.fn(async () => [{ ibgeCode: "3201407", name: "Castelo" }]),
-}));
-vi.mock("@/lib/nominatim", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/nominatim")>()),
-  nominatim: {
-      searchAddress: vi.fn(async () => null),
-      findStreet: vi.fn(async () => null),
-    },
-}));
 
-// Resposta real da BrasilAPI (medida em 17/10) para Castelo, CEP único:
-// sem rua e sem bairro.
+// Respostas reais da BrasilAPI (medidas em 17/10) para as duas cidades do
+// lançamento, ambas de CEP único: sem rua e sem bairro.
 const CEP_CASTELO = {
   cep: "29360000",
   state: "ES",
@@ -38,7 +25,28 @@ const CEP_CASTELO = {
   },
 };
 
-const INFO: DeliveryInfo = {
+const CEP_ALEGRE = {
+  cep: "29500000",
+  state: "ES",
+  city: "Alegre",
+  neighborhood: null,
+  street: null,
+  location: {
+    type: "Point",
+    coordinates: { longitude: "-41.53306", latitude: "-20.76361" },
+  },
+};
+
+const CEP_COM_RUA = {
+  cep: "01001000",
+  state: "SP",
+  city: "São Paulo",
+  neighborhood: "Sé",
+  street: "Praça da Sé",
+  location: { type: "Point", coordinates: {} },
+};
+
+const EMPTY: DeliveryInfo = {
   name: "Cliente",
   phone: "11999999999",
   cpf: "",
@@ -54,7 +62,7 @@ const INFO: DeliveryInfo = {
 
 const noop = () => {};
 
-/** Formulário com o núcleo de endereço de verdade (LDMF-260). */
+/** Formulário com estado de verdade, para a busca do CEP mexer nos campos. */
 function Harness({
   orderType = "delivery",
   addressMode = "new",
@@ -68,20 +76,21 @@ function Harness({
   fieldErrors?: CheckoutFieldErrors;
   hasCpf?: boolean;
 }) {
-  const addressEditor = useAddressEditor({
-    enabled: orderType === "delivery" && addressMode === "new",
-  });
+  const [info, setInfo] = useState<DeliveryInfo>(EMPTY);
 
   return (
     <DeliveryForm
-      handleInputChange={noop}
+      handleInputChange={(field, value) =>
+        setInfo((prev) => ({ ...prev, [field]: String(value) }))
+      }
       applyCoords={noop}
       setSelectedAddressId={noop}
       setAddressMode={noop}
       handleAddressSelect={noop}
       setSaveAddress={noop}
       addressMode={addressMode}
-      deliveryInfo={INFO}
+      deliveryInfo={info}
+      addressCoords={null}
       loadingAddresses={false}
       saveAddress
       userAddresses={userAddresses as never}
@@ -91,19 +100,7 @@ function Harness({
       restaurant={null}
       hasCpf={hasCpf}
       fieldErrors={fieldErrors}
-      addressEditor={addressEditor}
     />
-  );
-}
-
-function renderForm(props: Parameters<typeof Harness>[0] = {}) {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <Harness {...props} />
-    </QueryClientProvider>,
   );
 }
 
@@ -114,7 +111,7 @@ const mockCep = (payload: object) =>
     json: async () => payload,
   } as Response);
 
-describe("DeliveryForm - endereço novo pelo núcleo (LDMF-260)", () => {
+describe("DeliveryForm - busca do CEP", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -123,72 +120,101 @@ describe("DeliveryForm - endereço novo pelo núcleo (LDMF-260)", () => {
     vi.restoreAllMocks();
   });
 
-  it("mostra os campos do núcleo em ordem e travados; complemento e referência recolhidos", async () => {
-    const user = userEvent.setup();
-    renderForm();
+  it.each([
+    ["Castelo", CEP_CASTELO, "Rua Jocarly Garcia", "São Miguel"],
+    ["Alegre", CEP_ALEGRE, "Rua Monsenhor Pavesi", "Centro"],
+  ])(
+    "CEP único de %s preenche cidade e estado e não apaga o que foi digitado",
+    async (city, payload, street, neighborhood) => {
+      const user = userEvent.setup();
+      mockCep(payload);
+      render(<Harness />);
 
-    expect(screen.getByLabelText("CEP *")).toBeEnabled();
-    expect(screen.getByLabelText("Estado *")).toBeEnabled();
-    expect(screen.getByLabelText("Cidade *")).toBeDisabled();
-    expect(screen.getByLabelText("Nome da rua *")).toBeDisabled();
-    // A tela do checkout já é longa: os opcionais abrem num botão.
-    expect(screen.queryByLabelText("Complemento")).not.toBeInTheDocument();
-    await user.click(
-      screen.getByRole("button", { name: /Complemento e ponto de referência/ }),
-    );
-    expect(screen.getByLabelText("Complemento")).toBeInTheDocument();
-    expect(screen.getByLabelText("Referência")).toBeInTheDocument();
-    // "Salvar para pedidos futuros" continua; a caixa de padrão do perfil não.
-    expect(
-      screen.getByLabelText("Salvar este endereço para pedidos futuros"),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByLabelText("Definir como endereço padrão"),
-    ).not.toBeInTheDocument();
-  });
+      await user.type(screen.getByLabelText("Rua"), street);
+      await user.type(screen.getByLabelText("Numero"), "100");
+      await user.type(screen.getByLabelText("Bairro"), neighborhood);
+      await user.type(screen.getByLabelText("CEP"), payload.cep);
 
-  it("CEP único de Castelo preenche estado e cidade e mostra o aviso do núcleo", async () => {
+      await waitFor(() =>
+        expect(screen.getByLabelText("Cidade")).toHaveValue(city),
+      );
+      expect(screen.getByLabelText("Estado")).toHaveValue("ES");
+      expect(screen.getByLabelText("Rua")).toHaveValue(street);
+      expect(screen.getByLabelText("Numero")).toHaveValue("100");
+      expect(screen.getByLabelText("Bairro")).toHaveValue(neighborhood);
+      expect(
+        screen.getByText(
+          "Este CEP vale para a cidade inteira. Preencha rua, número e bairro abaixo.",
+        ),
+      ).toBeInTheDocument();
+    },
+  );
+
+  it("CEP único antes de digitar deixa rua e bairro vazios e editáveis", async () => {
     const user = userEvent.setup();
     mockCep(CEP_CASTELO);
-    renderForm();
-    await screen.findByRole("option", { name: "Espírito Santo" });
+    render(<Harness />);
 
-    await user.type(screen.getByLabelText("CEP *"), "29360000");
+    await user.type(screen.getByLabelText("CEP"), "29360000");
+    await waitFor(() =>
+      expect(screen.getByLabelText("Cidade")).toHaveValue("Castelo"),
+    );
 
+    expect(screen.getByLabelText("Rua")).toHaveValue("");
+    expect(screen.getByLabelText("Rua")).toBeEnabled();
+    expect(screen.getByLabelText("Bairro")).toBeEnabled();
+
+    await user.type(screen.getByLabelText("Rua"), "Rua Daniel Zanuncio");
+    await user.type(screen.getByLabelText("Bairro"), "Pouso Alto");
+    expect(screen.getByLabelText("Rua")).toHaveValue("Rua Daniel Zanuncio");
+    expect(screen.getByLabelText("Bairro")).toHaveValue("Pouso Alto");
+  });
+
+  it("CEP com rua continua preenchendo rua e bairro", async () => {
+    const user = userEvent.setup();
+    mockCep(CEP_COM_RUA);
+    render(<Harness />);
+
+    await user.type(screen.getByLabelText("CEP"), "01001000");
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("Rua")).toHaveValue("Praça da Sé"),
+    );
+    expect(screen.getByLabelText("Bairro")).toHaveValue("Sé");
     expect(
-      await screen.findByText(
-        "Este CEP vale para a cidade inteira. Preencha bairro, rua e número abaixo.",
-      ),
+      screen.getByText("Digite o CEP e os campos serao preenchidos."),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText("Estado *")).toHaveValue("ES");
-    await waitFor(() =>
-      expect(screen.getByLabelText("Cidade *")).toHaveValue("Castelo"),
-    );
-    // Bairro vira a lista oficial de Castelo.
-    await waitFor(() =>
-      expect(screen.getByLabelText("Bairro *").tagName).toBe("SELECT"),
-    );
   });
 });
 
 describe("DeliveryForm - campos faltando", () => {
-  it("destaca o campo de contato e mostra a mensagem nele", () => {
-    renderForm({ fieldErrors: { phone: "Informe seu telefone." } });
-
-    const phone = screen.getByLabelText("Telefone");
-    expect(phone).toHaveAttribute("aria-invalid", "true");
-    expect(phone).toHaveAccessibleDescription("Informe seu telefone.");
-    expect(screen.getByLabelText("Nome completo")).not.toHaveAttribute(
-      "aria-invalid",
+  it("destaca o campo e mostra a mensagem nele", () => {
+    render(
+      <Harness
+        fieldErrors={{
+          number: "Informe o número.",
+          phone: "Informe seu telefone.",
+        }}
+      />,
     );
+
+    const number = screen.getByLabelText("Numero");
+    expect(number).toHaveAttribute("aria-invalid", "true");
+    expect(number).toHaveAccessibleDescription("Informe o número.");
+    expect(screen.getByLabelText("Telefone")).toHaveAccessibleDescription(
+      "Informe seu telefone.",
+    );
+    expect(screen.getByLabelText("Rua")).not.toHaveAttribute("aria-invalid");
   });
 
   it("endereço salvo incompleto avisa o que falta", () => {
-    renderForm({
-      addressMode: "select",
-      userAddresses: [{ id: "addr-1" }],
-      fieldErrors: { number: "Informe o número." },
-    });
+    render(
+      <Harness
+        addressMode="select"
+        userAddresses={[{ id: "addr-1" }]}
+        fieldErrors={{ number: "Informe o número." }}
+      />,
+    );
 
     expect(screen.getByRole("alert")).toHaveTextContent(
       "Este endereço está incompleto (falta Número).",
@@ -196,9 +222,9 @@ describe("DeliveryForm - campos faltando", () => {
   });
 
   it("retirada não mostra endereço nem cobra os campos dele", () => {
-    renderForm({ orderType: "pickup" });
+    render(<Harness orderType="pickup" />);
 
-    expect(screen.queryByLabelText("Nome da rua *")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Rua")).not.toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });
@@ -207,14 +233,14 @@ describe("DeliveryForm - CPF da conta (LDMF-362)", () => {
   const VALIDATED = "CPF já validado na sua conta. Pode prosseguir com o pedido.";
 
   it("conta com CPF não vê o campo e vê a mensagem de CPF validado", () => {
-    renderForm({ hasCpf: true });
+    render(<Harness hasCpf />);
 
     expect(screen.queryByLabelText("CPF")).not.toBeInTheDocument();
     expect(screen.getByText(VALIDATED)).toBeInTheDocument();
   });
 
   it("conta sem CPF vê o campo e não vê a mensagem", () => {
-    renderForm({ hasCpf: false });
+    render(<Harness hasCpf={false} />);
 
     expect(screen.getByLabelText("CPF")).toBeInTheDocument();
     expect(screen.queryByText(VALIDATED)).not.toBeInTheDocument();

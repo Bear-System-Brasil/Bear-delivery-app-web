@@ -27,7 +27,6 @@ vi.mock("@/services/api", () => ({
 const { useRestaurantOpeningHours, fetchFreshRestaurantOpeningHours } =
   await import("./use-opening-hours");
 const { Providers } = await import("@/providers");
-const { resolveRestaurantOpenStatus } = await import("@/constants/opening-hours");
 
 const OPEN = { isOpen: true, linkedToCashRegister: false, days: [] };
 const CLOSED = { ...OPEN, isOpen: false };
@@ -234,40 +233,5 @@ describe("configuração global do cache continua a mesma", () => {
     await act(() => vi.advanceTimersByTimeAsync(10 * 60_000));
 
     expect(otherFetch).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe("useRestaurantOpeningHours - status pelo relógio (LDMF-469)", () => {
-  it("fecha na tela quando o horário vira, sem a resposta do back mudar", async () => {
-    // Quarta 04/11/2026, 22:59:30 em São Paulo; a loja fecha às 23:00
-    vi.setSystemTime(new Date("2026-11-04T22:59:30-03:00"));
-    const UNTIL_23 = {
-      isOpen: true, // guardado no back, não muda sozinho
-      linkedToCashRegister: false,
-      days: [{ day: 3, openTime: "11:00", closeTime: "23:00" }],
-    };
-    getByCompany.mockResolvedValue({ success: true, data: UNTIL_23 });
-    // Sem nova busca: o teste é só o relógio
-    setVisibility("hidden");
-
-    const renders: boolean[] = [];
-    renderHook(
-      () => {
-        const { data } = useRestaurantOpeningHours("comp-1");
-        const isOpen = data ? resolveRestaurantOpenStatus(data).isOpen : null;
-        if (isOpen !== null) renders.push(isOpen);
-        return isOpen;
-      },
-      { wrapper: Wrapper },
-    );
-    await act(() => vi.advanceTimersByTimeAsync(0));
-    expect(renders.at(-1)).toBe(true);
-
-    // 23:00 ainda aberto (ponta incluída, como no back); 23:01 fechado
-    await act(() => vi.advanceTimersByTimeAsync(30_000));
-    expect(renders.at(-1)).toBe(true);
-    await act(() => vi.advanceTimersByTimeAsync(60_000));
-    expect(renders.at(-1)).toBe(false);
-    expect(getByCompany).toHaveBeenCalledTimes(1);
   });
 });

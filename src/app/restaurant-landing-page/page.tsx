@@ -83,12 +83,10 @@ export default function RestaurantLandingPage() {
 
   return (
     <div className="min-h-screen bg-muted relative overflow-hidden">
-      {/* Manchas paradas de proposito: animar o blur refazia o desfoque a cada
-          quadro, mesmo com a tela parada (ver animated-background.tsx). */}
       <div className="absolute inset-0">
-        <div className="absolute top-20 left-10 w-64 h-64 bg-gradient-to-r from-brand-400/20 to-brand-400/20 rounded-full blur-3xl" />
-        <div className="absolute top-40 right-20 w-48 h-48 bg-gradient-to-r from-brand-400/15 to-brand-400/15 rounded-full blur-2xl" />
-        <div className="absolute bottom-40 left-1/4 w-80 h-80 bg-gradient-to-r from-yellow-400/10 to-brand-400/10 rounded-full blur-3xl" />
+        <div className="absolute top-20 left-10 w-64 h-64 bg-gradient-to-r from-brand-400/20 to-brand-400/20 rounded-full blur-3xl animate-pulse" />
+        <div className="absolute top-40 right-20 w-48 h-48 bg-gradient-to-r from-brand-400/15 to-brand-400/15 rounded-full blur-2xl animate-pulse delay-1000" />
+        <div className="absolute bottom-40 left-1/4 w-80 h-80 bg-gradient-to-r from-yellow-400/10 to-brand-400/10 rounded-full blur-3xl animate-pulse delay-2000" />
       </div>
 
       <main className="relative">
@@ -157,7 +155,7 @@ export default function RestaurantLandingPage() {
               {BENEFITS.map(({ icon: Icon, title, description }) => (
                 <Card
                   key={title}
-                  className="border-0 bg-card/80 shadow-lg hover:shadow-2xl transition-all duration-500 rounded-2xl"
+                  className="border-0 bg-card/80 backdrop-blur-sm shadow-lg hover:shadow-2xl transition-all duration-500 rounded-2xl"
                 >
                   <CardContent className="p-6">
                     {/* QUADRADINHO AGORA CLARO */}
@@ -177,7 +175,7 @@ export default function RestaurantLandingPage() {
 
         <section
           id="como-funciona"
-          className="py-20 px-4 bg-card/50 relative"
+          className="py-20 px-4 bg-card/50 backdrop-blur-sm relative"
         >
           <div className="max-w-6xl mx-auto">
             <div className="text-center mb-16">
@@ -227,7 +225,7 @@ export default function RestaurantLandingPage() {
           </div>
         </section>
 
-        <footer className="border-t bg-card/80 py-8 px-4 relative">
+        <footer className="border-t bg-card/80 backdrop-blur-sm py-8 px-4 relative">
           <div className="max-w-6xl mx-auto">
             <div className="flex flex-col md:flex-row justify-between items-center gap-4">
               <Link href="/" className="shrink-0">

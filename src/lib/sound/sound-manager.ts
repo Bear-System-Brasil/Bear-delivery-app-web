@@ -1,4 +1,3 @@
-import { runInOneTab } from "@/lib/tab-coordination";
 import { useAuthStore } from "@/stores/auth-store";
 import {
   ALERT_LOOP_MS,
@@ -9,9 +8,6 @@ import {
 } from "./manifest";
 
 const MUTED_KEY = "like:sound-muted";
-
-/** Sons que tocam numa aba só quando a gestão está aberta em várias. */
-const ONE_TAB_SOUNDS = new Set<SoundName>(["new-order"]);
 const VOLUME_KEY = "like:sound-volume";
 
 /**
@@ -35,8 +31,6 @@ class SoundManager {
   private listeners = new Set<() => void>();
   private lastPlayed = new Map<SoundName, number>();
   private unlockInstalled = false;
-  private watchingAudioState = false;
-  private audioBlocked = false;
   private failed = new Set<SoundName>();
 
   private muted = false;
@@ -166,30 +160,6 @@ class SoundManager {
   }
 
   /**
-   * Passa a acompanhar se o navegador está segurando o áudio (LDMF-458).
-   * O Chrome só libera som depois de um toque na página: um tablet que
-   * recarregou e ninguém tocou fica mudo sem avisar. Quem chama mostra um
-   * aviso enquanto `isAudioBlocked()` for true.
-   */
-  watchAudioState() {
-    const ctx = this.getContext();
-    if (!ctx || this.watchingAudioState) return;
-    this.watchingAudioState = true;
-    const update = () => {
-      const blocked = ctx.state === "suspended";
-      if (blocked === this.audioBlocked) return;
-      this.audioBlocked = blocked;
-      this.emit();
-    };
-    ctx.addEventListener("statechange", update);
-    update();
-  }
-
-  isAudioBlocked() {
-    return this.audioBlocked;
-  }
-
-  /**
    * Destrava no primeiro toque em qualquer lugar do app. Chamado sozinho na
    * primeira interação com o manager, então nenhuma tela precisa lembrar.
    */
@@ -261,48 +231,42 @@ class SoundManager {
     if (now - last < 500) return;
     this.lastPlayed.set(name, now);
 
-    // Som de alerta toca numa aba só, mesmo com a gestão aberta em várias:
-    // cada aba recebe o pedido pelo próprio socket (LDMF-459).
-    const playNow = () => {
-      void (async () => {
-        const ctx = this.getContext();
-        if (!ctx) return;
+    void (async () => {
+      const ctx = this.getContext();
+      if (!ctx) return;
 
-        const buffer = await this.load(name);
-        if (!buffer || !this.masterGain) return;
+      const buffer = await this.load(name);
+      if (!buffer || !this.masterGain) return;
 
-        // Recheca depois do await: o usuário pode ter silenciado no meio do
-        // carregamento, e um alerta em loop pode ter sido parado.
-        if (this.muted) return;
+      // Recheca depois do await: o usuário pode ter silenciado no meio do
+      // carregamento, e um alerta em loop pode ter sido parado.
+      if (this.muted) return;
 
-        if (ctx.state === "suspended") {
-          try {
-            await ctx.resume();
-          } catch {
-            return;
-          }
-          if (ctx.state === "suspended") return;
-        }
-
+      if (ctx.state === "suspended") {
         try {
-          const source = ctx.createBufferSource();
-          const nodeGain = ctx.createGain();
-          nodeGain.gain.value = Math.min(1, Math.max(0, gain)) * this.volume;
-          source.buffer = buffer;
-          source.connect(nodeGain);
-          nodeGain.connect(this.masterGain);
-          source.start();
-          source.onended = () => {
-            source.disconnect();
-            nodeGain.disconnect();
-          };
+          await ctx.resume();
         } catch {
-          // Contexto morreu no meio do caminho; ignora.
+          return;
         }
-      })();
-    };
-    if (ONE_TAB_SOUNDS.has(name)) runInOneTab(`sound:${name}`, 1000, playNow);
-    else playNow();
+        if (ctx.state === "suspended") return;
+      }
+
+      try {
+        const source = ctx.createBufferSource();
+        const nodeGain = ctx.createGain();
+        nodeGain.gain.value = Math.min(1, Math.max(0, gain)) * this.volume;
+        source.buffer = buffer;
+        source.connect(nodeGain);
+        nodeGain.connect(this.masterGain);
+        source.start();
+        source.onended = () => {
+          source.disconnect();
+          nodeGain.disconnect();
+        };
+      } catch {
+        // Contexto morreu no meio do caminho; ignora.
+      }
+    })();
   }
 
   /**

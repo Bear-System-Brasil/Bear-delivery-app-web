@@ -68,7 +68,7 @@ export default function AuthModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-md border-0 bg-card/95 shadow-2xl max-h-[90vh] p-0 flex flex-col">
+      <DialogContent className="sm:max-w-md border-0 bg-card/95 backdrop-blur-xl shadow-2xl max-h-[90vh] p-0 flex flex-col">
         <DialogHeader className="px-4 sm:px-6 pt-3 sm:pt-4 pb-2 sm:pb-3 border-b border-border shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">

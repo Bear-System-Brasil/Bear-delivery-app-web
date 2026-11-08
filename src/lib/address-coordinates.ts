@@ -1,4 +1,8 @@
-import { parseCoords, type GeocodableAddress } from "@/lib/geocode";
+import {
+  geocodeAddress,
+  parseCoords,
+  type GeocodableAddress,
+} from "@/lib/geocode";
 import { Coords } from "@/types/restaurant";
 
 /**
@@ -32,6 +36,12 @@ const SOURCE_RANK: Record<CoordinateSource, number> = {
   stored: 3,
   manual: 3,
 };
+
+/**
+ * Fontes que são palavra final: já representam o endereço certo, então não
+ * tentamos geocodificar por cima na hora de salvar.
+ */
+const FINAL_SOURCES: readonly CoordinateSource[] = ["stored", "manual"];
 
 export type SourcedCoords = {
   coords: Coords;
@@ -104,4 +114,30 @@ export function parseBrasilApiCoords(payload: unknown): Coords | null {
     location?.coordinates?.latitude,
     location?.coordinates?.longitude,
   );
+}
+
+/**
+ * Resolve a coordenada definitiva na hora de salvar o endereço.
+ *
+ * Gesto explícito do cliente (clique no mapa, "Usar localização") e
+ * coordenada já salva de um endereço que ele não alterou passam direto. Fora
+ * isso geocodificamos o endereço digitado, que é mais preciso que a
+ * coordenada do CEP porque considera o número - é o que
+ * `use-company-profile-management` já faz com o endereço da loja, e sem isso
+ * o endereço do cliente ia para o banco sem coordenada nenhuma.
+ *
+ * Se a geocodificação falhar, a coordenada que já estava (a do CEP) continua
+ * valendo: nunca devolvemos menos do que entrou.
+ */
+export async function resolveAddressCoordinates(
+  address: GeocodableAddress,
+  current: SourcedCoords | null,
+): Promise<SourcedCoords | null> {
+  if (current && FINAL_SOURCES.includes(current.source)) return current;
+
+  const geocoded = await geocodeAddress(address);
+
+  if (geocoded) return { coords: geocoded, source: "geocode" };
+
+  return current;
 }

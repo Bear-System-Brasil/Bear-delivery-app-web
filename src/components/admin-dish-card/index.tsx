@@ -102,11 +102,7 @@ export function AdminDishCard({
               {tag}
             </span>
           ))}
-        </div>
 
-        {/* Linha propria: na mesma linha dos chips o switch quebrava no
-            mobile conforme o tamanho da categoria/tags e o texto do estado. */}
-        <div className="flex min-w-0 items-center">
           {/* Disponibilidade como switch: deixa claro que liga/desliga o
               prato no app, em vez de parecer so um rotulo de status. */}
           <label

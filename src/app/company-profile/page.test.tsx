@@ -116,19 +116,13 @@ const h = vi.hoisted(() => {
   };
 });
 
-vi.mock("@/hooks/use-company-profile-management", () => ({
+vi.mock("@/hooks", () => ({
   MAX_SPECIALTIES: 3,
   useCompanyProfileManagement: () => h.profile,
-}))
-vi.mock("@/hooks/use-opening-hours", () => ({
   useCompanyOpeningHours: () => h.hours,
-}))
-vi.mock("@/hooks/use-company-accepted-payment-methods", () => ({
   useCompanyAcceptedPaymentMethods: () => h.payments,
-}))
-vi.mock("@/hooks/use-specialties", () => ({
   useSpecialties: () => h.specialties,
-}))
+}));
 
 vi.mock("@/components/protected-route", () => ({
   default: ({ children }: { children: ReactNode }) => <>{children}</>,
