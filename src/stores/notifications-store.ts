@@ -51,6 +51,8 @@ interface NotificationsState {
     notification: Omit<AppNotification, 'id' | 'createdAt' | 'read'>,
   ) => void
   markAsRead: (id: string) => void
+  /** Marca como lidas as notificações de um pedido (ver o pedido = ler). */
+  markOrderAsRead: (orderId: string) => void
   markAllAsRead: (audience?: NotificationAudience) => void
   clearAll: (audience?: NotificationAudience) => void
   /** Troca para o feed de `userId` (null = visitante). */
@@ -99,6 +101,16 @@ export const useNotificationsStore = create<NotificationsState>()(
               item.id === id ? { ...item, read: true } : item,
             ),
           ),
+
+        markOrderAsRead: (orderId) => {
+          // Sem notificação daquele pedido, não regrava o feed à toa.
+          if (!get().items.some((item) => item.orderId === orderId && !item.read)) return
+          commit((items) =>
+            items.map((item) =>
+              item.orderId === orderId ? { ...item, read: true } : item,
+            ),
+          )
+        },
 
         markAllAsRead: (audience) =>
           commit((items) =>

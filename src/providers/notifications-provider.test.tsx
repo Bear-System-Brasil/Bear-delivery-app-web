@@ -21,6 +21,10 @@ vi.mock("@/lib/sound", () => ({
     play: vi.fn(),
     isMuted: vi.fn(() => false),
     subscribe: vi.fn(() => () => {}),
+    isAudioBlocked: vi.fn(() => false),
+    watchAudioState: vi.fn(),
+    installUnlockHandlers: vi.fn(),
+    unlock: vi.fn(),
   },
 }));
 

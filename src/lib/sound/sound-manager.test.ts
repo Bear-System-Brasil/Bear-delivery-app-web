@@ -53,3 +53,41 @@ describe("SoundManager", () => {
   });
 });
 
+
+describe("SoundManager - áudio bloqueado pelo navegador (LDMF-458)", () => {
+  it("acompanha o estado do AudioContext e avisa quem assina", () => {
+    // AudioContext mínimo: o jsdom não tem Web Audio.
+    let onStateChange: () => void = () => {};
+    const ctx = {
+      state: "suspended",
+      destination: {},
+      createGain: () => ({ connect: vi.fn(), gain: { value: 1 } }),
+      addEventListener: (_evt: string, cb: () => void) => {
+        onStateChange = cb;
+      },
+    };
+    vi.stubGlobal(
+      "AudioContext",
+      class {
+        constructor() {
+          return ctx;
+        }
+      },
+    );
+    const listener = vi.fn();
+    const unsubscribe = soundManager.subscribe(listener);
+
+    // Chrome sem toque na página: o contexto nasce suspenso.
+    soundManager.watchAudioState();
+    expect(soundManager.isAudioBlocked()).toBe(true);
+
+    // O primeiro toque destrava.
+    ctx.state = "running";
+    onStateChange();
+    expect(soundManager.isAudioBlocked()).toBe(false);
+    expect(listener).toHaveBeenCalled();
+
+    unsubscribe();
+    vi.unstubAllGlobals();
+  });
+});

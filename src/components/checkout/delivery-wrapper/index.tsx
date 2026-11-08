@@ -6,7 +6,8 @@ import { useRouter } from "next/navigation";
 
 import { toast } from "sonner";
 
-import { useCartActions, useCheckoutProcess } from "@/hooks";
+import { useCartActions } from "@/hooks/use-cart-actions";
+import { useCheckoutProcess } from "@/hooks/use-checkout-process";
 
 import { useAuth } from "@/contexts/auth-provider";
 
@@ -29,6 +30,21 @@ import { OrderSummary } from "@/components/checkout/order-sumary";
 import { PaymentMethod } from "@/components/checkout/payment-method";
 import { MainHeader } from "@/components/main-header";
 
+/** Campos do endereço novo: o núcleo usa ids próprios (LDMF-260). */
+const NEW_ADDRESS_FIELD_IDS: Partial<Record<CheckoutField, string>> = {
+  zipCode: "address-zipcode",
+  state: "address-state",
+  city: "address-city",
+  neighborhood: "address-neighborhood",
+  street: "address-street",
+  number: "address-number",
+};
+
+/** Id do elemento a focar quando o campo trava o avanço. */
+function fieldElementId(field: CheckoutField, isNewAddress: boolean) {
+  return (isNewAddress && NEW_ADDRESS_FIELD_IDS[field]) || field;
+}
+
 export function DeliveryWrapper() {
   const router = useRouter();
   const { isAuthenticated, showAuthModal } = useAuth();
@@ -47,6 +63,7 @@ export function DeliveryWrapper() {
     selectedAddressId,
     addressMode,
     saveAddress,
+    newAddressBecomesDefault,
     loadingAddresses,
     setAddressMode,
     setSaveAddress,
@@ -56,7 +73,8 @@ export function DeliveryWrapper() {
     getDeliveryErrors,
     hasCpf,
     deliveryInfo,
-    addressCoords,
+    addressEditor,
+    isNewAddress,
     applyCoords,
     paymentMethod,
     availablePaymentMethods,
@@ -135,8 +153,11 @@ export function DeliveryWrapper() {
         return;
       }
 
+      // Endereço novo: o núcleo mostra a mensagem de cada campo dele.
+      if (isNewAddress) void addressEditor.addressForm.trigger();
+
       toast.error(describeMissingFields(errors));
-      document.getElementById(missing[0])?.focus();
+      document.getElementById(fieldElementId(missing[0], isNewAddress))?.focus();
       return;
     }
 
@@ -343,9 +364,10 @@ export function DeliveryWrapper() {
               loadingAddresses={loadingAddresses}
               userAddresses={userAddresses}
               deliveryInfo={deliveryInfo}
-              addressCoords={addressCoords}
+              addressEditor={addressEditor}
               addressMode={addressMode}
               saveAddress={saveAddress}
+              newAddressBecomesDefault={newAddressBecomesDefault}
               orderType={orderType}
               setOrderType={setOrderType}
               restaurant={restaurant}

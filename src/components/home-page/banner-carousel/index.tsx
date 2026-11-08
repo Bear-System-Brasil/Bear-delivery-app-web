@@ -23,7 +23,7 @@ const banners: Banner[] = [
     id: 1,
     variant: "image",
     title: "Inauguração Bear",
-    image: "/banners/bear-inauguracao.jpg",
+    image: "/banners/bear-inauguracao-v2.jpg",
     badge: "INAUGURAÇÃO",
     hideOverlay: true,
   },
@@ -88,7 +88,11 @@ export function BannerCarousel() {
                       </div>
                     </div>
                   ) : (
-                    <div className="relative h-40 sm:h-52 md:h-60">
+                    // No celular estreito a altura fixa de 160px cortava as laterais
+                    // do miolo da arte (2560x480, miolo de 1152px no centro). Abaixo
+                    // de sm a altura segue a largura (12:5) para o miolo sempre caber,
+                    // sem passar dos 160px de antes. Do sm para cima nada muda.
+                    <div className="relative aspect-[12/5] max-h-40 w-full sm:aspect-auto sm:h-52 sm:max-h-none md:h-60">
                       {banner.image && (
                         <Image
                           src={banner.image}

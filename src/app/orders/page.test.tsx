@@ -48,16 +48,20 @@ vi.mock("@/components/ui/animated-background", () => ({
   ),
 }));
 
-vi.mock("@/hooks", () => ({
+vi.mock("@/hooks/use-cart-actions", () => ({
   useCartActions: () => ({ totalItems: 0, handleAddToCart }),
+}))
+vi.mock("@/hooks/use-order-history", () => ({
   useOrderHistory: () => ({
     orders: ORDERS,
     loading: false,
     error: null,
     refreshHistory,
   }),
+}))
+vi.mock("@/hooks/use-restaurants", () => ({
   useRestaurants: () => ({ data: RESTAURANTS }),
-}));
+}))
 
 vi.mock("@/stores/auth-store", () => ({ useAuthStore: () => AUTH }));
 

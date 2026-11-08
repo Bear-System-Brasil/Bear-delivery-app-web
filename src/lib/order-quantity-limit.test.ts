@@ -6,6 +6,7 @@ import {
   MAX_UNITS_PER_PRODUCT,
   ORDER_LIMIT_MESSAGE,
   PRODUCT_LIMIT_MESSAGE,
+  toLimitedItems,
 } from "./order-quantity-limit";
 
 const item = (productId: string, quantity: number) => ({ productId, quantity });
@@ -45,5 +46,17 @@ describe("order-quantity-limit", () => {
       ]),
     ).toBe(ORDER_LIMIT_MESSAGE);
     expect(getCartLimitError([item("p1", 30), item("p2", 30)])).toBeNull();
+  });
+
+  it("toLimitedItems lê o carrinho do back e ignora item sem dados", () => {
+    expect(
+      toLimitedItems([
+        { productId: "p1", quantity: 3, product: {} },
+        { productId: "p2" },
+        { quantity: 2 },
+        null,
+      ]),
+    ).toEqual([{ productId: "p1", quantity: 3 }]);
+    expect(toLimitedItems(undefined)).toEqual([]);
   });
 });
