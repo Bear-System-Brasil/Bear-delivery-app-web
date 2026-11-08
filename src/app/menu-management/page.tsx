@@ -35,7 +35,6 @@ import { useMenuManagement, type MenuModalTab } from "@/hooks/use-menu-managemen
 import { useProductAddOns } from "@/hooks/use-product-add-ons";
 import { useProductVariations } from "@/hooks/use-product-variations";
 import { groupMenuByCategory } from "@/lib/menu-grouping";
-import { cn } from "@/lib/utils";
 import type { Product } from "@/services/api";
 import {
   Building2,
@@ -256,7 +255,7 @@ function MenuManagementContent() {
     syncCategoryDragVisualState();
   }, [syncCategoryDragVisualState]);
 
-  const requestCategoryScrollLeft = useCallback(
+  const _requestCategoryScrollLeft = useCallback(
     (nextScrollLeft: number) => {
       pendingCategoryScrollLeftRef.current = nextScrollLeft;
 
@@ -761,6 +760,7 @@ function MenuManagementContent() {
                           key={img.id}
                           className="relative h-16 w-16 shrink-0"
                         >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
                             src={img.url}
                             alt="Foto do prato"
@@ -792,6 +792,7 @@ function MenuManagementContent() {
                         key={preview}
                         className="relative h-16 w-16 shrink-0"
                       >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={preview}
                           alt={`Nova foto ${index + 1}`}

@@ -204,7 +204,11 @@ export function useKitchenOrders() {
   useElapsedTicker();
 
   const queryKeyFor = useCallback(
-    (status: KitchenStatus) => kitchenQueryKey(status, range),
+    (status: KitchenStatus) =>
+      kitchenQueryKey(status, {
+        startDate: range.startDate,
+        endDate: range.endDate,
+      }),
     [range.startDate, range.endDate],
   );
 

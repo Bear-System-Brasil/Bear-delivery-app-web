@@ -154,7 +154,7 @@ function createWrapper() {
   return Wrapper;
 }
 
-function loginUser(role = "client") {
+function loginUser(role: NonNullable<ReturnType<typeof useAuthStore.getState>["user"]>["role"] = "client") {
   act(() => {
     useAuthStore.getState().login({
       id: "user-buyer-1",
@@ -163,7 +163,7 @@ function loginUser(role = "client") {
       cpf: "12345678901",
       phone: "41999998888",
       birthDate: "15/05/1990",
-      role: role as any,
+      role,
     });
   });
 }
@@ -193,11 +193,11 @@ describe("Cenários de Compra (Jornada Completa do Cliente)", () => {
     finishOrder.mockResolvedValue({ success: true, data: { id: "order-123" } });
     vi.mocked(apiService.orders.openCart).mockResolvedValue({
       success: true,
-      data: { id: "cart-order-1" } as any,
+      data: { id: "cart-order-1" } as unknown as NonNullable<Awaited<ReturnType<typeof apiService.orders.openCart>>["data"]>,
     });
     vi.mocked(apiService.orderItems.addProductToCart).mockResolvedValue({
       success: true,
-      data: {} as any,
+      data: {} as unknown as NonNullable<Awaited<ReturnType<typeof apiService.orderItems.addProductToCart>>["data"]>,
     });
     paymentsCreate.mockReset();
     paymentsCreate.mockResolvedValue({ success: true, data: {} });
@@ -293,8 +293,11 @@ describe("Cenários de Compra (Jornada Completa do Cliente)", () => {
 
       await act(async () => {
         await result.current.handleAddToCart({
-          product: { id: "p1", name: "Pizza", price: 30 } as any,
-          restaurant: { id: "rest-1", name: "Pizzaria" } as any,
+          id: "p1",
+          name: "Pizza",
+          price: 30,
+          restaurantId: "rest-1",
+          restaurantName: "Pizzaria",
           quantity: 1,
         });
       });
@@ -344,7 +347,7 @@ describe("Cenários de Compra (Jornada Completa do Cliente)", () => {
       vi.mocked(apiService.orders.clearCart).mockResolvedValue({ success: true });
       vi.mocked(apiService.orders.openCart).mockResolvedValue({
         success: true,
-        data: { id: "order-rest-2" } as any,
+        data: { id: "order-rest-2" } as unknown as NonNullable<Awaited<ReturnType<typeof apiService.orders.openCart>>["data"]>,
       });
       vi.mocked(apiService.orderItems.addProductToCart).mockResolvedValue({ success: true });
 
