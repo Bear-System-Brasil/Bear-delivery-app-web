@@ -295,7 +295,7 @@ export function MainHeader({
     <header
       className={clsx(
         POSITION_CLASS[position ?? (fixed ? "fixed" : "sticky")],
-        "bg-background/80 backdrop-blur-md border border-brand-100/50 dark:border-brand-900/50",
+        "bg-background/95 border border-brand-100/50 dark:border-brand-900/50",
         "rounded-xl sm:rounded-2xl shadow-2xl overflow-hidden",
         className,
       )}

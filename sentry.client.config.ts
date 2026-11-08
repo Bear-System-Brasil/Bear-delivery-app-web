@@ -14,13 +14,10 @@ Sentry.init({
   // quando "Automatically expose System Environment Variables" esta ligado.
   environment: process.env.NEXT_PUBLIC_VERCEL_ENV ?? "development",
   dataCollection: SENTRY_DATA_COLLECTION,
-  // Gravacao da tela so quando acontece erro, nunca da sessao inteira: o
-  // plano gratuito tem cota pequena de replays.
-  replaysSessionSampleRate: 0,
-  replaysOnErrorSampleRate: 1.0,
-  integrations: [
-    // Texto e imagem mascarados: o replay mostra o que o cliente fez, nao
-    // nome, endereco ou CPF digitados.
-    Sentry.replayIntegration({ maskAllText: true, blockAllMedia: true }),
-  ],
+  // Sem Session Replay de proposito (LDMF-477). Mesmo so "em caso de erro",
+  // o Replay grava a tela o tempo todo em memoria para ter o video quando o
+  // erro acontece. Medido em build de producao com CPU limitada: dobrava o
+  // travamento na abertura das telas, levava o LCP do cardapio no celular de
+  // ~1,4 s para ~4 s e somava 3-4 MB por aba. A captura de erro (stack,
+  // navegador, URL) continua igual; so o video sai.
 });

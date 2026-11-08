@@ -404,7 +404,7 @@ export default function RestaurantPage() {
               {/* === BARRA DE NAVEGAÇÃO DE CATEGORIAS FIXA === */}
               <nav
                 ref={navRef}
-                className="sticky top-[72px] z-30 -mx-3 flex gap-2 overflow-x-auto bg-muted/95 px-3 py-3 backdrop-blur scrollbar-hide sm:top-[82px] sm:-mx-5 sm:px-5"
+                className="sticky top-[72px] z-30 -mx-3 flex gap-2 overflow-x-auto bg-muted/95 px-3 py-3 scrollbar-hide sm:top-[82px] sm:-mx-5 sm:px-5"
               >
                 {categories.map((category) => {
                   const isActive = selectedCategory === category;
