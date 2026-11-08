@@ -3,7 +3,7 @@ import {
   type CoordinateSource,
   type SourcedCoords,
 } from "@/lib/address-coordinates";
-import { CepNotFoundError, fetchCepAddress, findCepByStreet } from "@/lib/cep";
+import { CepNotFoundError, fetchCepAddress } from "@/lib/cep";
 import { parseCoords } from "@/lib/geocode";
 import { findNeighborhood, neighborhoodLabel } from "@/services/neighborhoods";
 import { Coords } from "@/types/restaurant";
@@ -28,14 +28,6 @@ export const NO_NEIGHBORHOOD_CEP_HINT =
   "Este CEP não traz o bairro. Preencha o bairro abaixo.";
 export const CEP_NOT_FOUND_HINT =
   "CEP não encontrado. Confira o número ou preencha estado, cidade, bairro, rua e número à mão.";
-export const CITY_CEP_FILLED_HINT =
-  "Preenchemos o CEP da cidade, que vale para a cidade inteira.";
-export const STREET_CEP_FILLED_HINT =
-  "Preenchemos o CEP pela rua. Confira se está certo.";
-export const STREET_CEP_NOT_FOUND_HINT =
-  "Não achamos o CEP desta rua. Digite o CEP para salvar.";
-/** Pausa depois da última tecla antes de procurar o CEP pela rua. */
-export const STREET_CEP_DELAY_MS = 1200;
 export const CEP_LOOKUP_FAILED_HINT =
   "Não conseguimos consultar o CEP agora. Preencha estado, cidade, bairro, rua e número à mão.";
 
@@ -62,15 +54,8 @@ export type EditableAddress = {
  * PATCH). O salvar usa exatamente a posição do pino.
  *
  * @param enabled o modal está aberto (carrega estados e cidades só então).
- * @param zipCodeOptional CEP pode ficar vazio (seletor da home).
  */
-export const useAddressEditor = ({
-  enabled,
-  zipCodeOptional = false,
-}: {
-  enabled: boolean;
-  zipCodeOptional?: boolean;
-}) => {
+export const useAddressEditor = ({ enabled }: { enabled: boolean }) => {
   // CEP state
   const [isLoadingCep, setIsLoadingCep] = useState(false);
   const [lastFetchedCep, setLastFetchedCep] = useState<string | null>(null);
@@ -91,7 +76,7 @@ export const useAddressEditor = ({
     [pin],
   );
 
-  const addressForm = useAddressForm(undefined, { zipCodeOptional });
+  const addressForm = useAddressForm();
 
   // Watch CEP field changes
   const watchedZipCode = addressForm.watch("zipCode");
@@ -173,101 +158,6 @@ export const useAddressEditor = ({
     addressPin.neighborhoodList,
     watchedNeighborhood,
     addressForm,
-  ]);
-
-  // CEP automático (LDMF-260): cidade de CEP único na lista (Castelo,
-  // 29360-000) preenche o CEP vazio. Sem busca: o CEP é o da própria cidade
-  // escolhida. Trocar para outra cidade tira o CEP que foi preenchido aqui.
-  const autoFilledCep = useRef<string | null>(null);
-  useEffect(() => {
-    const currentCep = onlyNumbers(addressForm.getValues("zipCode") ?? "");
-    const cityCep = onlyNumbers(addressPin.neighborhoodList?.cep ?? "");
-
-    if (autoFilledCep.current && currentCep === autoFilledCep.current) {
-      if (cityCep === currentCep) return;
-      autoFilledCep.current = null;
-      lastCepRequest.current = null;
-      setLastFetchedCep(null);
-      addressForm.setValue("zipCode", "", { shouldValidate: true });
-      return;
-    }
-
-    if (cityCep.length !== 8 || currentCep) return;
-
-    autoFilledCep.current = cityCep;
-    lastCepRequest.current = cityCep;
-    setLastFetchedCep(cityCep);
-    addressForm.setValue("zipCode", formatCep(cityCep), {
-      shouldValidate: true,
-    });
-    setZipCodeHint(CITY_CEP_FILLED_HINT);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [addressPin.neighborhoodList]);
-
-  // CEP pela rua (LDMF-258): quem não sabe o CEP preenche a rua e o CEP vem
-  // da ViaCEP. Só mexe em CEP vazio ou no que ele mesmo pôs - CEP digitado
-  // pelo cliente, ou o da cidade de CEP único (efeito acima), fica.
-  const streetFilledCep = useRef<string | null>(null);
-  useEffect(() => {
-    if (zipCodeOptional) return;
-    if (addressPin.neighborhoodList?.cep) return;
-
-    const street = watchedStreet?.trim() ?? "";
-    const city = watchedCity?.trim() ?? "";
-    const state = watchedState?.trim() ?? "";
-    const currentCep = onlyNumbers(addressForm.getValues("zipCode") ?? "");
-    const ours = !!streetFilledCep.current && currentCep === streetFilledCep.current;
-    if (currentCep && !ours) return;
-
-    if (!street || !city || !state) {
-      // A rua foi apagada (ou a cidade trocada): o CEP que veio dela sai.
-      if (ours) {
-        streetFilledCep.current = null;
-        lastCepRequest.current = null;
-        setLastFetchedCep(null);
-        addressForm.setValue("zipCode", "", { shouldValidate: true });
-        setZipCodeHint(null);
-      }
-      return;
-    }
-
-    let active = true;
-    const timer = setTimeout(async () => {
-      const cep = await findCepByStreet({
-        state,
-        city,
-        street,
-        neighborhood: watchedNeighborhood,
-      });
-      if (!active) return;
-
-      if (!cep) {
-        if (!onlyNumbers(addressForm.getValues("zipCode") ?? "")) {
-          setZipCodeHint(STREET_CEP_NOT_FOUND_HINT);
-        }
-        return;
-      }
-
-      streetFilledCep.current = cep;
-      // Marcado como já buscado: o CEP preenchido não dispara a busca de
-      // CEP, que trocaria a rua e o bairro digitados pelos do CEP.
-      lastCepRequest.current = cep;
-      setLastFetchedCep(cep);
-      addressForm.setValue("zipCode", formatCep(cep), { shouldValidate: true });
-      setZipCodeHint(STREET_CEP_FILLED_HINT);
-    }, STREET_CEP_DELAY_MS);
-
-    return () => {
-      active = false;
-      clearTimeout(timer);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    watchedStreet,
-    watchedCity,
-    watchedState,
-    watchedNeighborhood,
-    addressPin.neighborhoodList,
   ]);
 
   /**
@@ -390,26 +280,20 @@ export const useAddressEditor = ({
    * complemento mantém.
    */
   const loadAddress = (address: EditableAddress) => {
-    // keepDefaultValues: sem ele o endereço aberto vira o "padrão" do
-    // formulário, e o reset() de limpar (Cancelar, depois de salvar) o
-    // trazia de volta - "Adicionar" abria com o último endereço editado.
-    addressForm.reset(
-      {
-        street: address.street || "",
-        number: String(address.number ?? ""),
-        neighborhood: address.neighborhood || "",
-        city: address.city || "",
-        state: address.state || "",
-        zipCode: address.zipCode || "",
-        type: address.type,
-        complement: address.complement || "",
-        reference: address.reference || "",
-        longitude: address.longitude ?? undefined,
-        latitude: address.latitude ?? undefined,
-        isDefault: address.isDefault ?? false,
-      },
-      { keepDefaultValues: true },
-    );
+    addressForm.reset({
+      street: address.street || "",
+      number: String(address.number ?? ""),
+      neighborhood: address.neighborhood || "",
+      city: address.city || "",
+      state: address.state || "",
+      zipCode: address.zipCode || "",
+      type: address.type,
+      complement: address.complement || "",
+      reference: address.reference || "",
+      longitude: address.longitude ?? undefined,
+      latitude: address.latitude ?? undefined,
+      isDefault: address.isDefault ?? false,
+    });
 
     const storedCoords = parseCoords(address.latitude, address.longitude);
 
@@ -432,8 +316,6 @@ export const useAddressEditor = ({
     });
     setLastFetchedCep(onlyNumbers(address.zipCode ?? ""));
     lastCepRequest.current = null;
-    autoFilledCep.current = null;
-    streetFilledCep.current = null;
     setZipCodeHint(null);
     addressFields.resetOtherNeighborhood();
   };
@@ -443,8 +325,6 @@ export const useAddressEditor = ({
     addressForm.reset();
     setLastFetchedCep(null);
     lastCepRequest.current = null;
-    autoFilledCep.current = null;
-    streetFilledCep.current = null;
     setZipCodeHint(null);
     setPin(null);
     addressPin.resetBaseline();
@@ -472,12 +352,6 @@ export const useAddressEditor = ({
     return addressCoords.coords;
   };
 
-  /** "É essa?" aceito: o logradouro achado vai para o formulário (LDMF-282). */
-  const acceptStreetSuggestion = () => {
-    const road = addressPin.acceptStreetSuggestion();
-    if (road) addressForm.setValue("street", road, { shouldValidate: true });
-  };
-
   return {
     addressForm,
     loadAddress,
@@ -502,12 +376,8 @@ export const useAddressEditor = ({
     selectOtherNeighborhood: addressFields.selectOtherNeighborhood,
     changeOtherNeighborhood: addressFields.changeOtherNeighborhood,
     isLocatingPin: addressPin.isLocatingNeighborhood,
-    isLoadingNeighborhoods: addressPin.isLoadingNeighborhoods,
     isSearchingAddress: addressPin.isSearchingAddress,
     addressNotFound: addressPin.addressNotFound,
-    streetSuggestion: addressPin.streetSuggestion,
-    acceptStreetSuggestion,
-    dismissStreetSuggestion: addressPin.dismissStreetSuggestion,
     pinZoom: pin?.zoom,
     pinRecenterKey: pin?.seq,
     // CEP

@@ -44,7 +44,7 @@ vi.mock("@/components/ui/animated-background", () => ({
   ),
 }));
 
-vi.mock("@/hooks/use-cart-actions", () => ({
+vi.mock("@/hooks", () => ({
   useCartActions: () => ({
     items: cartItems,
     totalItems: cartItems.reduce((acc, i) => acc + i.quantity, 0),
@@ -53,29 +53,21 @@ vi.mock("@/hooks/use-cart-actions", () => ({
     handleRemoveFromCart,
     handleGoToCheckout,
   }),
-}))
-vi.mock("@/hooks/use-restaurants", () => ({
   useRestaurant: () => ({
     data: { id: "rest-1", tradeName: "Pizzaria do Urso", isOpen: true },
   }),
-}))
-vi.mock("@/hooks/use-opening-hours", () => ({
   useRestaurantOpeningHours: () => ({
     data: { isOpen: true, linkedToCashRegister: true, days: [] },
   }),
-}))
-vi.mock("@/hooks/use-products", () => ({
   useCompanyProducts: () => ({
     data: mockProducts,
     refetch: refetchProducts,
   }),
-}))
-vi.mock("@/hooks/use-product-variations", () => ({
   usePublicCompanyProductVariations: () => ({
     data: mockVariations,
     refetch: refetchVariations,
   }),
-}))
+}));
 
 describe("CartPage - checagem de estoque (LDMF-273)", () => {
   beforeEach(() => {

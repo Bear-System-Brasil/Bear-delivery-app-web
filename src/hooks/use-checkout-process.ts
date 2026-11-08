@@ -16,6 +16,7 @@ import {
   onlyNumbers,
 } from "@/utils";
 import {
+  resolveAddressCoordinates,
   withCoords,
   type CoordinateSource,
   type SourcedCoords,
@@ -50,13 +51,8 @@ import {
 } from "./use-opening-hours";
 import { resolveRestaurantOpenStatus } from "@/constants/opening-hours";
 import { resolveAcceptedPaymentMethods } from "@/lib/accepted-payment-methods";
-import {
-  getCheckoutFieldErrors,
-  type CheckoutFieldErrors,
-} from "@/lib/checkout-validation";
+import { getCheckoutFieldErrors } from "@/lib/checkout-validation";
 import { getCartLimitError } from "@/lib/order-quantity-limit";
-import { useAddressEditor } from "./use-address-editor";
-import { addressSchema, NUMBER_MESSAGE } from "./use-form-validation";
 
 function showCheckoutError(message: string) {
   toast.dismiss?.();
@@ -272,13 +268,6 @@ export const useCheckoutProcess = () => {
   // Delivery vs pickup
   const [orderType, setOrderType] = useState<"delivery" | "pickup">("delivery");
 
-  // Endereço novo (LDMF-260): campos, CEP, bairros e pino vêm do núcleo de
-  // endereço, o mesmo do perfil. A coordenada do endereço novo é a do pino -
-  // nada é geocodificado escondido no finalizar.
-  const isNewAddress = orderType === "delivery" && addressMode === "new";
-  const addressEditor = useAddressEditor({ enabled: isNewAddress });
-  const newAddressPin = addressEditor.addressCoords?.coords ?? null;
-
   // Form state
   const [deliveryInfo, setDeliveryInfo] = useState<DeliveryInfo>({
     name: user?.name || "",
@@ -342,9 +331,15 @@ export const useCheckoutProcess = () => {
   //   `false` para o checkout avisar que o frete é calculado na finalização em
   //   vez de exibir "Grátis" (LDMF-315).
   const subtotal = getSubtotal();
-  const customerCoords = isNewAddress
-    ? newAddressPin
-    : (addressCoords?.coords ?? null);
+  const customerCoords =
+    addressCoords &&
+    !(
+      addressMode === "new" &&
+      !selectedAddressId &&
+      addressCoords.source === "stored"
+    )
+      ? addressCoords.coords
+      : null;
   const { deliveryFee, isDeliveryFeeKnown } = resolveCheckoutShipping({
     orderType,
     restaurant: restaurantDetails,
@@ -426,65 +421,45 @@ export const useCheckoutProcess = () => {
    * (clique no mapa > geocodificação > CEP).
    */
   const applyCoords = (coords: Coords | null, source: CoordinateSource) => {
-    // Endereço novo: o pino é o do núcleo ("Usar localização" cai aqui).
-    if (isNewAddress) {
-      addressEditor.applyCoords(coords, source);
-      return;
-    }
     setAddressCoords((current) => withCoords(current, coords, source));
   };
 
   /**
-   * Coordenada do endereço do pedido. Endereço novo: exatamente a posição do
-   * pino (sem pino, a etapa 1 não deixa avançar). Endereço salvo: a dele.
+   * Coordenada definitiva do endereço digitado. Sem gesto explícito do
+   * cliente, geocodificação o que foi digitado - é isso que evita o endereço ir
+   * para o banco com a coordenada errada (ou sem nenhuma).
    */
-  const resolveDeliveryCoords = async () =>
-    isNewAddress ? newAddressPin : (addressCoords?.coords ?? null);
+  const resolveDeliveryCoords = async () => {
+    const resolved = await resolveAddressCoordinates(
+      deliveryInfo,
+      addressCoords,
+    );
 
-  /** Texto do endereço novo, como está no formulário do núcleo. */
-  const getNewAddressValues = () => {
-    const values = addressEditor.addressForm.getValues();
-    return {
-      zipCode: values.zipCode ?? "",
-      street: values.street ?? "",
-      number: values.number ?? "",
-      neighborhood: values.neighborhood ?? "",
-      city: values.city ?? "",
-      state: values.state ?? "",
-      complement: values.complement ?? "",
-      reference: values.reference ?? "",
-    };
+    if (resolved) setAddressCoords(resolved);
+
+    return resolved?.coords ?? null;
   };
-
-  /**
-   * Cliente sem endereço padrão (LDMF-262): o endereço novo do checkout fica
-   * salvo e vira o padrão - o logado nunca fica sem padrão.
-   */
-  const newAddressBecomesDefault = !userAddresses?.some((a) => a.isDefault);
 
   /**
    * Salva novo endereço do usuário (lança erro se falhar para não duplicar
    * requisição nem empilhar toasts no fluxo de finalização).
    */
   const saveNewAddress = async (coords: Coords | null): Promise<string> => {
-    // LDMF-262: sem endereço padrão, o novo vira o padrão, marcado ou não
-    // "Salvar este endereço" (e por isso não é descartado depois).
-    const shouldBeDefault = newAddressBecomesDefault;
-
-    const values = getNewAddressValues();
-    const optionalText = (value: string) => value.trim() || undefined;
+    const hasDefault = Boolean(userAddresses?.some((a) => a.isDefault));
+    const shouldBeDefault =
+      saveAddress && (!hasDefault || userAddresses.length === 0);
 
     const addressData = {
-      zipCode: onlyNumbers(values.zipCode),
-      state: values.state,
-      city: values.city,
-      neighborhood: values.neighborhood.trim(),
+      zipCode: onlyNumbers(deliveryInfo.zipCode),
+      state: deliveryInfo.state,
+      city: deliveryInfo.city,
+      neighborhood: deliveryInfo.neighborhood,
       longitude: coords?.lng,
       latitude: coords?.lat,
-      street: values.street.trim(),
-      number: values.number.trim(),
-      complement: optionalText(values.complement),
-      reference: optionalText(values.reference),
+      street: deliveryInfo.street,
+      number: deliveryInfo.number,
+      complement: deliveryInfo.complement || undefined,
+      reference: deliveryInfo.reference || undefined,
       isDefault: shouldBeDefault,
     };
 
@@ -513,32 +488,12 @@ export const useCheckoutProcess = () => {
    * POST, que é mais permissivo, e depois qualquer PATCH naquele endereço
    * falhava com "CEP inválido" - inclusive o que só queria mudar o padrão.
    */
-  const getDeliveryErrors = (): CheckoutFieldErrors => {
-    const values = isNewAddress
-      ? { ...deliveryInfo, ...getNewAddressValues() }
-      : deliveryInfo;
-    const errors = getCheckoutFieldErrors({
-      values,
+  const getDeliveryErrors = () =>
+    getCheckoutFieldErrors({
+      values: deliveryInfo,
       orderType,
       hasCpf: userHasCpf(user),
     });
-
-    // Endereço novo segue as regras do núcleo: número no formato da casa (ou
-    // "Sem número") e pino marcado no mapa.
-    if (isNewAddress) {
-      if (
-        !errors.number &&
-        !addressSchema.shape.number.safeParse(values.number).success
-      ) {
-        errors.number = NUMBER_MESSAGE;
-      }
-      if (!newAddressPin) {
-        errors.location = "Marque no mapa onde fica o endereço.";
-      }
-    }
-
-    return errors;
-  };
 
   /** Valida os dados de entrega (etapa 1 do checkout). */
   const isDeliveryValid = () => Object.keys(getDeliveryErrors()).length === 0;
@@ -584,8 +539,6 @@ export const useCheckoutProcess = () => {
    * 6. Limpa carrinho local (após delay para evitar redirect indesejado)
    */
   const handleSubmitOrder = async () => {
-    // Antes de criar o endereço: depois dele, o cliente já tem padrão.
-    const keepNewAddress = saveAddress || newAddressBecomesDefault;
     // Trava síncrona: cliques repetidos antes do re-render do React (ou
     // enquanto a navegação pós-sucesso ainda está em andamento) são ignorados
     // no ato, evitando finalizações/pagamentos duplicados e toasts empilhados.
@@ -798,20 +751,6 @@ export const useCheckoutProcess = () => {
         return;
       }
 
-      // Teto de quantidade (LDMF-333) no carrinho do back, que é o que vai
-      // ser finalizado: o desta tela pode estar velho se outra aba (ou uma
-      // chamada direta) somou itens depois que o checkout abriu.
-      const backendLimitError = cartResponse.success
-        ? getCartLimitError(
-            (cartResponse.data as { orderedItems?: unknown } | undefined)
-              ?.orderedItems,
-          )
-        : null;
-      if (backendLimitError) {
-        showCheckoutError(backendLimitError);
-        return;
-      }
-
       // Disponibilidade dos itens (LDMF-444): o carrinho local nao sabe se um
       // produto ficou indisponivel depois de adicionado, e o backend finaliza
       // mesmo assim. Conferimos agora contra a lista fresca da loja. Se a busca
@@ -947,7 +886,7 @@ export const useCheckoutProcess = () => {
       // o cliente desmarcou "Salvar este endereço para pedidos futuros", ele
       // não pode sobrar em "meus endereços" depois - descarta (soft delete) o
       // que acabou de ser criado só pra esse pedido.
-      if (!keepNewAddress && addressMode === "new" && deliveryAddressId) {
+      if (!saveAddress && addressMode === "new" && deliveryAddressId) {
         try {
           // Este endereço pode ter acabado de virar o padrão do cliente:
           // quando não havia padrão nenhum, a promoção acima fica de pé em
@@ -1068,7 +1007,6 @@ export const useCheckoutProcess = () => {
     selectedAddressId,
     addressMode,
     saveAddress,
-    newAddressBecomesDefault,
     loadingAddresses,
     setAddressMode,
     setSaveAddress,
@@ -1086,9 +1024,6 @@ export const useCheckoutProcess = () => {
     // Form state
     deliveryInfo,
     addressCoords,
-    // Núcleo de endereço do endereço novo (LDMF-260)
-    addressEditor,
-    isNewAddress,
     applyCoords,
     paymentMethod,
     availablePaymentMethods,

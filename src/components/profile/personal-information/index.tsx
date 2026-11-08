@@ -28,7 +28,7 @@ import { ApiResponse } from "@/services";
 import { User as UserType } from "@/services";
 import type { UpdateUserRequest } from "@/services/api";
 import { Controller, UseFormReturn } from "react-hook-form";
-import type { ProfileFormData } from "@/hooks/use-form-validation";
+import type { ProfileFormData } from "@/hooks";
 import {
   User as PqTemDoisUserType,
   userHasCpf,

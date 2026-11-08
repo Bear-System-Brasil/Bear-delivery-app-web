@@ -10,12 +10,7 @@ export type CheckoutField =
   | "number"
   | "neighborhood"
   | "city"
-  | "state"
-  // Pino do endereço novo no mapa (LDMF-260).
-  | "location";
-
-/** Campos de texto (o pino não é digitado). */
-type CheckoutTextField = Exclude<CheckoutField, "location">;
+  | "state";
 
 export type CheckoutFieldErrors = Partial<Record<CheckoutField, string>>;
 
@@ -40,7 +35,6 @@ export const CHECKOUT_FIELD_LABELS: Record<CheckoutField, string> = {
   neighborhood: "Bairro",
   city: "Cidade",
   state: "Estado",
-  location: "Localização no mapa",
 };
 
 const FIELD_MESSAGES: Record<CheckoutField, string> = {
@@ -53,10 +47,9 @@ const FIELD_MESSAGES: Record<CheckoutField, string> = {
   neighborhood: "Informe o bairro.",
   city: "Informe a cidade.",
   state: "Informe o estado.",
-  location: "Marque no mapa onde fica o endereço.",
 };
 
-type CheckoutFormValues = Partial<Record<CheckoutTextField, string>>;
+type CheckoutFormValues = Record<CheckoutField, string | undefined>;
 
 const isBlank = (value: string | undefined) => !value?.trim();
 
@@ -90,7 +83,7 @@ export function getCheckoutFieldErrors({
     errors.zipCode = FIELD_MESSAGES.zipCode;
   }
 
-  for (const field of CHECKOUT_ADDRESS_FIELDS as readonly CheckoutTextField[]) {
+  for (const field of CHECKOUT_ADDRESS_FIELDS) {
     if (field !== "zipCode" && isBlank(values[field])) {
       errors[field] = FIELD_MESSAGES[field];
     }

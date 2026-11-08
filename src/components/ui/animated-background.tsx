@@ -31,43 +31,43 @@ export interface AnimatedBackgroundProps {
   children?: React.ReactNode;
 }
 
-// Manchas paradas de proposito: o animate-pulse obrigava o navegador a refazer
-// o blur-3xl a cada quadro, para sempre, mesmo com a tela parada. Medido na
-// home com CPU limitada: ~670 ms de GPU a cada 3 s com o pulso, ~27 ms sem.
-// Mancha parada custa o mesmo que nao ter mancha. Nao volte a animar.
 const blobConfigs = [
   {
     id: "blob-orange-orange",
     gradient: "from-brand-400/20 to-brand-400/20",
     size: "w-64 h-64",
     position: "top-20 left-10",
+    animation: "animate-pulse",
   },
   {
     id: "blob-purple-blue",
     gradient: "from-brand-deep/15 to-brand-400/15",
     size: "w-48 h-48",
     position: "top-40 right-20",
+    animation: "animate-pulse delay-1000",
   },
   {
     id: "blob-yellow-orange",
     gradient: "from-yellow-400/10 to-brand-400/10",
     size: "w-80 h-80",
     position: "bottom-40 left-1/4",
+    animation: "animate-pulse delay-2000",
   },
   {
     id: "blob-orange-purple",
     gradient: "from-brand-400/15 to-brand-deep/15",
     size: "w-56 h-56",
     position: "bottom-20 right-1/3",
+    animation: "animate-pulse delay-500",
   },
 ];
 
 /**
- * AnimatedBackground - A decorative background with static gradient blobs
+ * AnimatedBackground - A decorative background with animated gradient blobs
  *
  * This component provides a consistent animated background used across multiple pages.
- * It includes blurred gradient blobs that add visual interest without being
- * distracting. The blobs are static on purpose (see the note on blobConfigs).
+ * It includes floating gradient blobs with pulse animations that add visual interest
+ * without being distracting.
  *
  * @example
  * ```tsx
@@ -114,7 +114,7 @@ export const AnimatedBackground = React.memo<AnimatedBackgroundProps>(
         )}
         suppressHydrationWarning
       >
-        {/* Manchas de fundo (paradas) */}
+        {/* Animated background blobs */}
         {showBlobs &&
           displayedBlobs.map((blob) => (
             <div
@@ -124,6 +124,7 @@ export const AnimatedBackground = React.memo<AnimatedBackgroundProps>(
                 `bg-linear-to-r ${blob.gradient}`,
                 blob.size,
                 blob.position,
+                blob.animation,
               )}
               aria-hidden="true"
               suppressHydrationWarning

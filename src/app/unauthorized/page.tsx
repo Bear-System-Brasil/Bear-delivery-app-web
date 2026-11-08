@@ -8,7 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { useUnauthorizedPage } from "@/hooks/use-unauthorized-page";
+import { useUnauthorizedPage } from "@/hooks";
 import { ROLE_DESCRIPTIONS, ROLE_LABELS } from "@/utils/permissions";
 import { AlertTriangle, Home, Shield } from "lucide-react";
 

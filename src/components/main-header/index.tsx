@@ -17,10 +17,6 @@ import {
   type OpenLocationSheetMode,
 } from "@/lib/location-sheet";
 import { getProfileRoute, isCompanyStaffRole } from "@/utils/role-helpers";
-import {
-  writeUserLocation,
-  type LocationSource,
-} from "@/lib/user-location-cookie";
 import clsx from "clsx";
 import {
   ChevronDown,
@@ -44,7 +40,6 @@ import {
   type SavedDeliveryLocation,
 } from "./delivery-address-form";
 import { ThemeToggle } from "../ui/theme-toggle";
-import { useSyncedUserLocation } from "@/hooks/use-synced-user-location";
 import Link from "next/link";
 import { BearDeliveryLogo } from "../ui/bear-delivery-logo";
 import Image from "next/image";
@@ -133,10 +128,6 @@ export function MainHeader({
   const router = useRouter();
   const pathname = usePathname();
   const { showAuthModal, logout } = useAuth();
-  // O endereço padrão de quem está logado vira o ponto do app em qualquer
-  // tela que tenha o cabeçalho, não só na home: quem chega por link direto
-  // da loja ou do checkout via "Escolha seu endereço" mesmo tendo padrão.
-  useSyncedUserLocation();
   const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const storeTotalItems = useCartStore((s) =>
@@ -209,18 +200,16 @@ export function MainHeader({
     }
   };
 
-  // Último gesto vence (LDMF-260): endereço escolhido grava "address", o
-  // toque em "Usar atual" grava "gps".
   const saveLocation = (
     location: Omit<SavedDeliveryLocation, "label"> &
       Partial<Pick<SavedDeliveryLocation, "label">>,
-    source: LocationSource = "address",
   ) => {
-    writeUserLocation(location, source);
+    document.cookie = `userLocation=${encodeURIComponent(JSON.stringify(location))}; path=/; max-age=86400; SameSite=Lax`;
     setLocationLabel(formatLocationLabel(location) || DEFAULT_LOCATION_LABEL);
     setLocationOpen(false);
     setIsChangingLocation(false);
     setLocationError("");
+    window.dispatchEvent(new Event("locationChanged"));
   };
 
   const handleCurrentLocation = async () => {
@@ -253,15 +242,12 @@ export function MainHeader({
       ]
         .filter(Boolean)
         .join(", ");
-      saveLocation(
-        {
-          lat: latitude,
-          lng: longitude,
-          city,
-          address: address || city,
-        },
-        "gps",
-      );
+      saveLocation({
+        lat: latitude,
+        lng: longitude,
+        city,
+        address: address || city,
+      });
     } catch {
       setLocationError("Não foi possível encontrar sua localização.");
     } finally {
@@ -309,7 +295,7 @@ export function MainHeader({
     <header
       className={clsx(
         POSITION_CLASS[position ?? (fixed ? "fixed" : "sticky")],
-        "bg-background/95 border border-brand-100/50 dark:border-brand-900/50",
+        "bg-background/80 backdrop-blur-md border border-brand-100/50 dark:border-brand-900/50",
         "rounded-xl sm:rounded-2xl shadow-2xl overflow-hidden",
         className,
       )}
@@ -363,9 +349,7 @@ export function MainHeader({
                 >
                   <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-muted sm:hidden" />
                   {isChangingLocation ? (
-                    <DeliveryAddressForm
-                      onSave={(location) => saveLocation(location, "address")}
-                    />
+                    <DeliveryAddressForm onSave={saveLocation} />
                   ) : (
                     <div className="mx-auto w-full max-w-xl space-y-4">
                       <SheetTitle className="pr-6 text-lg font-bold">

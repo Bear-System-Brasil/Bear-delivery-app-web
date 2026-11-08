@@ -6,11 +6,9 @@ import {
   getElapsed,
   getFulfillmentLabel,
   getFulfillmentToneClass,
-  getItemLineTotal,
   getItemName,
   getNamedAddOns,
   getOrderLabel,
-  getOrderValues,
   getPaymentLabel,
   getPeriodRange,
   getVariationName,
@@ -402,59 +400,5 @@ describe("getPeriodRange", () => {
     expect(endDate?.startsWith("2024-07-20")).toBe(true);
 
     vi.useRealTimers();
-  });
-});
-
-describe("getItemLineTotal", () => {
-  const base: KitchenOrderItem = { id: "i1", productId: "p1", quantity: 3, unitPrice: 10 };
-
-  it("multiplica o preço do prato pela quantidade", () => {
-    expect(getItemLineTotal(base)).toBe(30);
-  });
-
-  it("soma o tamanho e cada adicional vezes a quantidade dele, por unidade do prato", () => {
-    const item: KitchenOrderItem = {
-      ...base,
-      variations: [{ id: "v", priceSnapshot: 2.5 }],
-      addOns: [{ id: "a", quantity: 2, priceSnapshot: 1.1 }],
-    };
-    // 3 x (10 + 2.5 + 2 x 1.1) = 44.1
-    expect(getItemLineTotal(item)).toBe(44.1);
-  });
-
-  it("sem preço do prato devolve null em vez de zero", () => {
-    expect(getItemLineTotal({ ...base, unitPrice: undefined })).toBeNull();
-  });
-});
-
-describe("getOrderValues", () => {
-  const order = {
-    id: "o1",
-    status: "ORDERED",
-    created_at: "",
-    statusChangedAt: "",
-    fulfillmentType: "DELIVERY",
-  } as KitchenOrder;
-
-  it("subtotal é total - taxa + desconto, como no detalhe do pedido", () => {
-    expect(getOrderValues({ ...order, totalValue: 81, totalShipping: 8, discount: 5 })).toEqual({
-      subtotal: 78,
-      shipping: 8,
-      discount: 5,
-      total: 81,
-    });
-  });
-
-  it("taxa e desconto ausentes ficam null, não zero", () => {
-    expect(getOrderValues({ ...order, totalValue: 50 })).toEqual({
-      subtotal: 50,
-      shipping: null,
-      discount: null,
-      total: 50,
-    });
-  });
-
-  it("sem total não há resumo", () => {
-    expect(getOrderValues(order)).toBeNull();
   });
 });

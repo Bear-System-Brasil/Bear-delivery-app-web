@@ -4,10 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { CustomizeOrder } from "@/components/customize-order/customize-order";
-import { useNewDishes } from "@/hooks/use-new-dishes";
+import { useNewDishes } from "@/hooks";
 import { cn } from "@/lib/utils";
-import { useAuthStore } from "@/stores";
-import { isCompanyStaffRole } from "@/utils/role-helpers";
 import type { NewDish } from "@/services/products/new-dishes";
 import type { Restaurant, UserLocation } from "@/types/restaurant";
 
@@ -81,11 +79,6 @@ export function NewDishesSection({
   const [filter, setFilter] = useState<DishFilterId>("all");
   const [selectedDish, setSelectedDish] = useState<NewDish | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  // Conta de restaurante vê a vitrine, mas não faz pedido: o card fica
-  // read-only (sem abrir o prato e sem "+"). Deslogado continua abrindo -
-  // o login só é cobrado ao adicionar ao carrinho (LDMF-473).
-  const user = useAuthStore((state) => state.user);
-  const isStaffAccount = isCompanyStaffRole(user?.role);
 
   const railRef = useRef<HTMLDivElement>(null);
   const [page, setPage] = useState(0);
@@ -247,7 +240,7 @@ export function NewDishesSection({
                 key={dish.id}
                 dish={dish}
                 index={index}
-                onOpen={isStaffAccount ? undefined : openDish}
+                onOpen={openDish}
               />
             ))}
           </div>

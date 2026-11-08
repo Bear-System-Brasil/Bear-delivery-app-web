@@ -3,8 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, User } from "lucide-react";
-import { useCartActions } from "@/hooks/use-cart-actions";
-import { useProfileManagement } from "@/hooks/use-profile-management";
+import { useCartActions, useProfileManagement } from "@/hooks";
 import { GradientButton } from "@/components/ui/custom";
 import { AnimatedBackground } from "@/components/ui/animated-background";
 import { MainHeader } from "@/components/main-header";
@@ -15,7 +14,6 @@ import { OrderHistory } from "@/components/profile/order-history";
 import { PersonalInformation } from "@/components/profile/personal-information";
 import { Security } from "@/components/profile/security";
 import { UserPhotoUpload } from "@/components/user-photo-upload";
-import { isClientRole } from "@/utils/role-helpers";
 
 function ProfileShell({
   cartItems,
@@ -80,8 +78,6 @@ export function ProfileWrapper() {
     applyCoords,
     neighborhoodOptions,
     isLocatingPin,
-    isLoadingNeighborhoods,
-    defaultOptionLockedHint,
     stateOptions,
     cityOptions,
     isLoadingCities,
@@ -95,17 +91,12 @@ export function ProfileWrapper() {
     changeOtherNeighborhood,
     isSearchingAddress,
     addressNotFound,
-    streetSuggestion,
-    acceptStreetSuggestion,
-    dismissStreetSuggestion,
     pinZoom,
     pinRecenterKey,
     // CEP
     isLoadingCep,
     zipCodeHint,
   } = useProfileManagement();
-
-  const isClient = isClientRole(user?.role);
 
   // Redirect if not authenticated - só depois que o Zustand persist hidratar
   // (lê a sessão do localStorage de forma assíncrona). Antes disso
@@ -223,58 +214,49 @@ export function ProfileWrapper() {
           user={user}
         />
 
-        {/* Histórico de pedidos e endereços são do cliente. /profile também
-            atende gerente, financeiro, cozinheiro e entregador, que não fazem
-            pedido (/orders é só de cliente) e não têm endereço pessoal:
-            GET /address/me devolve o endereço da loja ou 403 (LDMF-481). */}
-        {isClient && <OrderHistory />}
+        {/* Order History */}
+        <OrderHistory />
 
-        {isClient && (
-          <Addresses
-            handleCloseAddressModal={handleCloseAddressModal}
-            handleDeleteAddress={handleDeleteAddress}
-            handleAddAddress={handleAddAddress}
-            handleEditAddress={handleEditAddress}
-            handleSetDefaultAddress={handleSetDefaultAddress}
-            settingDefaultAddressId={settingDefaultAddressId}
-            applyCoords={applyCoords}
-            editingAddressId={editingAddressId}
-            addingAddressState={addingAddressState}
-            isLoadingAddresses={isLoadingAddresses}
-            isSavingAddress={isSavingAddress}
-            isLoadingCep={isLoadingCep}
-            zipCodeHint={zipCodeHint}
-            addressForm={addressForm}
-            addressCoords={addressCoords}
-            addresses={addresses}
-            neighborhoodOptions={neighborhoodOptions}
-            isLocatingPin={isLocatingPin}
-            defaultOptionLockedHint={defaultOptionLockedHint}
-            addressFieldProps={{
-              stateOptions,
-              cityOptions,
-              isLoadingCities,
-              citiesError,
-              fieldLocks,
-              onStateChange: changeState,
-              onCityChange: changeCity,
-              onNeighborhoodChange: changeNeighborhood,
-              isOtherNeighborhood,
-              isLoadingNeighborhoods,
-              onSelectOtherNeighborhood: selectOtherNeighborhood,
-              onOtherNeighborhoodChange: changeOtherNeighborhood,
-            }}
-            pinStatusProps={{
-              isSearchingAddress,
-              addressNotFound,
-              streetSuggestion,
-              onAcceptStreetSuggestion: acceptStreetSuggestion,
-              onDismissStreetSuggestion: dismissStreetSuggestion,
-              pinZoom,
-              pinRecenterKey,
-            }}
-          />
-        )}
+        {/* Addresses */}
+        <Addresses
+          handleCloseAddressModal={handleCloseAddressModal}
+          handleDeleteAddress={handleDeleteAddress}
+          handleAddAddress={handleAddAddress}
+          handleEditAddress={handleEditAddress}
+          handleSetDefaultAddress={handleSetDefaultAddress}
+          settingDefaultAddressId={settingDefaultAddressId}
+          applyCoords={applyCoords}
+          editingAddressId={editingAddressId}
+          addingAddressState={addingAddressState}
+          isLoadingAddresses={isLoadingAddresses}
+          isSavingAddress={isSavingAddress}
+          isLoadingCep={isLoadingCep}
+          zipCodeHint={zipCodeHint}
+          addressForm={addressForm}
+          addressCoords={addressCoords}
+          addresses={addresses}
+          neighborhoodOptions={neighborhoodOptions}
+          isLocatingPin={isLocatingPin}
+          addressFieldProps={{
+            stateOptions,
+            cityOptions,
+            isLoadingCities,
+            citiesError,
+            fieldLocks,
+            onStateChange: changeState,
+            onCityChange: changeCity,
+            onNeighborhoodChange: changeNeighborhood,
+            isOtherNeighborhood,
+            onSelectOtherNeighborhood: selectOtherNeighborhood,
+            onOtherNeighborhoodChange: changeOtherNeighborhood,
+          }}
+          pinStatusProps={{
+            isSearchingAddress,
+            addressNotFound,
+            pinZoom,
+            pinRecenterKey,
+          }}
+        />
 
         {/* Security */}
         <Security />

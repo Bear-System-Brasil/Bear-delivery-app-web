@@ -185,18 +185,7 @@ export const STATUS_TONE: Record<DeliveryStatus, string> = {
  * Endereço em duas linhas para leitura rápida na moto: a primeira é o que se
  * digita num porteiro eletrônico, a segunda situa o bairro.
  */
-/** Campos de texto do endereço - serve ao `Address` da entrega e ao da cozinha. */
-export type AddressText = {
-  street?: string | null;
-  number?: string | null;
-  complement?: string | null;
-  neighborhood?: string | null;
-  city?: string | null;
-  state?: string | null;
-  zipCode?: string | null;
-};
-
-export function formatAddressLines(address?: AddressText | null): string[] {
+export function formatAddressLines(address?: Address): string[] {
   if (!address) return [];
 
   const line1 = [address.street, address.number].filter(Boolean).join(", ");

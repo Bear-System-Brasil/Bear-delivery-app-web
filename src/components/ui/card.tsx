@@ -13,11 +13,8 @@ const Card = React.forwardRef<HTMLDivElement, CardProps>(
       className={cn(
         "rounded-xl border text-card-foreground shadow relative overflow-hidden transition-all",
 
-        // padrão. Sem backdrop-blur de proposito (LDMF-475): cada card
-        // desfocado vira uma camada na GPU e o desfoque e refeito a cada
-        // quadro de rolagem (e a cada quadro de qualquer animacao dentro do
-        // card). Medido: cardapio no PC rolando com ~70% da GPU ocupada.
-        "bg-card/80",
+        // padrão
+        "bg-card/80 backdrop-blur-sm",
 
         //promoção
         promotion &&

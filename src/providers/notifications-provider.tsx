@@ -16,7 +16,6 @@
  */
 
 import { KITCHEN_SOCKET_NAMESPACE, type KitchenOrder } from "@/components/kitchen/types";
-import { SoundUnlockNotice } from "@/components/notifications/sound-unlock-notice";
 import { useAuth } from "@/contexts/auth-provider";
 import { useUserOrders } from "@/hooks/use-orders";
 import {
@@ -209,12 +208,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   return (
     <>
       {isAuthenticated && isClient() && <CustomerOrderWatcher />}
-      {isAuthenticated && isRestaurantStaff() && (
-        <>
-          <ManagementOrderWatcher />
-          <SoundUnlockNotice />
-        </>
-      )}
+      {isAuthenticated && isRestaurantStaff() && <ManagementOrderWatcher />}
       {children}
     </>
   );

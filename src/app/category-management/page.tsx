@@ -25,8 +25,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { CustomizeOrder } from "@/components/customize-order/customize-order";
 import { MenuItemsList } from "@/components/menu-items-list";
-import { useCategoryManagement } from "@/hooks/use-category-management";
-import { useCompanyProducts } from "@/hooks/use-products";
+import { useCategoryManagement, useCompanyProducts } from "@/hooks";
 import { groupMenuByCategory } from "@/lib/menu-grouping";
 import { cn } from "@/lib/utils";
 import type { Product } from "@/services/api";
@@ -262,7 +261,7 @@ function CategoryManagementContent() {
     <AdminPageLayout
       title="Categorias"
       icon={LayoutGrid}
-      mainClassName="p-4 pb-20 sm:p-6 md:pb-10 lg:px-8"
+      mainClassName="p-4 pb-20 sm:p-6 md:pb-10 lg:pl-[17rem] lg:pr-8"
     >
       <div className="mx-auto max-w-7xl">
         <div className="mb-3 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
@@ -596,7 +595,6 @@ function CategoryManagementContent() {
                     read-only (componente compartilhado, LDMF-454). */}
                 <MenuItemsList
                   className="mt-3"
-                  mobileLayout
                   categories={previewListCategories}
                   groupedItems={previewGrouped}
                   onSelectItem={setPreviewItem}

@@ -3,17 +3,74 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { useUserAddresses } from "@/hooks/use-addresses";
-import { geocodeAddress } from "@/lib/geocode";
-import {
-  formatAddressLabel,
-  locationFromAddress,
-  readUserLocation,
-  writeUserLocation,
-  LOCATION_CHANGED_EVENT,
-  type StoredUserLocation,
-} from "@/lib/user-location-cookie";
+import { geocodeAddress, parseCoords } from "@/lib/geocode";
 import type { Address } from "@/services/api";
 import type { UserLocation } from "@/types/restaurant";
+
+type StoredUserLocation = UserLocation & {
+  address?: string;
+};
+
+const LOCATION_COOKIE = "userLocation";
+
+function parseLocationCookie(): StoredUserLocation | null {
+  if (typeof document === "undefined") return null;
+
+  const locationCookie = document.cookie
+    .split("; ")
+    .find((row) => row.startsWith(`${LOCATION_COOKIE}=`));
+
+  if (!locationCookie) return null;
+
+  try {
+    const value = locationCookie.split("=").slice(1).join("=");
+    const parsed = JSON.parse(decodeURIComponent(value));
+
+    const coords =
+      typeof parsed === "object" && parsed !== null
+        ? parseCoords(parsed.lat, parsed.lng)
+        : null;
+
+    if (coords) {
+      return { ...parsed, ...coords };
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+function saveLocationCookie(location: StoredUserLocation) {
+  document.cookie = `${LOCATION_COOKIE}=${encodeURIComponent(
+    JSON.stringify(location),
+  )}; path=/; max-age=86400; SameSite=Lax`;
+  window.dispatchEvent(new Event("locationChanged"));
+}
+
+function getAddressLabel(address: Address) {
+  return [
+    address.street,
+    address.number,
+    address.neighborhood,
+    address.city,
+    address.state,
+  ]
+    .filter(Boolean)
+    .join(", ");
+}
+
+function getCoordsFromAddress(address: Address): StoredUserLocation | null {
+  const coords = parseCoords(address.latitude, address.longitude);
+
+  if (!coords) return null;
+
+  return {
+    ...coords,
+    city: address.city,
+    address: getAddressLabel(address),
+  };
+}
 
 async function geocodeSavedAddress(
   address: Address,
@@ -25,7 +82,7 @@ async function geocodeSavedAddress(
   return {
     ...coords,
     city: address.city,
-    address: formatAddressLabel(address),
+    address: getAddressLabel(address),
   };
 }
 
@@ -40,7 +97,7 @@ export function useSyncedUserLocation(initialLocation?: UserLocation | null) {
   );
 
   const syncLocationFromCookie = useCallback(() => {
-    const storedLocation = readUserLocation();
+    const storedLocation = parseLocationCookie();
 
     if (!storedLocation) return;
 
@@ -63,23 +120,15 @@ export function useSyncedUserLocation(initialLocation?: UserLocation | null) {
 
   useEffect(() => {
     syncLocationFromCookie();
-    window.addEventListener(LOCATION_CHANGED_EVENT, syncLocationFromCookie);
+    window.addEventListener("locationChanged", syncLocationFromCookie);
 
     return () => {
-      window.removeEventListener(LOCATION_CHANGED_EVENT, syncLocationFromCookie);
+      window.removeEventListener("locationChanged", syncLocationFromCookie);
     };
   }, [syncLocationFromCookie]);
 
-  // Endereço padrão de quem está logado vira o ponto da home quando não há
-  // cookie, ou quando o cookie é de antes da regra de origem (LDMF-260): um
-  // GPS antigo não pode vencer o endereço que o cliente escolheu. Cookie com
-  // origem ("address" ou "gps") é o último gesto do cliente e fica.
   useEffect(() => {
-    if (!userAddresses.length) return;
-
-    const stored = readUserLocation();
-    if (stored?.source) return;
-    if (!stored && location) return;
+    if (location || parseLocationCookie() || !userAddresses.length) return;
 
     let cancelled = false;
 
@@ -88,7 +137,7 @@ export function useSyncedUserLocation(initialLocation?: UserLocation | null) {
       if (!preferredAddress) return;
 
       const savedLocation =
-        locationFromAddress(preferredAddress) ||
+        getCoordsFromAddress(preferredAddress) ||
         (await geocodeSavedAddress(preferredAddress));
 
       if (!savedLocation || cancelled) return;
@@ -98,7 +147,7 @@ export function useSyncedUserLocation(initialLocation?: UserLocation | null) {
         lng: savedLocation.lng,
         city: savedLocation.city,
       });
-      writeUserLocation(savedLocation, "address");
+      saveLocationCookie(savedLocation);
     };
 
     syncLocationFromSavedAddress();

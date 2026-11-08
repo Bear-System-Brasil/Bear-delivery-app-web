@@ -1,6 +1,5 @@
 import { BRAZIL_STATES } from "@/constants/brazil-states";
 import { normalizeText, parseCoords } from "@/lib/geocode";
-import { splitStreet } from "@/lib/street-type";
 import { Coords } from "@/types/restaurant";
 
 /**
@@ -26,12 +25,6 @@ export type CityRef = {
 };
 
 export type NominatimAddress = {
-  /** Nome da via, com o tipo ("Avenida Nossa Senhora da Penha"). */
-  road?: string;
-  /** Bairro da via, no nome que o OpenStreetMap usa. */
-  suburb?: string;
-  neighbourhood?: string;
-  quarter?: string;
   city?: string;
   town?: string;
   village?: string;
@@ -39,23 +32,6 @@ export type NominatimAddress = {
   state?: string;
   "ISO3166-2-lvl4"?: string;
 };
-
-/** Rua achada pelas tentativas de `findStreet` (LDMF-282). */
-export type StreetMatch = {
-  coords: Coords;
-  /** Nome da via no OpenStreetMap, quando veio. */
-  road: string | null;
-  /** Bairro da via no OpenStreetMap, quando veio. */
-  area: string | null;
-  /**
-   * Achou só sem o tipo escolhido (ou o endereço não tinha tipo): o nome da
-   * via pode ser outro ("Avenida", não "Rua") e o cliente precisa confirmar.
-   */
-  withoutChosenType: boolean;
-};
-
-/** Máximo de chamadas por busca de rua (todas passam pela fila). */
-export const MAX_STREET_ATTEMPTS = 4;
 
 type NominatimResult = {
   lat: string;
@@ -153,46 +129,18 @@ export function createNominatimClient({
     return request;
   }
 
-  async function locateResult(
-    params: Record<string, string>,
-    ref: CityRef,
-  ): Promise<{ coords: Coords; road: string | null; area: string | null } | null> {
-    try {
-      const result = await search(params);
-      if (!result || !isInCity(result.address, ref)) return null;
-
-      const coords = parseCoords(result.lat, result.lon);
-      if (!coords) return null;
-
-      const road = result.address?.road?.trim();
-      const area = [
-        result.address?.suburb,
-        result.address?.neighbourhood,
-        result.address?.quarter,
-      ]
-        .map((value) => value?.trim())
-        .find(Boolean);
-      return { coords, road: road || null, area: area || null };
-    } catch {
-      return null;
-    }
-  }
-
   async function locate(
     params: Record<string, string>,
     ref: CityRef,
   ): Promise<Coords | null> {
-    return (await locateResult(params, ref))?.coords ?? null;
-  }
+    try {
+      const result = await search(params);
+      if (!result || !isInCity(result.address, ref)) return null;
 
-  /** Busca estruturada de rua e número, sem o bairro. */
-  function streetParams(street: string, number: string, ref: CityRef) {
-    return {
-      // Sem número (S/N chega vazio aqui): só a rua.
-      street: [number.trim(), street.trim()].filter(Boolean).join(" "),
-      city: ref.city.trim(),
-      state: stateName(ref.state),
-    };
+      return parseCoords(result.lat, result.lon);
+    } catch {
+      return null;
+    }
   }
 
   return {
@@ -206,54 +154,15 @@ export function createNominatimClient({
       number,
       ...ref
     }: CityRef & { street: string; number: string }) {
-      return locate(streetParams(street, number, ref), ref);
-    },
-
-    /**
-     * Rua dentro da cidade, com tentativas (LDMF-282), parando na primeira
-     * que cair na cidade:
-     *
-     * 1. logradouro completo + número;
-     * 2. logradouro completo, sem número (o OSM quase não tem número);
-     * 3. só o nome, sem o tipo, + número;
-     * 4. só o nome, sem o tipo e sem número.
-     *
-     * As 3 e 4 cobrem o tipo errado ("Rua" numa avenida): medido em Castelo,
-     * "Rua Nossa Senhora da Penha" não acha nada e "Nossa Senhora da Penha"
-     * acha a Avenida. O nome da via que voltou vai para o cliente confirmar.
-     * `isCancelled` para as tentativas de uma busca que ficou velha.
-     */
-    async findStreet(
-      { street, number, ...ref }: CityRef & { street: string; number: string },
-      isCancelled: () => boolean = () => false,
-    ): Promise<StreetMatch | null> {
-      const { type, name } = splitStreet(street);
-      const fullStreet = street.trim();
-      const bareName = name.trim();
-      const numbers = number.trim() ? [number, ""] : [""];
-
-      const attempts: { street: string; number: string; withoutType: boolean }[] =
-        [];
-      for (const value of numbers) {
-        attempts.push({ street: fullStreet, number: value, withoutType: !type });
-      }
-      if (type && bareName) {
-        for (const value of numbers) {
-          attempts.push({ street: bareName, number: value, withoutType: true });
-        }
-      }
-
-      for (const attempt of attempts.slice(0, MAX_STREET_ATTEMPTS)) {
-        if (isCancelled()) return null;
-
-        const found = await locateResult(
-          streetParams(attempt.street, attempt.number, ref),
-          ref,
-        );
-        if (found) return { ...found, withoutChosenType: attempt.withoutType };
-      }
-
-      return null;
+      return locate(
+        {
+          // Sem número (S/N chega vazio aqui): só a rua.
+          street: [number.trim(), street.trim()].filter(Boolean).join(" "),
+          city: ref.city.trim(),
+          state: stateName(ref.state),
+        },
+        ref,
+      );
     },
 
     /** Centro da cidade, para quando o bairro não tem coordenada. */

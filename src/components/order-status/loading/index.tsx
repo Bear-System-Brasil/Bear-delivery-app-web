@@ -2,7 +2,7 @@ import { MainHeader } from "@/components/main-header";
 import { AnimatedBackground } from "@/components/ui/animated-background";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useCartActions } from "@/hooks/use-cart-actions";
+import { useCartActions } from "@/hooks";
 import { useRouter } from "next/navigation";
 
 export function LoadingPage() {

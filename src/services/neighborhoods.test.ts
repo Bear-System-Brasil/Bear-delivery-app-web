@@ -1,15 +1,10 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
-import { apiService } from "@/services/api";
-import { useAuthStore } from "@/stores/auth-store";
+import { describe, expect, it } from "vitest";
 
 import {
-  clearNeighborhoodsCache,
   findNeighborhood,
   getNeighborhoods,
   isSpellingVariant,
   neighborhoodLabel,
-  parseNeighborhoodsResponse,
 } from "./neighborhoods";
 
 // Lei Municipal de Castelo nº 4.641/2026, grafia conforme LDMF-264: os 32
@@ -202,106 +197,5 @@ describe("texto da opção na lista", () => {
     expect(isSpellingVariant("Cava-Roxa", "Cava Roxa")).toBe(true);
     expect(isSpellingVariant("Castelo III", "Pombal")).toBe(false);
     expect(isSpellingVariant("Pantanal", "Jardim Primavera")).toBe(false);
-  });
-});
-
-describe("getNeighborhoods com a rota do backend (LDMF-264)", () => {
-  const backCastelo = {
-    state: "ES",
-    city: "Castelo",
-    ibgeCode: "3201407",
-    cep: "29360-000",
-    center: { lat: -20.6153082, lng: -41.2063262 },
-    neighborhoods: [
-      {
-        name: "Castelo III",
-        altNames: ["Castelo 3", "Pombal"],
-        lat: -20.633576,
-        lng: -41.2041395,
-      },
-      { name: "Bairro Novo", lat: null, lng: null },
-      { name: "", lat: 1, lng: 1 },
-    ],
-  };
-
-  beforeEach(() => {
-    clearNeighborhoodsCache();
-    useAuthStore.setState({ isAuthenticated: true });
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-    useAuthStore.setState({ isAuthenticated: false });
-  });
-
-  it("visitante usa a lista local e não chama o back", async () => {
-    useAuthStore.setState({ isAuthenticated: false });
-    const spy = vi.spyOn(apiService.neighborhoods, "getByCity");
-
-    const list = await getNeighborhoods("ES", "Castelo");
-
-    expect(spy).not.toHaveBeenCalled();
-    expect(list?.neighborhoods).toHaveLength(32);
-  });
-
-  it("logado usa a lista do back, uma busca por cidade", async () => {
-    const spy = vi
-      .spyOn(apiService.neighborhoods, "getByCity")
-      .mockResolvedValue({ success: true, data: backCastelo, status: 200 });
-
-    const list = await getNeighborhoods("es", "Castelo");
-    await getNeighborhoods("ES", "castelo");
-
-    expect(spy).toHaveBeenCalledTimes(1);
-    expect(spy).toHaveBeenCalledWith("state=es&city=Castelo");
-    expect(list?.center).toEqual({ lat: -20.6153082, lng: -41.2063262 });
-    // bairro sem nome é descartado; sem coordenada continua na lista
-    expect(list?.neighborhoods.map((n) => n.name)).toEqual([
-      "Castelo III",
-      "Bairro Novo",
-    ]);
-    expect(findNeighborhood(list, "pombal")?.name).toBe("Castelo III");
-  });
-
-  it("404 do back é cidade sem lista", async () => {
-    vi.spyOn(apiService.neighborhoods, "getByCity").mockResolvedValue({
-      success: false,
-      status: 404,
-    });
-
-    expect(await getNeighborhoods("ES", "Alegre")).toBeNull();
-  });
-
-  it("falha do back cai na lista local e tenta de novo depois", async () => {
-    const spy = vi
-      .spyOn(apiService.neighborhoods, "getByCity")
-      .mockResolvedValue({ success: false, status: 500 });
-
-    const list = await getNeighborhoods("ES", "Castelo");
-    await getNeighborhoods("ES", "Castelo");
-
-    expect(list?.neighborhoods).toHaveLength(32);
-    expect(spy).toHaveBeenCalledTimes(2);
-  });
-});
-
-describe("parseNeighborhoodsResponse", () => {
-  it("recusa resposta sem lista, estado ou cidade", () => {
-    expect(parseNeighborhoodsResponse(null)).toBeNull();
-    expect(parseNeighborhoodsResponse({ state: "ES", city: "Castelo" })).toBeNull();
-    expect(
-      parseNeighborhoodsResponse({ state: "", city: "Castelo", neighborhoods: [] }),
-    ).toBeNull();
-  });
-
-  it("center inválido vira null", () => {
-    const list = parseNeighborhoodsResponse({
-      state: "ES",
-      city: "Castelo",
-      center: { lat: "x", lng: 1 },
-      neighborhoods: [],
-    });
-    expect(list?.center).toBeNull();
-    expect(list?.ibgeCode).toBeNull();
   });
 });

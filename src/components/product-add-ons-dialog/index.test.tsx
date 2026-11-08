@@ -23,12 +23,12 @@ const createAddOn = { mutateAsync: createMutateAsync, isPending: false };
 const updateAddOn = { mutateAsync: updateMutateAsync, isPending: false };
 const deleteAddOn = { mutateAsync: deleteMutateAsync, isPending: false };
 
-vi.mock("@/hooks/use-product-add-ons", () => ({
+vi.mock("@/hooks", () => ({
   useProductAddOns: () => addOnsQuery,
   useCreateProductAddOn: () => createAddOn,
   useUpdateProductAddOn: () => updateAddOn,
   useDeleteProductAddOn: () => deleteAddOn,
-}))
+}));
 
 vi.mock("@/contexts/confirm-provider", () => ({
   useConfirm: () => ({ confirm: confirmFn }),

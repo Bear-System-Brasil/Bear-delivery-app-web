@@ -132,60 +132,6 @@ export function hasAddOns(order: KitchenOrder): boolean {
   return (order.orderedItems ?? []).some((item) => (item.addOns?.length ?? 0) > 0);
 }
 
-function readMoney(value: unknown): number | null {
-  if (value === null || value === undefined || value === "") return null;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-/**
- * Valor da linha do pedido, na mesma conta do backend
- * (`calculateTotalOrderValue`): quantidade x (preço do prato + preço do
- * tamanho + quantidade de cada adicional x preço do adicional). `null` quando
- * o preço do prato não veio - a comanda omite o valor em vez de imprimir zero.
- */
-export function getItemLineTotal(item: KitchenOrderItem): number | null {
-  const unitPrice = readMoney(item.unitPrice);
-  if (unitPrice === null) return null;
-
-  const sizes = (item.variations ?? []).reduce(
-    (total, variation) => total + (readMoney(variation.priceSnapshot) ?? 0),
-    0,
-  );
-  const addOns = (item.addOns ?? []).reduce(
-    (total, addOn) =>
-      total + (addOn.quantity || 0) * (readMoney(addOn.priceSnapshot) ?? 0),
-    0,
-  );
-
-  return Math.round(item.quantity * (unitPrice + sizes + addOns) * 100) / 100;
-}
-
-/**
- * Resumo de valores da comanda. O subtotal segue a mesma conta do detalhe do
- * pedido (total - taxa de entrega + desconto), para os dois baterem. Sem
- * `totalValue` não há resumo.
- */
-export function getOrderValues(
-  order: KitchenOrder,
-): {
-  subtotal: number;
-  shipping: number | null;
-  discount: number | null;
-  total: number;
-} | null {
-  const total = readMoney(order.totalValue);
-  if (total === null) return null;
-
-  // Ausente fica null (a linha some), não vira 0 impresso.
-  const shipping = readMoney(order.totalShipping);
-  const discount = readMoney(order.discount);
-  const subtotal =
-    Math.round((total - (shipping ?? 0) + (discount ?? 0)) * 100) / 100;
-
-  return { subtotal, shipping, discount, total };
-}
-
 export function getOrderLabel(order: KitchenOrder): string {
   return String(order.orderNumber ?? order.id.slice(0, 6));
 }

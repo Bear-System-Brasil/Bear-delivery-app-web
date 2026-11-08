@@ -78,15 +78,11 @@ vi.mock("@/components/admin-page-layout", () => ({
   AdminPageLayout: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
 
-vi.mock("@/hooks/use-menu-management", () => ({
+vi.mock("@/hooks", () => ({
   useMenuManagement: () => menuHookState,
-}))
-vi.mock("@/hooks/use-product-variations", () => ({
   useProductVariations: () => variationsState,
-}))
-vi.mock("@/hooks/use-product-add-ons", () => ({
   useProductAddOns: () => addOnsState,
-}))
+}));
 
 vi.mock("@/contexts/confirm-provider", () => ({
   useConfirm: () => ({ confirm: vi.fn().mockResolvedValue(true) }),
@@ -202,45 +198,6 @@ describe("MenuManagementPage - Unificação com abas e atalhos (LDMF-332)", () =
     await user.click(variationsTab);
 
     expect(mockSetActiveTab).toHaveBeenCalledWith("variations");
-  });
-});
-
-describe("MenuManagementPage - Prévia interativa do app (Fase 2, LDMF-454)", () => {
-  beforeEach(() => {
-    menuHookState.products = [makeProduct("p1", "Pizza Margherita")];
-    menuHookState.allProducts = menuHookState.products;
-    menuHookState.categories = [];
-    menuHookState.isModalOpen = false;
-    menuHookState.editingProduct = null;
-  });
-
-  it("começa fechada e abre o painel de prévia pelo botão 'Prévia'", async () => {
-    const user = userEvent.setup();
-    render(<MenuManagementPage />);
-
-    // Fechada por padrão: o título do painel não está montado.
-    expect(screen.queryByText("Prévia no app")).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: "Prévia" }));
-
-    const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByText("Prévia no app")).toBeInTheDocument();
-    // Mostra os cards read-only do cliente (componente compartilhado).
-    expect(within(dialog).getByText("Pizza Margherita")).toBeInTheDocument();
-  });
-
-  it("fecha pelo botão 'Fechar prévia' do cabeçalho", async () => {
-    const user = userEvent.setup();
-    render(<MenuManagementPage />);
-
-    await user.click(screen.getByRole("button", { name: "Prévia" }));
-    const dialog = await screen.findByRole("dialog");
-
-    await user.click(
-      within(dialog).getByRole("button", { name: "Fechar prévia" }),
-    );
-
-    expect(screen.queryByText("Prévia no app")).not.toBeInTheDocument();
   });
 });
 

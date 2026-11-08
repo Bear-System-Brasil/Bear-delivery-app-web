@@ -42,19 +42,17 @@ const h = vi.hoisted(() => {
   };
 });
 
-vi.mock("@/hooks/use-cash-register", () => ({
+vi.mock("@/hooks", () => ({
   useCashRegister: () => h.register,
-  useOpenCashRegister: () => h.open,
-  useCloseCashRegister: () => h.close,
-}))
-vi.mock("@/hooks/use-cash-movement", () => ({
   useCashMovementSummary: () => h.summary,
   useCashMovements: () => h.movements,
+  useOpenCashRegister: () => h.open,
+  useCloseCashRegister: () => h.close,
   useCashWithdrawal: () => h.withdrawal,
   useCashDeposit: () => h.deposit,
   useCashSale: () => h.sale,
   useCashRefund: () => h.refund,
-}))
+}));
 
 vi.mock("@/components/admin-page-layout", () => ({
   AdminPageLayout: ({ children }: { children: ReactNode }) => <div>{children}</div>,

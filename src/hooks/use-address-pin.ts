@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { normalizeText, parseCoords } from "@/lib/geocode";
 import { nominatim } from "@/lib/nominatim";
-import { isSameStreet } from "@/lib/street-type";
 import {
   findNeighborhood,
   getNeighborhoods,
@@ -26,14 +25,6 @@ export const NEIGHBORHOOD_ZOOM = 15;
 export const CITY_ZOOM = 13;
 
 export type PinSource = "neighborhood" | "geocode";
-
-/** Via achada com outro nome, para o cliente confirmar (LDMF-282). */
-export type StreetSuggestion = {
-  /** Logradouro como está no mapa ("Avenida Nossa Senhora da Penha"). */
-  road: string;
-  /** Onde fica: bairro, quando o mapa sabe, e "Cidade - UF". */
-  place: string;
-};
 
 export type AddressPinFields = {
   state?: string;
@@ -87,14 +78,9 @@ export function useAddressPin({ fields, onPin, otherNeighborhood = false }: Opti
   const [neighborhoodList, setNeighborhoodList] =
     useState<CityNeighborhoods | null>(null);
   const [isLocatingNeighborhood, setIsLocatingNeighborhood] = useState(false);
-  const [isLoadingNeighborhoods, setIsLoadingNeighborhoods] = useState(false);
   const [isSearchingAddress, setIsSearchingAddress] = useState(false);
   // A última busca de rua e número não achou nada dentro da cidade.
   const [addressNotFound, setAddressNotFound] = useState(false);
-  // Rua achada só sem o tipo escolhido, com outro nome ("Avenida ..."): o
-  // pino já foi para lá, mas o nome só troca se o cliente aceitar (LDMF-282).
-  const [streetSuggestion, setStreetSuggestion] =
-    useState<StreetSuggestion | null>(null);
 
   const onPinRef = useRef(onPin);
   onPinRef.current = onPin;
@@ -112,23 +98,15 @@ export function useAddressPin({ fields, onPin, otherNeighborhood = false }: Opti
   const neighborhood = fields.neighborhood ?? "";
   const street = fields.street ?? "";
   // "Sem número": a busca vai só com a rua.
-  const rawNumber = fields.number;
-  const number = isNoNumber(rawNumber) ? "" : (rawNumber ?? "");
+  const number = isNoNumber(fields.number) ? "" : (fields.number ?? "");
   const currentAddressKey = addressKey({ street, number: fields.number, city, state });
 
   useEffect(() => {
     let active = true;
-    // Com estado e cidade, a lista pode vir do back (LDMF-264) e demorar:
-    // até chegar, o bairro mostra "Carregando", não um campo livre.
-    setIsLoadingNeighborhoods(Boolean(state && city));
 
-    getNeighborhoods(state, city)
-      .then((list) => {
-        if (active) setNeighborhoodList(list);
-      })
-      .finally(() => {
-        if (active) setIsLoadingNeighborhoods(false);
-      });
+    getNeighborhoods(state, city).then((list) => {
+      if (active) setNeighborhoodList(list);
+    });
 
     return () => {
       active = false;
@@ -194,43 +172,16 @@ export function useAddressPin({ fields, onPin, otherNeighborhood = false }: Opti
     const timer = setTimeout(async () => {
       baseline.current.address = currentAddressKey;
       setAddressNotFound(false);
-      setStreetSuggestion(null);
       setIsSearchingAddress(true);
 
-      // Tentativas: com e sem número, com e sem o tipo (LDMF-282). Uma busca
-      // nova (mudou rua, número ou tipo) para as que faltam desta.
-      const match = await nominatim.findStreet(
-        { street, number, city, state },
-        () => !active,
-      );
+      const coords = await nominatim.searchAddress({ street, number, city, state });
       if (!active) return;
 
       setIsSearchingAddress(false);
       // Não achou ou caiu fora da cidade: o pino fica onde estava e o
       // cliente é avisado para arrastar.
-      if (!match) {
-        setAddressNotFound(true);
-        return;
-      }
-
-      onPinRef.current(match.coords, "geocode", STREET_ZOOM);
-      // Nunca troca o nome em silêncio: pode existir "Rua X" e "Travessa X"
-      // na mesma cidade.
-      if (
-        match.withoutChosenType &&
-        match.road &&
-        !isSameStreet(match.road, street)
-      ) {
-        // Onde fica, além do nome: "Avenida X" sozinho pode ser de qualquer
-        // lugar. A busca já só aceita ponto dentro da cidade escolhida; o
-        // bairro (do OSM), a cidade e a UF mostram isso ao cliente.
-        setStreetSuggestion({
-          road: match.road,
-          place: [match.area, `${city} - ${state.toUpperCase()}`]
-            .filter(Boolean)
-            .join(", "),
-        });
-      }
+      if (coords) onPinRef.current(coords, "geocode", STREET_ZOOM);
+      else setAddressNotFound(true);
     }, ADDRESS_SEARCH_DELAY_MS);
 
     return () => {
@@ -286,29 +237,7 @@ export function useAddressPin({ fields, onPin, otherNeighborhood = false }: Opti
       address: addressKey(values),
     };
     setAddressNotFound(false);
-    setStreetSuggestion(null);
   }, []);
-
-  /**
-   * Cliente aceitou o nome sugerido: devolve o logradouro para o formulário
-   * e marca como já buscado (o pino já está nele, não busca de novo).
-   */
-  const acceptStreetSuggestion = useCallback(() => {
-    const road = streetSuggestion?.road;
-    if (!road) return null;
-
-    baseline.current.address = addressKey({
-      street: road,
-      number: rawNumber,
-      city,
-      state,
-    });
-    setStreetSuggestion(null);
-    return road;
-  }, [streetSuggestion, rawNumber, city, state]);
-
-  /** Cliente manteve o nome que digitou: o pino fica onde a busca pôs. */
-  const dismissStreetSuggestion = useCallback(() => setStreetSuggestion(null), []);
 
   /** O cliente posicionou o pino à mão: o aviso de não encontrado sai. */
   const clearNotice = useCallback(() => setAddressNotFound(false), []);
@@ -316,13 +245,9 @@ export function useAddressPin({ fields, onPin, otherNeighborhood = false }: Opti
   return {
     /** Lista oficial de bairros da cidade, ou `null` sem lista. */
     neighborhoodList,
-    isLoadingNeighborhoods,
     isLocatingNeighborhood,
     isSearchingAddress,
     addressNotFound,
-    streetSuggestion,
-    acceptStreetSuggestion,
-    dismissStreetSuggestion,
     resetBaseline,
     clearNotice,
     locateCityCenter,
