@@ -22,13 +22,11 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { DEFAULT_DELIVERY_FEE } from "@/constants/delivery-defaults";
-import {
-  useCartActions,
-  useCompanyProducts,
-  usePublicCompanyProductVariations,
-  useRestaurant,
-  useRestaurantOpeningHours,
-} from "@/hooks";
+import { useCartActions } from "@/hooks/use-cart-actions";
+import { useCompanyProducts } from "@/hooks/use-products";
+import { usePublicCompanyProductVariations } from "@/hooks/use-product-variations";
+import { useRestaurant } from "@/hooks/use-restaurants";
+import { useRestaurantOpeningHours } from "@/hooks/use-opening-hours";
 import { resolveRestaurantOpenStatus } from "@/constants/opening-hours";
 import { getCartStockIssues } from "@/lib/cart-stock";
 import { cn } from "@/lib/utils";

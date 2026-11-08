@@ -47,17 +47,27 @@ let variationsResult: {
   isLoading: boolean;
 } = DEFAULT_VARIATIONS_RESULT;
 
-vi.mock("@/hooks", () => ({
+vi.mock("@/hooks/use-categories", () => ({
   useAllCategories: () => ({ data: [] }),
+}))
+vi.mock("@/hooks/use-cart-actions", () => ({
   useCartActions: () => ({ handleAddToCart: addToCart }),
+}))
+vi.mock("@/hooks/use-restaurants", () => ({
   useRestaurant: () => ({
     data: { id: "comp-1", tradeName: "Lanchonete do Bear" },
     isLoading: false,
   }),
+}))
+vi.mock("@/hooks/use-product-variations", () => ({
   usePublicProductVariations: () => variationsResult,
+}))
+vi.mock("@/hooks/use-product-add-ons", () => ({
   usePublicProductAddOns: () => ({ data: [ADD_ON], isLoading: false }),
+}))
+vi.mock("@/hooks/use-opening-hours", () => ({
   useRestaurantOpeningHours: () => ({ data: undefined, isLoading: false }),
-}));
+}))
 
 vi.mock("@/contexts/auth-provider", () => ({
   useAuth: () => ({ isAuthenticated, showAuthModal }),

@@ -119,10 +119,29 @@ export interface KitchenPayment {
   status?: string;
 }
 
+/**
+ * Endereço de entrega, em `delivery.deliveryAddress` de
+ * `/order/company/status/:status` e do `orderCreated` do socket. Só os campos
+ * que a comanda lê; no back só `complement` e `reference` são opcionais, mas
+ * aqui tudo é opcional para a comanda não quebrar se faltar algum.
+ */
+export interface KitchenAddress {
+  id?: string;
+  street?: string | null;
+  number?: string | null;
+  complement?: string | null;
+  reference?: string | null;
+  neighborhood?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zipCode?: string | null;
+}
+
 export interface KitchenDelivery {
   id: string;
   status: KitchenDeliveryStatus | string;
   deliveryPerson?: { id: string; name: string; phone?: string } | null;
+  deliveryAddress?: KitchenAddress | null;
   /** Observação da entrega, preenchida no checkout (ex.: "entregar na portaria"). */
   observations?: string | null;
 }

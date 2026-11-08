@@ -1,3 +1,4 @@
+import { setUserLocationFromAddress } from "@/lib/user-location-cookie";
 import {
   apiService,
   getBirthDateApiError,
@@ -12,7 +13,7 @@ import { formatDate, getErrorMessage, onlyNumbers } from "@/utils";
 import { isCompanyAdminRole } from "@/utils/role-helpers";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useAddressEditor } from "./use-address-editor";
 import { useUserAddresses } from "./use-addresses";
@@ -28,6 +29,16 @@ interface Address extends AddressFormData {
   id: string;
   type?: string;
 }
+
+/** Textos da regra "cliente logado sempre com endereço padrão" (LDMF-262). */
+export const DEFAULT_LOCKED_FIRST_HINT =
+  "Você ainda não tem endereço padrão, então este fica como padrão.";
+export const DEFAULT_LOCKED_EDITING_HINT =
+  "Este é o seu endereço padrão. Para trocar, toque na estrela de outro endereço da lista.";
+export const DELETE_ONLY_ADDRESS_MESSAGE =
+  "Você precisa ter pelo menos um endereço. Cadastre outro antes de excluir este.";
+export const DELETE_DEFAULT_ADDRESS_MESSAGE =
+  "Este é o seu endereço padrão. Marque outro como padrão antes de excluir.";
 
 /**
  * Hook para gerenciar perfil do usuário (cliente)
@@ -54,6 +65,7 @@ export const useProfileManagement = () => {
         street: addr.street || "",
         number: String(addr.number ?? ""),
         complement: addr.complement || "",
+        reference: addr.reference || "",
         neighborhood: addr.neighborhood || "",
         longitude: addr.longitude ?? undefined,
         latitude: addr.latitude ?? undefined,
@@ -66,6 +78,8 @@ export const useProfileManagement = () => {
   );
   const [isSavingAddress, setIsSavingAddress] = useState(false);
   const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
+  const [editingAddressOriginalReference, setEditingAddressOriginalReference] =
+    useState<string>("");
   const [editingAddressOriginalComplement, setEditingAddressOriginalComplement] =
     useState<string>("");
 
@@ -89,26 +103,41 @@ export const useProfileManagement = () => {
   });
   const { addressForm } = addressEditor;
 
-  // Se o cliente não tem nenhum endereço padrão cadastrado, o próximo endereço criado
-  // deve vir com a opção de padrão marcada por conveniência e conformidade com entrega.
-  useEffect(() => {
-    if (addingAddressState.isOpen && !editingAddressId) {
-      const hasDefault = Boolean(
-        (rawAddresses && rawAddresses.some((a) => a.isDefault)) ||
-        (addresses && addresses.some((a) => a.isDefault)),
-      );
-      if (!hasDefault || (addresses?.length ?? 0) === 0) {
-        addressForm.setValue("isDefault", true);
-      }
-    }
-  }, [
-    addingAddressState.isOpen,
-    editingAddressId,
-    rawAddresses,
-    addresses,
-    addressForm,
-  ]);
+  // LDMF-262: o cliente logado nunca fica sem endereço padrão. Sem padrão
+  // nenhum (primeiro endereço, ou o padrão sumiu), o endereço salvo vira o
+  // padrão; editando o padrão, a caixa não desmarca - trocar o padrão é
+  // marcar outro na lista. Nos dois casos a caixa fica marcada e travada.
+  const hasDefaultAddress = addresses.some((addr) => addr.isDefault);
+  const editingAddressIsDefault = Boolean(
+    editingAddressId &&
+      addresses.find((addr) => addr.id === editingAddressId)?.isDefault,
+  );
+  // Lista ainda carregando: não dá para saber se há padrão, então não trava.
+  const defaultOptionLockedHint = isLoadingAddresses
+    ? null
+    : editingAddressIsDefault
+      ? DEFAULT_LOCKED_EDITING_HINT
+      : !hasDefaultAddress
+        ? DEFAULT_LOCKED_FIRST_HINT
+        : null;
+  const isDefaultLocked = defaultOptionLockedHint !== null;
 
+  // A trava marca a caixa; se ela destravar (a lista chegou e já tem padrão),
+  // a marca que a trava pôs sai junto - não vale como escolha do cliente.
+  const checkedByLock = useRef(false);
+  useEffect(() => {
+    if (!addingAddressState.isOpen) {
+      checkedByLock.current = false;
+      return;
+    }
+    if (isDefaultLocked) {
+      addressForm.setValue("isDefault", true);
+      checkedByLock.current = true;
+    } else if (checkedByLock.current) {
+      addressForm.setValue("isDefault", false);
+      checkedByLock.current = false;
+    }
+  }, [addingAddressState.isOpen, isDefaultLocked, addressForm]);
 
   /**
    * Prevent SSR issues
@@ -293,6 +322,7 @@ export const useProfileManagement = () => {
     addressEditor.loadAddress(address);
     setEditingAddressId(address.id);
     setEditingAddressOriginalComplement(address.complement || "");
+    setEditingAddressOriginalReference(address.reference || "");
     addingAddressState.open();
   };
 
@@ -325,25 +355,42 @@ export const useProfileManagement = () => {
       trimmedComplement.length > 0 &&
       trimmedComplement.length < 5;
 
+    // Mesma regra para a referência (o PATCH também exige 5+ caracteres).
+    const trimmedReference = data.reference?.trim() ?? "";
+    const referenceUnchanged =
+      trimmedReference === editingAddressOriginalReference.trim();
+
+    if (
+      editingAddressId &&
+      trimmedReference.length > 0 &&
+      trimmedReference.length < 5 &&
+      !referenceUnchanged
+    ) {
+      toast.error("Referência deve ter pelo menos 5 caracteres (ou ficar vazia)");
+      return;
+    }
+
+    const shouldOmitReference =
+      editingAddressId &&
+      referenceUnchanged &&
+      trimmedReference.length > 0 &&
+      trimmedReference.length < 5;
+
     const pinCoords = addressEditor.getPinForSave(data);
     if (!pinCoords) return;
 
     setIsSavingAddress(true);
     try {
-      const hasDefault = Boolean(
-        (rawAddresses && rawAddresses.some((addr) => addr.isDefault)) ||
-        (addresses && addresses.some((addr) => addr.isDefault)),
-      );
-      const shouldBeDefault = editingAddressId
-        ? (data.isDefault ?? false)
-        : data.isDefault !== undefined
-          ? Boolean(data.isDefault)
-          : !hasDefault || (addresses?.length ?? 0) === 0;
+      // Caixa travada (LDMF-262) vem `undefined` no submit: vale a trava.
+      const shouldBeDefault = isDefaultLocked || Boolean(data.isDefault);
 
       const payload = {
         street: data.street,
         number: data.number,
         complement: shouldOmitComplement ? undefined : data.complement || undefined,
+        // Vazio sai como ausente: "" no PATCH conta como valor e cai no
+        // mínimo de 5 caracteres.
+        reference: shouldOmitReference ? undefined : trimmedReference || undefined,
         neighborhood: data.neighborhood,
         city: data.city,
         state: data.state,
@@ -394,12 +441,16 @@ export const useProfileManagement = () => {
       }
 
       if (response.success) {
+        // Endereço salvo como padrão vira o ponto da home (LDMF-260).
+        if (payload.isDefault) setUserLocationFromAddress(payload);
+
         queryClient.invalidateQueries({
           queryKey: ["addresses", "user", user?.id],
         });
         addressEditor.resetEditor();
         setEditingAddressId(null);
         setEditingAddressOriginalComplement("");
+        setEditingAddressOriginalReference("");
         addingAddressState.close();
 
         toast.success(
@@ -439,6 +490,7 @@ export const useProfileManagement = () => {
     addressEditor.resetEditor();
     setEditingAddressId(null);
     setEditingAddressOriginalComplement("");
+    setEditingAddressOriginalReference("");
     addingAddressState.close();
   };
 
@@ -475,6 +527,12 @@ export const useProfileManagement = () => {
         return;
       }
 
+      // Novo padrão vira o ponto da home (LDMF-260).
+      const promotedAddress = rawAddresses?.find(
+        (address) => address.id === addressId,
+      );
+      if (promotedAddress) setUserLocationFromAddress(promotedAddress);
+
       queryClient.invalidateQueries({
         queryKey: ["addresses", "user", user?.id],
       });
@@ -499,6 +557,18 @@ export const useProfileManagement = () => {
    * Deletar endereço
    */
   const handleDeleteAddress = async (addressId: string) => {
+    // LDMF-262: excluir não pode deixar o cliente sem endereço padrão. O
+    // back só marca o endereço como inativo e não promove outro.
+    const target = addresses.find((addr) => addr.id === addressId);
+    if (addresses.length <= 1) {
+      toast.error(DELETE_ONLY_ADDRESS_MESSAGE);
+      return;
+    }
+    if (target?.isDefault) {
+      toast.error(DELETE_DEFAULT_ADDRESS_MESSAGE);
+      return;
+    }
+
     if (!confirm("Tem certeza que deseja excluir este endereço?")) return;
 
     try {
@@ -560,8 +630,13 @@ export const useProfileManagement = () => {
     selectOtherNeighborhood: addressEditor.selectOtherNeighborhood,
     changeOtherNeighborhood: addressEditor.changeOtherNeighborhood,
     isLocatingPin: addressEditor.isLocatingPin,
+    isLoadingNeighborhoods: addressEditor.isLoadingNeighborhoods,
+    defaultOptionLockedHint,
     isSearchingAddress: addressEditor.isSearchingAddress,
     addressNotFound: addressEditor.addressNotFound,
+    streetSuggestion: addressEditor.streetSuggestion,
+    acceptStreetSuggestion: addressEditor.acceptStreetSuggestion,
+    dismissStreetSuggestion: addressEditor.dismissStreetSuggestion,
     pinZoom: addressEditor.pinZoom,
     pinRecenterKey: addressEditor.pinRecenterKey,
     // CEP

@@ -22,13 +22,10 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { isMidnightClose } from "@/constants/opening-hours";
-import {
-  MAX_SPECIALTIES,
-  useCompanyAcceptedPaymentMethods,
-  useCompanyOpeningHours,
-  useCompanyProfileManagement,
-  useSpecialties,
-} from "@/hooks";
+import { MAX_SPECIALTIES, useCompanyProfileManagement } from "@/hooks/use-company-profile-management";
+import { useCompanyAcceptedPaymentMethods } from "@/hooks/use-company-accepted-payment-methods";
+import { useCompanyOpeningHours } from "@/hooks/use-opening-hours";
+import { useSpecialties } from "@/hooks/use-specialties";
 import {
   ACCEPTED_PAYMENT_METHODS,
   ACCEPTED_PAYMENT_METHOD_LABELS,
@@ -318,7 +315,7 @@ function CompanyProfileContent() {
     <AdminPageLayout
       title="Perfil da Empresa"
       icon={Building2}
-      mainClassName="p-4 sm:p-6 lg:pl-64 lg:pr-8"
+      mainClassName="p-4 sm:p-6 lg:px-8"
       subtitle="A identidade que aparece para o cliente no app"
     >
       <div className="mx-auto max-w-[920px]">
@@ -1006,10 +1003,14 @@ function CompanyProfileContent() {
                 onCityChange={addressEditor.changeCity}
                 onNeighborhoodChange={addressEditor.changeNeighborhood}
                 isOtherNeighborhood={addressEditor.isOtherNeighborhood}
+                isLoadingNeighborhoods={addressEditor.isLoadingNeighborhoods}
                 onSelectOtherNeighborhood={addressEditor.selectOtherNeighborhood}
                 onOtherNeighborhoodChange={addressEditor.changeOtherNeighborhood}
                 isSearchingAddress={addressEditor.isSearchingAddress}
                 addressNotFound={addressEditor.addressNotFound}
+                streetSuggestion={addressEditor.streetSuggestion}
+                onAcceptStreetSuggestion={addressEditor.acceptStreetSuggestion}
+                onDismissStreetSuggestion={addressEditor.dismissStreetSuggestion}
                 pinZoom={addressEditor.pinZoom}
                 pinRecenterKey={addressEditor.pinRecenterKey}
                 showReference

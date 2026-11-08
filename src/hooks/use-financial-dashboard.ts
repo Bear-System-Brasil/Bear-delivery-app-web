@@ -25,7 +25,8 @@ import {
   type DashboardPeriod,
   type DateRange,
 } from "@/services/financial-dashboard";
-import { useCashMovementSummary, useCashRegister } from "@/hooks";
+import { useCashMovementSummary } from "@/hooks/use-cash-movement";
+import { useCashRegister } from "@/hooks/use-cash-register";
 import { useAuthStore } from "@/stores";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";

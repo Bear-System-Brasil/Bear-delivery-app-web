@@ -125,7 +125,7 @@ const navGroups: { label: string; links: NavLink[] }[] = [
     links: [
       {
         href: "/company-profile",
-        label: "Meu Perfil",
+        label: "Perfil da Empresa",
         icon: User,
         roles: ["owner", "admin"],
       },
@@ -196,15 +196,19 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
                     onClick={onClose}
                     className={cn(
                       "flex h-[38px] items-center gap-[11px] rounded-[14px] px-3 text-[13px] font-semibold transition-colors",
+                      // Ativo em fundo claro com texto laranja: o laranja
+                      // cheio fica pros botões de ação.
                       active
-                        ? "bg-brand-500 text-white shadow-[0_6px_14px_var(--tw-shadow-color)] shadow-brand-500/35"
+                        ? "bg-brand-50 text-brand-700 dark:bg-brand-950/60 dark:text-brand-300"
                         : "text-foreground/80 hover:bg-muted hover:text-foreground",
                     )}
                   >
                     <Icon
                       className={cn(
                         "h-4 w-4 shrink-0",
-                        active ? "text-white" : "text-muted-foreground",
+                        active
+                          ? "text-brand-600 dark:text-brand-300"
+                          : "text-muted-foreground",
                       )}
                     />
                     <span className="truncate">{label}</span>
@@ -216,22 +220,21 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
         ))}
       </nav>
 
-      <div className="shrink-0 border-t border-border px-3 pb-3 pt-3">
+      {/* Sair discreto, na mesma linha da versão. Abaixo de sm o header
+          cede a linha ao título e não mostra o papel; ele vem pra cá. */}
+      <div className="flex shrink-0 items-center justify-between gap-2 border-t border-border px-3 py-2.5">
         <button
           type="button"
           onClick={handleLogout}
-          className="flex h-[38px] w-full items-center gap-[11px] rounded-[14px] bg-brand-500 px-3 text-[13px] font-semibold text-white shadow-[0_6px_14px_var(--tw-shadow-color)] shadow-brand-500/35 transition-colors hover:bg-brand-400 cursor-pointer"
+          className="flex h-[38px] cursor-pointer items-center gap-2 rounded-[10px] px-3 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         >
           <LogOut className="h-4 w-4 shrink-0" />
-          <span className="truncate">Sair da conta</span>
+          <span>Sair</span>
         </button>
-      </div>
-
-      {/* Abaixo de sm o header cede a linha ao título e não mostra o papel;
-          ele vem pra cá, na linha da versão, sem criar linha nova no menu. */}
-      <div className="flex shrink-0 items-center justify-center gap-2 border-t border-border px-[18px] py-3.5 text-[10.5px] font-semibold text-muted-foreground">
-        <RoleBadge className="py-0 text-[10.5px] sm:hidden" />
-        <span>v1.0.0</span>
+        <div className="flex min-w-0 items-center gap-2 text-[10.5px] font-semibold text-muted-foreground">
+          <RoleBadge className="py-0 text-[10.5px] sm:hidden" />
+          <span>v1.0.0</span>
+        </div>
       </div>
     </div>
   );
@@ -248,40 +251,42 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     return () => mq.removeEventListener("change", handler);
   }, []);
 
-  if (isDesktop) {
-    return (
-      <aside className="fixed left-0 top-0 z-40 h-full w-[220px] border-r border-border bg-card">
+  return (
+    <>
+      {/* O menu fixo depende só de CSS, e não do matchMedia: assim ele já
+          vem no HTML do servidor e não some até a página hidratar. */}
+      <aside className="fixed left-0 top-0 z-40 hidden h-full w-sidebar border-r border-border bg-card lg:block">
         <SidebarContent />
       </aside>
-    );
-  }
 
-  return (
-    <SheetPrimitive.Root
-      open={isOpen}
-      onOpenChange={(open) => !open && onClose()}
-    >
-      <SheetPrimitive.Portal>
-        <SheetPrimitive.Overlay
-          className={cn(
-            "fixed inset-0 z-40 bg-black/50",
-            "data-[state=open]:animate-in data-[state=open]:fade-in-0",
-            "data-[state=closed]:animate-out data-[state=closed]:fade-out-0",
-          )}
-        />
-        <SheetPrimitive.Content
-          className={cn(
-            "fixed left-0 top-0 z-50 h-full w-[220px] border-r border-border bg-card shadow-lg",
-            "data-[state=open]:animate-in data-[state=open]:fade-in data-[state=open]:slide-in-from-left-8 data-[state=open]:duration-200",
-            "data-[state=closed]:animate-out data-[state=closed]:fade-out data-[state=closed]:slide-out-to-left-8 data-[state=closed]:duration-200",
-          )}
-        >
-          <SheetPrimitive.Title asChild>
-            <span className="sr-only">Menu de navegação</span>
-          </SheetPrimitive.Title>
-          <SidebarContent onClose={onClose} />
-        </SheetPrimitive.Content>
-      </SheetPrimitive.Portal>
-    </SheetPrimitive.Root>
+      {/* O matchMedia só impede a gaveta de abrir no desktop, onde o menu
+          fixo já está na tela. */}
+      <SheetPrimitive.Root
+        open={isOpen && !isDesktop}
+        onOpenChange={(open) => !open && onClose()}
+      >
+        <SheetPrimitive.Portal>
+          <SheetPrimitive.Overlay
+            className={cn(
+              "fixed inset-0 z-40 bg-black/50",
+              "data-[state=open]:animate-in data-[state=open]:fade-in-0",
+              "data-[state=closed]:animate-out data-[state=closed]:fade-out-0",
+            )}
+          />
+          <SheetPrimitive.Content
+            className={cn(
+              "fixed left-0 top-0 z-50 h-full w-sidebar border-r border-border bg-card shadow-lg",
+              "data-[state=open]:animate-in data-[state=open]:fade-in data-[state=open]:slide-in-from-left-8 data-[state=open]:duration-200",
+              "data-[state=closed]:animate-out data-[state=closed]:fade-out data-[state=closed]:slide-out-to-left-8 data-[state=closed]:duration-200",
+            )}
+          >
+            <SheetPrimitive.Title asChild>
+              <span className="sr-only">Menu de navegação</span>
+            </SheetPrimitive.Title>
+            <SidebarContent onClose={onClose} />
+          </SheetPrimitive.Content>
+        </SheetPrimitive.Portal>
+      </SheetPrimitive.Root>
+    </>
   );
 }

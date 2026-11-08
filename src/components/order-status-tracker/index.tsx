@@ -1,6 +1,6 @@
 "use client";
 
-import { OrderInfo, OrderStatus } from "@/hooks";
+import { OrderInfo, OrderStatus } from "@/hooks/use-order-status";
 import { useEffect, useRef, useState } from "react";
 import { DeliveringMap } from "./steps-components/delivering";
 import {

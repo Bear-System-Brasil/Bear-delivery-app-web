@@ -21,7 +21,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useTeamManagement, type StaffMember, type StaffRole } from "@/hooks";
+import { useTeamManagement, type StaffMember, type StaffRole } from "@/hooks/use-team-management";
 import { useAuthStore } from "@/stores/auth-store";
 import { canRemoveStaffMember, isManagementRole } from "@/utils/role-helpers";
 import {
@@ -92,7 +92,7 @@ function TeamManagementContent() {
     <AdminPageLayout
       title="Equipe"
       icon={UserCog}
-      mainClassName="p-4 pb-20 sm:p-6 md:pb-10 lg:pl-[17rem] lg:pr-8"
+      mainClassName="p-4 pb-20 sm:p-6 md:pb-10 lg:px-8"
       action={{
         label: "Atualizar",
         busyLabel: "Atualizando...",

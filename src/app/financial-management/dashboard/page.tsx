@@ -16,7 +16,7 @@ import {
   TrendsBand,
 } from "@/components/financial-dashboard/bands";
 import { PeriodSelector } from "@/components/financial-dashboard/period-selector";
-import { useFinancialDashboard } from "@/hooks";
+import { useFinancialDashboard } from "@/hooks/use-financial-dashboard";
 import { LayoutDashboard } from "lucide-react";
 
 export default function FinancialDashboardPage() {
@@ -26,7 +26,7 @@ export default function FinancialDashboardPage() {
     <AdminPageLayout
       title="Dashboard"
       icon={LayoutDashboard}
-      mainClassName="p-4 pb-20 sm:p-6 md:pb-10 lg:pl-64 lg:pr-8"
+      mainClassName="p-4 pb-20 sm:p-6 md:pb-10 lg:px-8"
       action={{
         label: "Atualizar",
         busyLabel: "Atualizando...",

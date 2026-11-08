@@ -14,9 +14,9 @@ import type { Restaurant } from "@/types/restaurant";
 let dishes: NewDish[] = [];
 let loadingDishes = false;
 
-vi.mock("@/hooks", () => ({
+vi.mock("@/hooks/use-new-dishes", () => ({
   useNewDishes: () => ({ data: dishes, isLoading: loadingDishes }),
-}));
+}))
 
 // O modal real puxa restaurante, tamanhos e complementos da API - aqui só
 // interessa saber se abriu e com qual prato.
@@ -41,7 +41,7 @@ vi.mock("next/image", () => ({
 }));
 
 const { NewDishesSection } = await import("./index");
-const { useFavoritesStore } = await import("@/stores");
+const { useAuthStore, useFavoritesStore } = await import("@/stores");
 
 const STORE = { id: "comp-1", tradeName: "DeCasa Pizzaria" } as Restaurant;
 
@@ -90,6 +90,7 @@ describe("NewDishesSection", () => {
     dishes = [];
     loadingDishes = false;
     useFavoritesStore.getState().clearFavorites();
+    useAuthStore.setState({ user: null });
   });
 
   it("lista os pratos com badge NOVO, loja e preço", () => {
@@ -154,6 +155,37 @@ describe("NewDishesSection", () => {
     renderSection();
 
     await userEvent.click(screen.getByRole("button", { name: "Ver Prato p1" }));
+    expect(screen.getByRole("dialog")).toHaveTextContent("Modal: Prato p1");
+  });
+
+  it.each(["owner", "manager", "cook", "delivery"])(
+    "conta de restaurante (%s) não abre o prato nem vê o +",
+    async (role) => {
+      useAuthStore.setState({ user: { role } as never });
+      dishes = [dish("p1")];
+      renderSection();
+
+      expect(screen.getByText("Prato p1")).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Ver Prato p1" }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Adicionar Prato p1" }),
+      ).not.toBeInTheDocument();
+
+      await userEvent.click(screen.getByText("Prato p1"));
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    },
+  );
+
+  it("cliente logado continua vendo o + e abrindo o prato", async () => {
+    useAuthStore.setState({ user: { role: "client" } as never });
+    dishes = [dish("p1")];
+    renderSection();
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Adicionar Prato p1" }),
+    );
     expect(screen.getByRole("dialog")).toHaveTextContent("Modal: Prato p1");
   });
 
