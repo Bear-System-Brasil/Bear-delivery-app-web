@@ -3,6 +3,12 @@ import { defineConfig, devices } from "@playwright/test";
 const PORT = process.env.PLAYWRIGHT_PORT ?? "3100";
 const baseURL = `http://localhost:${PORT}`;
 
+// Comando do webServer. Local, o default sobe o Next em dev (ver nota abaixo).
+// No pipeline, E2E_WEBSERVER_CMD aponta pro build já gerado
+// (`next start`), pra o E2E rodar contra o mesmo artefato que vai pra prod.
+const webServerCommand =
+  process.env.E2E_WEBSERVER_CMD ?? `./node_modules/.bin/next dev -p ${PORT}`;
+
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,
@@ -24,7 +30,7 @@ export default defineConfig({
     // dependências do pnpm neste monorepo dispara um install que trava numa
     // aprovação de build script pendente (unrs-resolver), derrubando o
     // webServer antes mesmo de subir o Next.
-    command: `./node_modules/.bin/next dev -p ${PORT}`,
+    command: webServerCommand,
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

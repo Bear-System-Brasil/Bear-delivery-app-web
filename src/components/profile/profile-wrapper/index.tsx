@@ -3,7 +3,8 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, User } from "lucide-react";
-import { useCartActions, useProfileManagement } from "@/hooks";
+import { useCartActions } from "@/hooks/use-cart-actions";
+import { useProfileManagement } from "@/hooks/use-profile-management";
 import { GradientButton } from "@/components/ui/custom";
 import { AnimatedBackground } from "@/components/ui/animated-background";
 import { MainHeader } from "@/components/main-header";

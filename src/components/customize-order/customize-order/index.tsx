@@ -6,14 +6,12 @@ import {
   type CarouselApi,
 } from "@/components/ui/carousel";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
-import {
-  useAllCategories,
-  useCartActions,
-  usePublicProductAddOns,
-  usePublicProductVariations,
-  useRestaurant,
-  useRestaurantOpeningHours,
-} from "@/hooks";
+import { useAllCategories } from "@/hooks/use-categories";
+import { useCartActions } from "@/hooks/use-cart-actions";
+import { usePublicProductAddOns } from "@/hooks/use-product-add-ons";
+import { usePublicProductVariations } from "@/hooks/use-product-variations";
+import { useRestaurant } from "@/hooks/use-restaurants";
+import { useRestaurantOpeningHours } from "@/hooks/use-opening-hours";
 import { resolveRestaurantOpenStatus } from "@/constants/opening-hours";
 import { useAuth } from "@/contexts/auth-provider";
 import { isSellableVariation } from "@/lib/product-variation";

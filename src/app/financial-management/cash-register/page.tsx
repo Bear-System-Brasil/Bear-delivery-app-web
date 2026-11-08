@@ -10,17 +10,8 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  useCashDeposit,
-  useCashMovementSummary,
-  useCashMovements,
-  useCashRefund,
-  useCashRegister,
-  useCashSale,
-  useCashWithdrawal,
-  useCloseCashRegister,
-  useOpenCashRegister,
-} from "@/hooks";
+import { useCashDeposit, useCashMovementSummary, useCashMovements, useCashRefund, useCashSale, useCashWithdrawal } from "@/hooks/use-cash-movement";
+import { useCashRegister, useCloseCashRegister, useOpenCashRegister } from "@/hooks/use-cash-register";
 import { cn } from "@/lib/utils";
 import {
   type CashMovement,
@@ -657,7 +648,7 @@ export default function CashRegisterPage() {
     <AdminPageLayout
       title="Controle de Caixa"
       icon={Banknote}
-      mainClassName="p-4 pb-20 sm:p-6 md:pb-10 lg:pl-64 lg:pr-8"
+      mainClassName="p-4 pb-20 sm:p-6 md:pb-10 lg:px-8"
       subtitle="Abertura, fechamento e movimentos financeiros"
       action={{ label: "Atualizar", onClick: handleRefresh }}
     >

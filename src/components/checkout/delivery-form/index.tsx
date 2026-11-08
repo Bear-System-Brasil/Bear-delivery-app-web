@@ -4,7 +4,7 @@ import { type Dispatch, type ReactNode, type SetStateAction } from "react";
 
 import { toast } from "sonner";
 
-import { DeliveryInfo } from "@/hooks";
+import { DeliveryInfo } from "@/hooks/use-checkout-process";
 import { cn } from "@/lib/utils";
 
 import {
