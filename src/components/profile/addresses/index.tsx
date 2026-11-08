@@ -46,7 +46,7 @@ export type AddressForm = UseFormReturn<
     latitude?: number | undefined;
     isDefault?: boolean | undefined;
   },
-  any,
+  unknown,
   {
     street: string;
     number: string;

@@ -206,6 +206,7 @@ export function DeliveryWrapper() {
     syncAttemptedRef.current = true;
     setIsSyncing(true);
     syncCartFromBackend().finally(() => setIsSyncing(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, cartItems.length, restaurant?.id]);
 
   useEffect(() => {

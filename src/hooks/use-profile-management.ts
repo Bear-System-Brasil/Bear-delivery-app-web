@@ -472,7 +472,7 @@ export const useProfileManagement = () => {
               : "Erro ao adicionar endereço"),
         );
       }
-    } catch (error) {
+    } catch (_error) {
       toast.error(
         editingAddressId
           ? "Erro ao atualizar endereço"

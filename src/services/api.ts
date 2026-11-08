@@ -548,7 +548,7 @@ async function apiRequest<T>(
     } else {
       try {
         result = await response.json();
-      } catch (parseError) {
+      } catch (_parseError) {
         reportApiFailure({ method, endpoint, status: response.status });
         return {
           success: false,
@@ -597,7 +597,7 @@ async function apiRequest<T>(
         // Se message é um objeto, tenta extrair informações úteis
         try {
           errorMessage = JSON.stringify(result.message);
-        } catch (e) {
+        } catch (_e) {
           errorMessage = "Erro ao processar resposta do servidor";
         }
       } else {
@@ -1663,7 +1663,7 @@ export const apiService = {
         success: true,
         data: data,
       };
-    } catch (error) {
+    } catch (_error) {
       return {
         success: false,
         message: "Erro ao fazer upload da imagem do produto",
@@ -2106,7 +2106,7 @@ export const apiService = {
         success: true,
         data: data,
       };
-    } catch (error) {
+    } catch (_error) {
       return {
         success: false,
         message: "Erro ao fazer upload da imagem",
@@ -2161,7 +2161,7 @@ export const apiService = {
         success: true,
         data: data,
       };
-    } catch (error) {
+    } catch (_error) {
       return {
         success: false,
         message: "Erro ao fazer upload da foto",
@@ -2238,7 +2238,7 @@ export const apiService = {
         success: true,
         data: data,
       };
-    } catch (error) {
+    } catch (_error) {
       return {
         success: false,
         message: "Erro ao fazer upload do logo",
@@ -2315,7 +2315,7 @@ export const apiService = {
         success: true,
         data: data,
       };
-    } catch (error) {
+    } catch (_error) {
       return {
         success: false,
         message: "Erro ao fazer upload do cover",

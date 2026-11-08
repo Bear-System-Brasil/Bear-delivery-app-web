@@ -554,7 +554,7 @@ export const useCartActions = () => {
           setItems([]);
         }
       }
-    } catch (error) {
+    } catch (_error) {
       // 404 é esperado quando não há carrinho ativo
     }
     return true;
@@ -1433,6 +1433,9 @@ export const useCartActions = () => {
   // backend nunca era corrigido. Agora sempre resincroniza ao montar,
   // com um throttle de módulo pra não disparar 1 fetch por componente
   // (MainHeader, BottomBar, página) montando o hook ao mesmo tempo.
+  const syncCartFromBackendRef = useRef(syncCartFromBackend);
+  syncCartFromBackendRef.current = syncCartFromBackend;
+
   useEffect(() => {
     if (!user?.id) return;
 
@@ -1443,10 +1446,10 @@ export const useCartActions = () => {
     // O sync espera qualquer escrita em voo ("Adicionar", "+", "–") antes
     // de ler do backend - senão a leitura chega primeiro e sobrescreve o
     // estado otimista (ex: tocar "Adicionar" e ir direto pra /cart).
-    syncCartFromBackend().catch(() => {
+    syncCartFromBackendRef.current().catch(() => {
       // Ignore errors - doesn't block UX
     });
-  }, [syncCartFromBackend, user?.id]);
+  }, [user?.id]);
 
   // CLEANUP: ao desmontar, envia na hora as rajadas que ainda estavam no
   // debounce - descartar o timer perdia o clique feito logo antes de sair

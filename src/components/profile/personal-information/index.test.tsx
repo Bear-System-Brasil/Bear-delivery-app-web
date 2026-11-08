@@ -55,7 +55,7 @@ function TestWrapper({
     isPending,
     isError: false,
     reset: vi.fn(),
-  } as any;
+  } as unknown as ComponentProps<typeof PersonalInformation>["updateProfile"];
 
   return (
     <PersonalInformation
