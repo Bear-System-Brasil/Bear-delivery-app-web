@@ -61,7 +61,7 @@ export default function RestaurantLoading() {
               {Array.from({ length: 6 }).map((_, index) => (
                 <Card
                   key={index}
-                  className="border-0 bg-card/80 backdrop-blur-sm shadow-lg overflow-hidden"
+                  className="border-0 bg-card/80 shadow-lg overflow-hidden"
                 >
                   <Skeleton className="w-full aspect-16/10 rounded-none" />
                   <div className="p-4 sm:p-5 space-y-3">

@@ -16,9 +16,14 @@
 
 import { notify } from "@/lib/notify";
 import { soundManager } from "@/lib/sound";
+import { notifyOtherTabs, runInOneTab, onOtherTabsMessage } from "@/lib/tab-coordination";
+import { useNotificationsStore } from "@/stores/notifications-store";
 import { toast } from "sonner";
 
 export const REMINDER_INTERVAL_MS = 30_000;
+export const NEW_ORDER_TOAST_ID = "new-order";
+const LAST_REMINDER_KEY = "bear:last-order-reminder";
+const REMINDER_SLACK_MS = 5_000;
 
 const unacknowledgedOrders = new Set<string>();
 let reminderInterval: ReturnType<typeof setInterval> | null = null;
@@ -39,24 +44,66 @@ function stopReminderTimer() {
   }
 }
 
+/**
+ * Com a gestão aberta em várias abas, cada uma tem o próprio intervalo, em
+ * fases diferentes: sem isso o lembrete tocava uma vez por aba. Quem chega
+ * primeiro no ciclo lembra e anota a hora; as outras veem a anotação e
+ * pulam (LDMF-459). A folga cobre o atraso natural do setInterval.
+ */
+function remind() {
+  if (soundManager.isMuted()) return;
+  runInOneTab("order-reminder", 0, () => {
+    const now = Date.now();
+    let last = 0;
+    try {
+      last = Number(window.localStorage.getItem(LAST_REMINDER_KEY)) || 0;
+    } catch {
+      // Sem localStorage cada aba lembra por si, como antes.
+    }
+    if (last <= now && now - last < REMINDER_INTERVAL_MS - REMINDER_SLACK_MS) return;
+    try {
+      window.localStorage.setItem(LAST_REMINDER_KEY, String(now));
+    } catch {
+      // idem
+    }
+    soundManager.play("new-order");
+  });
+}
+
 function startReminderTimer() {
   if (reminderInterval) return;
   reminderInterval = setInterval(() => {
     if (unacknowledgedOrders.size > 0) {
-      if (!soundManager.isMuted()) {
-        soundManager.play("new-order");
-      }
+      remind();
     } else {
       stopReminderTimer();
     }
   }, REMINDER_INTERVAL_MS);
 }
 
-export function acknowledgeOrder(orderId: string): void {
+function markSeenHere(orderId: string) {
   unacknowledgedOrders.delete(orderId);
+  // Ver o pedido também tira o "não lida" dele do sino (LDMF-460): sem isso o
+  // sino acumulava pedido já visto e as pessoas paravam de olhar pra ele.
+  useNotificationsStore.getState().markOrderAsRead(orderId);
   if (unacknowledgedOrders.size === 0) {
     stopReminderTimer();
   }
+}
+
+export function acknowledgeOrder(orderId: string): void {
+  markSeenHere(orderId);
+  // Visto numa aba é visto em todas: as outras param o lembrete dele.
+  notifyOtherTabs({ type: "order-seen", orderId });
+}
+
+if (typeof window !== "undefined") {
+  onOtherTabsMessage((message) => {
+    const { type, orderId } = (message ?? {}) as { type?: string; orderId?: string };
+    if (type !== "order-seen" || !orderId) return;
+    markSeenHere(orderId);
+    if (unacknowledgedOrders.size === 0) toast.dismiss(NEW_ORDER_TOAST_ID);
+  });
 }
 
 export function stopOrderAlerts(): void {
@@ -96,23 +143,39 @@ export function triggerOrderAlert(
   const targetRoute = getOrderManagementRoute(options.role);
   const label = getOrderLabel(order);
 
-  // 4. Alimenta o sino global e notificação nativa do SO/navegador
+  // Pedidos ainda não vistos, contando este. Numa rajada, o aviso fala de
+  // todos de uma vez em vez de empilhar um por pedido (LDMF-461).
+  const pendentes = unacknowledgedOrders.size;
+  const resumo =
+    pendentes > 1
+      ? { title: `${pendentes} pedidos novos`, body: `O último é o pedido #${label}.` }
+      : null;
+
+  // 4. Alimenta o sino global (uma notificação por pedido, pra cada uma
+  //    poder ser marcada como lida) e a notificação nativa do SO/navegador
+  //    (que usa uma tag só: a nova substitui a anterior, então ela diz o total)
   notify({
     audience: "management",
     title: "Novo pedido recebido",
     body: `Pedido #${label} acabou de chegar.`,
     href: targetRoute,
     orderId: order.id,
+    system: resumo ?? undefined,
   });
 
-  // 5. Toast com ação explícita de "Ver pedido"
-  toast.info(`Novo pedido recebido #${label}`, {
-    id: `new-order-${order.id}`,
-    description: `Pedido #${label} acabou de chegar.`,
+  // 5. Toast com ação explícita. Um só, com id fixo: o pedido seguinte
+  //    atualiza o mesmo toast em vez de criar outro na pilha.
+  const verPedidos = () => {
+    for (const id of [...unacknowledgedOrders]) acknowledgeOrder(id);
+  };
+  toast.info(resumo ? resumo.title : `Novo pedido recebido #${label}`, {
+    id: NEW_ORDER_TOAST_ID,
+    description: resumo ? resumo.body : `Pedido #${label} acabou de chegar.`,
     action: {
-      label: "Ver pedido",
+      label: resumo ? "Ver pedidos" : "Ver pedido",
       onClick: () => {
-        acknowledgeOrder(order.id);
+        if (resumo) verPedidos();
+        else acknowledgeOrder(order.id);
         if (options.router) {
           options.router.push(targetRoute);
         } else if (typeof window !== "undefined") {
@@ -121,8 +184,10 @@ export function triggerOrderAlert(
       },
     },
     duration: 15_000,
+    // Fechar na mão conta como ter visto o que o toast anunciava.
     onDismiss: () => {
-      acknowledgeOrder(order.id);
+      if (resumo) verPedidos();
+      else acknowledgeOrder(order.id);
     },
   });
 }

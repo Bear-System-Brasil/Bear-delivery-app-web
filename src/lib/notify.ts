@@ -18,12 +18,17 @@ interface NotifyInput {
   body: string
   href?: string
   orderId?: string
+  /**
+   * Texto próprio pro popup do SO. Ele usa uma tag só (o novo substitui o
+   * anterior), então numa rajada precisa dizer o total, não só o último.
+   */
+  system?: { title: string; body: string }
 }
 
-export function notify({ audience, title, body, href, orderId }: NotifyInput): void {
+export function notify({ audience, title, body, href, orderId, system }: NotifyInput): void {
   useNotificationsStore.getState().addNotification({ audience, title, body, href, orderId })
 
   if (usePreferencesStore.getState().notifications.push) {
-    showBrowserNotification(title, { body, href })
+    showBrowserNotification(system?.title ?? title, { body: system?.body ?? body, href })
   }
 }

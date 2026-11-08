@@ -215,12 +215,13 @@ vi.mock("./use-addresses", () => ({
   useUserAddresses: () => addressesQuery,
 }));
 
-vi.mock("@/lib/address-coordinates", () => ({
-  resolveAddressCoordinates: vi.fn(),
-  withCoords: vi.fn(),
-}));
+// withCoords de verdade: o pino do endereço novo (núcleo, LDMF-260) passa
+// por ele.
 
-vi.mock("@/lib/geocode", () => ({ parseCoords: vi.fn() }));
+vi.mock("@/lib/geocode", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/geocode")>()),
+  parseCoords: vi.fn(),
+}));
 
 vi.mock("@/services/api", () => ({
   apiService: {
@@ -275,6 +276,31 @@ const defaultCalls = () =>
 const SWAP_KEY = "pending-default-address";
 
 type Hook = ReturnType<typeof useCheckoutProcess>;
+
+/** Pino do endereço novo nos testes (toque no mapa). */
+const NEW_PIN = { lat: -23.5503, lng: -46.6339 };
+
+const CONTACT_FIELDS = new Set(["name", "phone", "cpf"]);
+
+/**
+ * Preenche o endereço novo como a tela faz: contato pelo `handleInputChange`
+ * e endereço pelo formulário do núcleo (LDMF-260). `pin: null` = sem pino.
+ */
+function fillNewAddress(
+  h: Hook,
+  values: Record<string, string>,
+  { pin = NEW_PIN }: { pin?: { lat: number; lng: number } | null } = {},
+) {
+  Object.entries(values).forEach(([field, value]) => {
+    if (CONTACT_FIELDS.has(field)) h.handleInputChange(field, value);
+    else
+      h.addressEditor.addressForm.setValue(
+        field as "zipCode",
+        value,
+      );
+  });
+  if (pin) h.addressEditor.applyCoords(pin, "manual");
+}
 
 async function submitWith(setup: (h: Hook) => void) {
   const { result } = renderCheckout();
@@ -542,7 +568,7 @@ describe("useCheckoutProcess - CEP do endereço novo", () => {
     act(() => {
       result.current.setOrderType("delivery");
       result.current.setAddressMode("new");
-      Object.entries({
+      fillNewAddress(result.current, {
         name: "Cliente",
         phone: "11999999999",
         zipCode: "0100-10",
@@ -551,9 +577,7 @@ describe("useCheckoutProcess - CEP do endereço novo", () => {
         neighborhood: "Sé",
         city: "São Paulo",
         state: "SP",
-      }).forEach(([field, value]) =>
-        result.current.handleInputChange(field, value),
-      );
+      });
     });
 
     // O POST aceita o CEP pela metade; o PATCH não. Deixar entrar aqui
@@ -561,7 +585,9 @@ describe("useCheckoutProcess - CEP do endereço novo", () => {
     // troca de endereço padrão.
     expect(result.current.isDeliveryValid()).toBe(false);
 
-    act(() => result.current.handleInputChange("zipCode", "01001-000"));
+    act(() =>
+      result.current.addressEditor.addressForm.setValue("zipCode", "01001-000"),
+    );
     expect(result.current.isDeliveryValid()).toBe(true);
   });
 });
@@ -584,9 +610,7 @@ describe("useCheckoutProcess - campo faltando (LDMF-350)", () => {
     act(() => {
       result.current.setOrderType("delivery");
       result.current.setAddressMode("new");
-      Object.entries(FILL).forEach(([field, value]) =>
-        result.current.handleInputChange(field, value),
-      );
+      fillNewAddress(result.current, FILL);
     });
 
     expect(result.current.getDeliveryErrors()).toEqual({
@@ -600,9 +624,109 @@ describe("useCheckoutProcess - campo faltando (LDMF-350)", () => {
 
     act(() => {
       result.current.setOrderType("delivery");
-      result.current.handleInputChange("number", "100");
+      result.current.addressEditor.addressForm.setValue("number", "100");
     });
     expect(result.current.isDeliveryValid()).toBe(true);
+  });
+});
+
+describe("useCheckoutProcess - endereço novo pelo núcleo (LDMF-260)", () => {
+  const ADDRESS = {
+    name: "Cliente",
+    phone: "11999999999",
+    zipCode: "29360-000",
+    state: "ES",
+    city: "Castelo",
+    neighborhood: "Centro",
+    street: "Rua Jocarly Garcia",
+    number: "100",
+  };
+
+  afterEach(() => {
+    // O endereço criado entra no cache de endereços; os testes seguintes
+    // partem do caderno padrão.
+    queryClient.clear();
+    addressesQuery = ADDRESSES_WITH_DEFAULT;
+    seedAddressBook(ADDRESSES_WITH_DEFAULT);
+  });
+
+  it("sem pino no mapa não avança", async () => {
+    const { result } = renderCheckout();
+
+    act(() => {
+      result.current.setOrderType("delivery");
+      result.current.setAddressMode("new");
+      fillNewAddress(result.current, ADDRESS, { pin: null });
+    });
+
+    expect(result.current.getDeliveryErrors()).toEqual({
+      location: "Marque no mapa onde fica o endereço.",
+    });
+
+    act(() => result.current.addressEditor.applyCoords(NEW_PIN, "manual"));
+    expect(result.current.getDeliveryErrors()).toEqual({});
+  });
+
+  it("número fora do formato da casa não avança; S/N passa", async () => {
+    const { result } = renderCheckout();
+
+    act(() => {
+      result.current.setOrderType("delivery");
+      result.current.setAddressMode("new");
+      fillNewAddress(result.current, { ...ADDRESS, number: "vtech" });
+    });
+
+    expect(result.current.getDeliveryErrors()).toEqual({
+      number: "Informe o número da casa ou marque Sem número",
+    });
+
+    act(() => result.current.addressEditor.addressForm.setValue("number", "S/N"));
+    expect(result.current.getDeliveryErrors()).toEqual({});
+  });
+
+  it("frete e endereço usam a posição do pino; GPS move o pino do endereço novo", async () => {
+    addressesQuery = ADDRESSES_EMPTY;
+    seedAddressBook(ADDRESSES_EMPTY);
+    createUserAddress.mockReset();
+    createUserAddress.mockResolvedValue({
+      success: true,
+      data: { id: "addr-novo", isDefault: true },
+    });
+    const { result } = renderCheckout();
+
+    act(() => {
+      result.current.setOrderType("delivery");
+      result.current.setPaymentMethod("pix_on_delivery");
+      result.current.setAddressMode("new");
+      fillNewAddress(result.current, {
+        ...ADDRESS,
+        complement: "   ",
+        reference: " Portão azul ",
+      });
+    });
+    // "Usar localização" cai no pino do núcleo.
+    const gps = { lat: -20.6, lng: -41.2 };
+    act(() => result.current.applyCoords(gps, "manual"));
+    expect(result.current.addressEditor.addressCoords?.coords).toEqual(gps);
+
+    await act(async () => {
+      await result.current.handleSubmitOrder();
+    });
+
+    expect(createUserAddress).toHaveBeenCalledWith(
+      expect.objectContaining({
+        zipCode: "29360000",
+        state: "ES",
+        city: "Castelo",
+        neighborhood: "Centro",
+        street: "Rua Jocarly Garcia",
+        number: "100",
+        latitude: gps.lat,
+        longitude: gps.lng,
+        complement: undefined,
+        reference: "Portão azul",
+      }),
+    );
   });
 });
 
@@ -771,11 +895,11 @@ describe("useCheckoutProcess - endereço padrão da entrega", () => {
     );
   });
 
-  it("desmarca o endereço temporário antes de descartá-lo", async () => {
+  it("sem padrão, o endereço do pedido fica salvo como padrão mesmo com 'Salvar' desmarcado (LDMF-262)", async () => {
     addressesQuery = ADDRESSES_WITHOUT_DEFAULT;
     seedAddressBook(ADDRESSES_WITHOUT_DEFAULT);
 
-    await submitWith((h) => {
+    const result = await submitWith((h) => {
       h.setOrderType("delivery");
       h.setPaymentMethod("pix");
       // "Salvar este endereço para pedidos futuros" desmarcado.
@@ -783,10 +907,10 @@ describe("useCheckoutProcess - endereço padrão da entrega", () => {
       h.setAddressMode("new");
     });
 
-    // Sem o "off", o cliente ficaria com um endereço padrão apagado - e o
-    // próximo pedido de entrega sairia desse endereço morto.
-    expect(defaultCalls()).toEqual(["addr-1:on", "addr-1:off"]);
-    expect(deleteUserAddress).toHaveBeenCalledWith("addr-1");
+    expect(result.current.newAddressBecomesDefault).toBe(true);
+    // Descartar deixaria o cliente logado sem endereço padrão.
+    expect(defaultCalls()).toEqual(["addr-1:on"]);
+    expect(deleteUserAddress).not.toHaveBeenCalled();
   });
 
   it("desfaz na montagem uma troca que ficou pela metade", async () => {
@@ -838,7 +962,7 @@ describe("useCheckoutProcess - endereço padrão da entrega", () => {
       result.current.setPaymentMethod("pix_on_delivery");
       result.current.setSaveAddress(true);
       result.current.setAddressMode("new");
-      Object.entries({
+      fillNewAddress(result.current, {
         name: "Cliente",
         phone: "11999999999",
         zipCode: "01001-000",
@@ -847,9 +971,7 @@ describe("useCheckoutProcess - endereço padrão da entrega", () => {
         neighborhood: "Sé",
         city: "São Paulo",
         state: "SP",
-      }).forEach(([field, value]) =>
-        result.current.handleInputChange(field, value),
-      );
+      });
     });
 
     await act(async () => {
@@ -865,9 +987,9 @@ describe("useCheckoutProcess - endereço padrão da entrega", () => {
     expect(finishOrder).toHaveBeenCalledTimes(1);
   });
 
-  it("cadastra novo endereço sem padrão quando o cliente desmarca salvar para o futuro", async () => {
-    addressesQuery = ADDRESSES_EMPTY;
-    seedAddressBook(ADDRESSES_EMPTY);
+  it("cadastra novo endereço sem padrão quando o cliente já tem padrão e desmarca salvar para o futuro", async () => {
+    addressesQuery = ADDRESSES_WITH_DEFAULT;
+    seedAddressBook(ADDRESSES_WITH_DEFAULT);
     createUserAddress.mockResolvedValue({
       success: true,
       data: {
@@ -883,13 +1005,17 @@ describe("useCheckoutProcess - endereço padrão da entrega", () => {
     });
 
     const { result } = renderCheckout();
+    await waitFor(() => expect(result.current.selectedAddressId).toBe("addr-1"));
+    expect(result.current.newAddressBecomesDefault).toBe(false);
 
     act(() => {
       result.current.setOrderType("delivery");
       result.current.setPaymentMethod("pix_on_delivery");
       result.current.setSaveAddress(false);
       result.current.setAddressMode("new");
-      Object.entries({
+      // "Novo endereço" na tela também tira a seleção do endereço salvo.
+      result.current.setSelectedAddressId(null);
+      fillNewAddress(result.current, {
         name: "Cliente",
         phone: "11999999999",
         zipCode: "01001-000",
@@ -898,9 +1024,7 @@ describe("useCheckoutProcess - endereço padrão da entrega", () => {
         neighborhood: "Sé",
         city: "São Paulo",
         state: "SP",
-      }).forEach(([field, value]) =>
-        result.current.handleInputChange(field, value),
-      );
+      });
     });
 
     await act(async () => {
@@ -913,6 +1037,56 @@ describe("useCheckoutProcess - endereço padrão da entrega", () => {
         zipCode: "01001000",
       }),
     );
+  });
+});
+
+describe("useCheckoutProcess - cliente logado sempre com padrão (LDMF-262)", () => {
+  beforeEach(() => {
+    finishOrder.mockReset();
+    openCart.mockReset();
+    paymentsCreate.mockReset();
+    paymentsCreate.mockResolvedValue({ success: true, data: {} });
+    deleteUserAddress.mockReset();
+    resetAddressMocks();
+    addressesQuery = ADDRESSES_EMPTY;
+    seedAddressBook(ADDRESSES_EMPTY);
+  });
+
+  it("primeiro endereço vira padrão e fica salvo, mesmo com 'Salvar' desmarcado", async () => {
+    createUserAddress.mockResolvedValue({
+      success: true,
+      data: { id: "addr-novo", isDefault: true },
+    });
+    finishOrder.mockResolvedValue({ success: true, data: { id: "order-1" } });
+
+    const { result } = renderCheckout();
+    expect(result.current.newAddressBecomesDefault).toBe(true);
+
+    act(() => {
+      result.current.setOrderType("delivery");
+      result.current.setPaymentMethod("pix_on_delivery");
+      result.current.setSaveAddress(false);
+      result.current.setAddressMode("new");
+      fillNewAddress(result.current, {
+        name: "Cliente",
+        phone: "11999999999",
+        zipCode: "01001-000",
+        street: "Praça da Sé",
+        number: "1",
+        neighborhood: "Sé",
+        city: "São Paulo",
+        state: "SP",
+      });
+    });
+
+    await act(async () => {
+      await result.current.handleSubmitOrder();
+    });
+
+    expect(createUserAddress).toHaveBeenCalledWith(
+      expect.objectContaining({ isDefault: true }),
+    );
+    expect(deleteUserAddress).not.toHaveBeenCalled();
   });
 });
 
@@ -1165,12 +1339,25 @@ describe("useCheckoutProcess - restaurante fechado", () => {
   });
 
   // LDMF-374: o cache pode ter até 1 minuto. Quem decide é a consulta na hora.
+  // O status sai da grade (LDMF-469): aberto o dia todo, todo dia, contra
+  // o dia todo em pausa - os dois valem para qualquer hora do teste.
+  const ALL_DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
   const OPEN_HOURS = {
     isOpen: true,
     linkedToCashRegister: false,
-    days: [{ day: "mon", isOpen: true, openTime: "00:00", closeTime: "23:59" }],
+    days: ALL_DAYS.map((day) => ({ day, openTime: "00:00", closeTime: "23:59" })),
   };
-  const CLOSED_HOURS = { ...OPEN_HOURS, isOpen: false };
+  const CLOSED_HOURS = {
+    isOpen: false,
+    linkedToCashRegister: false,
+    days: ALL_DAYS.map((day) => ({
+      day,
+      openTime: "00:00",
+      closeTime: "23:59",
+      breakStart: "00:00",
+      breakEnd: "23:59",
+    })),
+  };
 
   it("consulta o status na hora e bloqueia se a loja fechou depois do cache", async () => {
     openingHoursQuery = { data: OPEN_HOURS, isLoading: false };
@@ -1457,6 +1644,43 @@ describe("useCheckoutProcess - loja do carrinho antes de finalizar (LDMF-317)", 
     expect(toastError).toHaveBeenCalledWith(
       "Seu carrinho tem itens de outra loja. Revise o carrinho antes de finalizar o pedido.",
     );
+  });
+
+  it("carrinho do back passou do teto depois que o checkout abriu: bloqueia (LDMF-333)", async () => {
+    // A tela tem 1 unidade; por fora (outra aba), o carrinho do back foi a 34
+    viewOrder.mockResolvedValue({
+      success: true,
+      data: {
+        id: "cart:user-1",
+        companyId: "comp-1",
+        orderedItems: [
+          { productId: "prod-1", quantity: 3, product: { companyId: "comp-1" } },
+          { productId: "prod-1", quantity: 31, product: { companyId: "comp-1" } },
+        ],
+      },
+    });
+
+    await submitWith(pickup);
+
+    expect(finishOrder).not.toHaveBeenCalled();
+    expect(toastError).toHaveBeenCalledWith(PRODUCT_LIMIT_MESSAGE);
+  });
+
+  it("carrinho do back dentro do teto: finaliza", async () => {
+    viewOrder.mockResolvedValue({
+      success: true,
+      data: {
+        id: "cart:user-1",
+        companyId: "comp-1",
+        orderedItems: [
+          { productId: "prod-1", quantity: 30, product: { companyId: "comp-1" } },
+        ],
+      },
+    });
+
+    await submitWith(pickup);
+
+    expect(finishOrder).toHaveBeenCalledTimes(1);
   });
 
   it("item de outra loja dentro do carrinho certo: bloqueia e avisa", async () => {

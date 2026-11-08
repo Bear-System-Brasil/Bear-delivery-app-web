@@ -1,20 +1,17 @@
 "use client";
 
-import { type FormEvent, useId, useState } from "react";
-import { Mail } from "lucide-react";
+import { toast } from "sonner";
 
+import { AddressCoreFields } from "@/components/profile/delivery-form/address-core-fields";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { SheetTitle } from "@/components/ui/sheet";
+import { useAddressEditor } from "@/hooks/use-address-editor";
 import {
-  resolveAddressCoordinates,
-  type SourcedCoords,
-} from "@/lib/address-coordinates";
-import { CepNotFoundError, fetchCepAddress } from "@/lib/cep";
+  isNoNumber,
+  type AddressFormData,
+} from "@/hooks/use-form-validation";
 import { cn } from "@/lib/utils";
-import { formatCep } from "@/utils";
+import { useState } from "react";
 
 export const ADDRESS_LABELS = ["Casa", "Trabalho", "Outro"] as const;
 export type AddressLabel = (typeof ADDRESS_LABELS)[number];
@@ -29,42 +26,14 @@ export interface SavedDeliveryLocation {
   label: AddressLabel;
 }
 
-type FormFields = {
-  zipCode: string;
-  street: string;
-  number: string;
-  neighborhood: string;
-  city: string;
-  state: string;
-  complement: string;
-  reference: string;
-};
+type AddressText = Pick<
+  AddressFormData,
+  "street" | "number" | "neighborhood" | "city" | "state"
+>;
 
-type FieldName = keyof FormFields;
+const LABEL_CLASS = "text-sm font-medium";
 
-const EMPTY_FORM: FormFields = {
-  zipCode: "",
-  street: "",
-  number: "",
-  neighborhood: "",
-  city: "",
-  state: "",
-  complement: "",
-  reference: "",
-};
-
-const INPUT_CLASS =
-  "h-12 rounded-xl border-border bg-card px-4 text-[15px] text-foreground placeholder:text-muted-foreground/70 focus-visible:border-orange-400 focus-visible:ring-orange-400/40 aria-[invalid=true]:border-red-400";
-
-const LABEL_CLASS = "text-[13px] font-bold text-foreground";
-
-export function formatDeliveryAddress(
-  fields: Pick<
-    FormFields,
-    "street" | "number" | "neighborhood" | "city" | "state"
-  >,
-  noNumber: boolean,
-) {
+export function formatDeliveryAddress(fields: AddressText, noNumber: boolean) {
   // "R. Machado de Assis, 304 - Santo Andrezinho, Castelo - ES"
   const streetLine = [fields.street, noNumber ? "s/n" : fields.number]
     .filter(Boolean)
@@ -80,151 +49,49 @@ type Props = {
 };
 
 /**
- * Formulário "Seu endereço" do sheet de entrega. O CEP preenche o que der
- * (rua, bairro, cidade, UF) e o resto o cliente completa; ao salvar,
- * geocodificamos o endereço digitado - com a coordenada do CEP de reserva -
- * porque a home filtra as lojas por raio a partir desse ponto.
+ * Formulário "Seu endereço" da gaveta de entrega da home. Usa o núcleo de
+ * endereço (LDMF-260), o mesmo do perfil e da loja: CEP (opcional) → Estado
+ * → Cidade → Bairro → Rua → Número, e o pino no mapa. A coordenada salva no
+ * cookie é a do pino - a home filtra as lojas por raio a partir dela.
+ *
+ * Não grava nada no backend: só o cookie `userLocation`, como antes.
  */
 export function DeliveryAddressForm({ onSave }: Props) {
-  const idPrefix = useId();
-  const [fields, setFields] = useState<FormFields>(EMPTY_FORM);
-  const [noNumber, setNoNumber] = useState(false);
   const [label, setLabel] = useState<AddressLabel>("Casa");
-  const [errors, setErrors] = useState<Partial<Record<FieldName, string>>>(
-    {},
-  );
-  const [cepStatus, setCepStatus] = useState<"idle" | "loading" | "error">(
-    "idle",
-  );
-  const [cepCoords, setCepCoords] = useState<SourcedCoords | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [formError, setFormError] = useState("");
+  // O componente só existe com a gaveta aberta no modo de troca.
+  const editor = useAddressEditor({ enabled: true, zipCodeOptional: true });
+  const { addressForm } = editor;
 
-  const fieldId = (name: FieldName) => `${idPrefix}-${name}`;
+  const handleSave = (data: AddressFormData) => {
+    const pin = editor.getPinForSave(data);
+    if (!pin) return;
 
-  const setField = (name: FieldName, value: string) => {
-    setFields((current) => ({ ...current, [name]: value }));
-    setErrors((current) => {
-      if (!current[name]) return current;
-      const next = { ...current };
-      delete next[name];
-      return next;
-    });
-    setFormError("");
-  };
-
-  const lookupCep = async (zipCode: string) => {
-    setCepStatus("loading");
-    try {
-      const result = await fetchCepAddress(zipCode);
-      setFields((current) => ({
-        ...current,
-        // Só cobre o que estiver vazio: quem já digitou a rua não perde.
-        street: current.street || result.street,
-        neighborhood: current.neighborhood || result.neighborhood,
-        city: current.city || result.city,
-        state: current.state || result.state,
-      }));
-      setCepCoords(
-        result.coords ? { coords: result.coords, source: "cep" } : null,
-      );
-      setCepStatus("idle");
-    } catch (error) {
-      setCepCoords(null);
-      setCepStatus("error");
-      if (!(error instanceof CepNotFoundError)) {
-        setFormError("Não conseguimos consultar o CEP. Preencha a rua.");
-      }
-    }
-  };
-
-  const handleZipCodeChange = (value: string) => {
-    const formatted = formatCep(value);
-    setField("zipCode", formatted);
-    setCepStatus("idle");
-
-    if (formatted.replace(/\D/g, "").length === 8) {
-      lookupCep(formatted);
-    } else {
-      setCepCoords(null);
-    }
-  };
-
-  const validate = () => {
-    const next: Partial<Record<FieldName, string>> = {};
-    if (!fields.street.trim()) next.street = "Informe a rua";
-    if (!noNumber && !fields.number.trim()) next.number = "Informe o número";
-    if (!fields.city.trim()) next.city = "Informe a cidade";
-    if (fields.state.trim().length !== 2) next.state = "UF";
-    return next;
-  };
-
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
-    const nextErrors = validate();
-    if (Object.keys(nextErrors).length) {
-      setErrors(nextErrors);
-      setFormError("Preencha os campos destacados.");
-      return;
-    }
-
-    setSaving(true);
-    setFormError("");
-
-    try {
-      const resolved = await resolveAddressCoordinates(
+    onSave({
+      lat: pin.lat,
+      lng: pin.lng,
+      city: data.city.trim(),
+      address: formatDeliveryAddress(
         {
-          zipCode: fields.zipCode,
-          street: fields.street,
-          number: noNumber ? "" : fields.number,
-          neighborhood: fields.neighborhood,
-          city: fields.city,
-          state: fields.state,
+          street: data.street.trim(),
+          number: data.number.trim(),
+          neighborhood: data.neighborhood.trim(),
+          city: data.city.trim(),
+          state: data.state.trim().toUpperCase(),
         },
-        cepCoords,
-      );
-
-      if (!resolved) {
-        setFormError(
-          "Não encontramos esse endereço no mapa. Confira rua, cidade e estado.",
-        );
-        return;
-      }
-
-      onSave({
-        lat: resolved.coords.lat,
-        lng: resolved.coords.lng,
-        city: fields.city.trim(),
-        address: formatDeliveryAddress(
-          {
-            street: fields.street.trim(),
-            number: fields.number.trim(),
-            neighborhood: fields.neighborhood.trim(),
-            city: fields.city.trim(),
-            state: fields.state.trim().toUpperCase(),
-          },
-          noNumber,
-        ),
-        label,
-      });
-    } catch {
-      setFormError("Não foi possível salvar o endereço. Tente de novo.");
-    } finally {
-      setSaving(false);
-    }
+        isNoNumber(data.number),
+      ),
+      label,
+    });
   };
-
-  const cepHint =
-    cepStatus === "loading"
-      ? "Buscando CEP..."
-      : cepStatus === "error"
-        ? "CEP não encontrado. Preencha a rua abaixo."
-        : "Não sabe o CEP? Deixe em branco e preencha a rua";
 
   return (
     <form
-      onSubmit={handleSubmit}
+      onSubmit={addressForm.handleSubmit(handleSave, (errors) => {
+        const firstError = Object.values(errors)[0];
+        toast.error(
+          firstError?.message || "Verifique os campos obrigatórios do endereço",
+        );
+      })}
       noValidate
       className="mx-auto w-full max-w-xl space-y-4"
     >
@@ -233,168 +100,43 @@ export function DeliveryAddressForm({ onSave }: Props) {
           Seu endereço
         </SheetTitle>
         <p className="text-[13px] text-muted-foreground">
-          Comece pelo CEP — preenchemos o que der
+          Comece pelo CEP ou escolha estado e cidade
         </p>
       </div>
 
-      <div className="rounded-2xl border border-border bg-muted/40 p-3">
-        <div className="flex items-start gap-3">
-          <span className="mt-6 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-500/10 text-orange-500">
-            <Mail className="h-5 w-5" />
-          </span>
-          <div className="min-w-0 flex-1 space-y-1.5">
-            <Label htmlFor={fieldId("zipCode")} className={LABEL_CLASS}>
-              CEP
-            </Label>
-            <Input
-              id={fieldId("zipCode")}
-              inputMode="numeric"
-              autoComplete="postal-code"
-              placeholder="29360-000"
-              value={fields.zipCode}
-              onChange={(event) => handleZipCodeChange(event.target.value)}
-              className={INPUT_CLASS}
-              maxLength={9}
-            />
-          </div>
-        </div>
-        <p
-          className={cn(
-            "mt-2 text-xs text-muted-foreground",
-            cepStatus === "error" && "text-orange-600 dark:text-orange-400",
-          )}
-          aria-live="polite"
-        >
-          {cepHint}
-        </p>
-      </div>
-
-      <div className="space-y-1.5">
-        <Label htmlFor={fieldId("street")} className={LABEL_CLASS}>
-          Rua / avenida
-        </Label>
-        <Input
-          id={fieldId("street")}
-          autoComplete="address-line1"
-          placeholder="R. Machado de Assis"
-          value={fields.street}
-          onChange={(event) => setField("street", event.target.value)}
-          aria-invalid={Boolean(errors.street)}
-          className={INPUT_CLASS}
-        />
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <Label htmlFor={fieldId("number")} className={LABEL_CLASS}>
-            Número
-          </Label>
-          <Input
-            id={fieldId("number")}
-            inputMode="numeric"
-            placeholder="304"
-            value={noNumber ? "" : fields.number}
-            disabled={noNumber}
-            onChange={(event) => setField("number", event.target.value)}
-            aria-invalid={Boolean(errors.number)}
-            className={INPUT_CLASS}
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor={fieldId("neighborhood")} className={LABEL_CLASS}>
-            Bairro
-          </Label>
-          <Input
-            id={fieldId("neighborhood")}
-            autoComplete="address-level3"
-            placeholder="Santo Andrezinho"
-            value={fields.neighborhood}
-            onChange={(event) => setField("neighborhood", event.target.value)}
-            className={INPUT_CLASS}
-          />
-        </div>
-      </div>
-
-      <div className="flex items-center gap-2">
-        <Checkbox
-          id={`${idPrefix}-no-number`}
-          checked={noNumber}
-          onCheckedChange={(checked) => {
-            const value = checked === true;
-            setNoNumber(value);
-            if (value) setField("number", "");
-          }}
-          className="h-[18px] w-[18px] rounded-[5px] border-border data-[state=checked]:border-orange-500 data-[state=checked]:bg-orange-500 data-[state=checked]:text-white"
-        />
-        <Label
-          htmlFor={`${idPrefix}-no-number`}
-          className="cursor-pointer text-[13px] font-medium text-muted-foreground"
-        >
-          Sem número
-        </Label>
-      </div>
-
-      <div className="grid grid-cols-[1.6fr_1fr] gap-3">
-        <div className="space-y-1.5">
-          <Label htmlFor={fieldId("city")} className={LABEL_CLASS}>
-            Cidade
-          </Label>
-          <Input
-            id={fieldId("city")}
-            autoComplete="address-level2"
-            placeholder="Castelo"
-            value={fields.city}
-            onChange={(event) => setField("city", event.target.value)}
-            aria-invalid={Boolean(errors.city)}
-            className={INPUT_CLASS}
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor={fieldId("state")} className={LABEL_CLASS}>
-            Estado
-          </Label>
-          <Input
-            id={fieldId("state")}
-            autoComplete="address-level1"
-            placeholder="ES"
-            value={fields.state}
-            onChange={(event) =>
-              setField("state", event.target.value.toUpperCase())
-            }
-            aria-invalid={Boolean(errors.state)}
-            className={cn(INPUT_CLASS, "uppercase")}
-            maxLength={2}
-          />
-        </div>
-      </div>
-
-      <div className="space-y-1.5">
-        <Label htmlFor={fieldId("complement")} className={LABEL_CLASS}>
-          Complemento{" "}
-          <span className="font-medium text-muted-foreground">(opcional)</span>
-        </Label>
-        <Input
-          id={fieldId("complement")}
-          autoComplete="address-line2"
-          placeholder="Apto 12, bloco B"
-          value={fields.complement}
-          onChange={(event) => setField("complement", event.target.value)}
-          className={INPUT_CLASS}
-        />
-      </div>
-
-      <div className="space-y-1.5">
-        <Label htmlFor={fieldId("reference")} className={LABEL_CLASS}>
-          Ponto de referência
-        </Label>
-        <Input
-          id={fieldId("reference")}
-          placeholder="Ex.: portão azul, ao lado da padaria"
-          value={fields.reference}
-          onChange={(event) => setField("reference", event.target.value)}
-          className={INPUT_CLASS}
-        />
-      </div>
+      <AddressCoreFields
+        addressForm={addressForm}
+        applyCoords={editor.applyCoords}
+        addressCoords={editor.addressCoords}
+        isLoadingCep={editor.isLoadingCep}
+        zipCodeHint={editor.zipCodeHint}
+        neighborhoodOptions={editor.neighborhoodOptions}
+        isLocatingPin={editor.isLocatingPin}
+        stateOptions={editor.stateOptions}
+        cityOptions={editor.cityOptions}
+        isLoadingCities={editor.isLoadingCities}
+        citiesError={editor.citiesError}
+        fieldLocks={editor.fieldLocks}
+        onStateChange={editor.changeState}
+        onCityChange={editor.changeCity}
+        onNeighborhoodChange={editor.changeNeighborhood}
+        isOtherNeighborhood={editor.isOtherNeighborhood}
+        isLoadingNeighborhoods={editor.isLoadingNeighborhoods}
+        onSelectOtherNeighborhood={editor.selectOtherNeighborhood}
+        onOtherNeighborhoodChange={editor.changeOtherNeighborhood}
+        isSearchingAddress={editor.isSearchingAddress}
+        addressNotFound={editor.addressNotFound}
+        streetSuggestion={editor.streetSuggestion}
+        onAcceptStreetSuggestion={editor.acceptStreetSuggestion}
+        onDismissStreetSuggestion={editor.dismissStreetSuggestion}
+        pinZoom={editor.pinZoom}
+        pinRecenterKey={editor.pinRecenterKey}
+        zipCodeRequired={false}
+        // Complemento e padrão não vão para o cookie: não mostra.
+        showComplement={false}
+        showDefaultOption={false}
+        placeLabel="posição certa"
+      />
 
       <fieldset className="space-y-2">
         <legend className={LABEL_CLASS}>Salvar como</legend>
@@ -421,21 +163,12 @@ export function DeliveryAddressForm({ onSave }: Props) {
         </div>
       </fieldset>
 
-      {formError && (
-        <p
-          role="alert"
-          className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-950/40 dark:text-red-400"
-        >
-          {formError}
-        </p>
-      )}
-
       <Button
         type="submit"
-        disabled={saving || cepStatus === "loading"}
+        disabled={editor.isLoadingCep}
         className="h-12 w-full rounded-xl bg-orange-500 text-[15px] font-bold text-white hover:bg-orange-600"
       >
-        {saving ? "Salvando..." : "Salvar endereço"}
+        Salvar endereço
       </Button>
     </form>
   );

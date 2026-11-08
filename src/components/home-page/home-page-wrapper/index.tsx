@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useRestaurants, useSyncedUserLocation } from "@/hooks";
+import { useRestaurants } from "@/hooks/use-restaurants";
+import { useSyncedUserLocation } from "@/hooks/use-synced-user-location";
 import { useCartStore } from "@/stores";
 import { useAuth } from "@/contexts/auth-provider";
 import { AnimatedBackground } from "@/components/ui/custom";

@@ -3,6 +3,7 @@ import {
   EMPTY_WEEK_HOURS,
   findOpeningHoursError,
   getPersistedDays,
+  resolveRestaurantOpenStatus,
   toDayHours,
   toOpeningHoursDays,
   type DayHours,
@@ -15,7 +16,7 @@ import {
   useQueryClient,
   type QueryClient,
 } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 const OPENING_HOURS_KEY = ["opening-hours"] as const;
@@ -45,11 +46,35 @@ async function fetchRestaurantOpeningHours(companyId: string) {
   return response.data;
 }
 
+/** Re-renderiza quem usa a cada minuto cheio. */
+function useMinuteTick() {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval> | undefined;
+    // Alinha na virada do minuto, quando a loja abre ou fecha.
+    const timeout = setTimeout(
+      () => {
+        setTick((t) => t + 1);
+        interval = setInterval(() => setTick((t) => t + 1), 60_000);
+      },
+      60_000 - (Date.now() % 60_000),
+    );
+    return () => {
+      clearTimeout(timeout);
+      if (interval) clearInterval(interval);
+    };
+  }, []);
+}
+
 /**
  * Hook público para obter os horários de funcionamento e status de uma loja.
  * Usado pelas telas de cliente: vitrine do restaurante, modal do prato, carrinho e checkout.
  */
 export function useRestaurantOpeningHours(companyId?: string | null) {
+  // Aberto/Fechado é calculado pelo relógio na tela (LDMF-469): sem um
+  // re-render por minuto, a loja só "fecharia" quando a resposta mudasse.
+  useMinuteTick();
+
   return useQuery({
     queryKey: restaurantOpeningHoursKey(companyId),
     queryFn: () => fetchRestaurantOpeningHours(companyId as string),
@@ -183,7 +208,9 @@ export function useCompanyOpeningHours(companyId?: string | null) {
     refetchHours: hoursQuery.refetch,
 
     /** `null` enquanto a rota pública não respondeu - aí o badge não aparece. */
-    isOpenNow: statusQuery.data?.isOpen ?? null,
+    isOpenNow: statusQuery.data
+      ? resolveRestaurantOpenStatus(statusQuery.data).isOpen
+      : null,
     linkedToCashRegister: statusQuery.data?.linkedToCashRegister ?? false,
   };
 }

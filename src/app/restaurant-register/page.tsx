@@ -16,7 +16,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { BirthDateInput } from "@/components/birth-date-input";
-import { useRestaurantRegistration } from "@/hooks";
+import { useRestaurantRegistration } from "@/hooks/use-restaurant-registration";
 import { formatCnpj, formatPhoneDisplay, getBirthDateError } from "@/utils";
 import {
   ArrowLeft,
