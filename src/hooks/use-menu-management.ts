@@ -8,6 +8,7 @@ import { getErrorMessage } from "@/utils";
 import { useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import { duplicateProduct } from "@/services/products/duplicate-product";
 import { uploadProductImageSafe } from "@/services/products/upload-product-image";
 import { useCategories } from "./use-categories";
 import {
@@ -111,6 +112,9 @@ export const useMenuManagement = () => {
   const [newCategoryName, setNewCategoryName] = useState("");
   const [createdProducts, setCreatedProducts] = useState<Product[]>([]);
   const [removedProductIds, setRemovedProductIds] = useState<string[]>([]);
+  const [duplicatingProductId, setDuplicatingProductId] = useState<
+    string | null
+  >(null);
 
   const upsertProductInCache = (product: Product) => {
     setCreatedProducts((prev) => {
@@ -622,6 +626,73 @@ export const useMenuManagement = () => {
     }
   };
 
+  /**
+   * Duplica o prato (LDMF-489) e abre a edição da cópia para o lojista
+   * trocar nome, foto e descrição. Devolve a cópia, ou null se não criou.
+   */
+  const handleDuplicateProduct = async (
+    product: Product,
+  ): Promise<Product | null> => {
+    if (duplicatingProductId) return null;
+    setDuplicatingProductId(product.id);
+    const toastId = toast.loading(`Duplicando "${product.name}"...`);
+
+    try {
+      const { product: copy, warnings } = await duplicateProduct({
+        source: product,
+        companyId,
+        existingNames: products.map((item) => item.name),
+      });
+
+      const categoryLinks = product.productCategories?.length
+        ? product.productCategories.map((link) => ({
+            ...link,
+            id: `${copy.id}-${link.categoryId}`,
+            productId: copy.id,
+          }))
+        : [];
+      // Entra na lista já, mesmo antes da recarga trazer a cópia.
+      upsertProductInCache({
+        ...copy,
+        companyId: copy.companyId || companyId || "",
+        productCategories: copy.productCategories?.length
+          ? copy.productCategories
+          : categoryLinks,
+      });
+
+      // Recarrega para a cópia vir com as fotos e as categorias reais.
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: productsQueryKey }),
+        queryClient.invalidateQueries({ queryKey: ["product-variations"] }),
+        queryClient.invalidateQueries({ queryKey: ["product-add-ons"] }),
+      ]);
+      const refreshed =
+        (queryClient.getQueryData(productsQueryKey) as Product[] | undefined)
+          ?.find?.((item) => item.id === copy.id) ?? null;
+      const finalCopy: Product = refreshed ?? {
+        ...copy,
+        productCategories: categoryLinks,
+      };
+
+      toast.success(
+        `"${finalCopy.name}" criado. A cópia está indisponível até você ativar.`,
+        { id: toastId },
+      );
+      warnings.forEach((warning) => toast.error(warning));
+
+      handleOpenEditModal(finalCopy, "details");
+      return finalCopy;
+    } catch (error) {
+      console.error("Erro ao duplicar prato:", error);
+      toast.error(getErrorMessage(error, "Erro ao duplicar o prato"), {
+        id: toastId,
+      });
+      return null;
+    } finally {
+      setDuplicatingProductId(null);
+    }
+  };
+
   const handleRequestDelete = (product: Product) => {
     setDeleteTarget(product);
   };
@@ -778,6 +849,8 @@ export const useMenuManagement = () => {
     handleConfirmDelete,
     handleCancelDelete,
     handleToggleAvailability,
+    handleDuplicateProduct,
+    duplicatingProductId,
     handleDeleteProductImage,
     updateFormField,
     isCreatingCategory,
