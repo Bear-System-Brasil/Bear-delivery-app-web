@@ -327,7 +327,8 @@ describe("useProfileManagement", () => {
       expect(result.current.profileForm.getFieldState("birthDate").error?.message).toBe(
         "Data de nascimento inválida.",
       );
-      expect(toast.error).toHaveBeenCalledWith("Data de nascimento inválida.");
+      // Só no campo: o toast repetia a mesma mensagem.
+      expect(toast.error).not.toHaveBeenCalled();
       expect(useAuthStore.getState().user?.birthDate).toBe(user.birthDate);
       expect(result.current.editingState.isOpen).toBe(true);
     });
