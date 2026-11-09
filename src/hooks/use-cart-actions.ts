@@ -700,8 +700,11 @@ export const useCartActions = () => {
         );
         const openStatus = resolveRestaurantOpenStatus(openingHours);
         if (!openStatus.isOpen) {
+          // Id fixo: "Pedir novamente" chama esta função item a item, e
+          // cliques seguidos também empilhariam o mesmo aviso.
           toast.error(
             openStatus.reason || "Este restaurante está fechado no momento.",
+            { id: "restaurant-closed" },
           );
           setLoading(false);
           return false;
