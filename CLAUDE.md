@@ -189,8 +189,10 @@ Aprendido na Sprint 5 (LDMF-475 a 479; números em `docs/`):
 
 ## Ambientes e deploy
 
-- A Vercel **não gera preview sozinha** para PR desta organização. O
-  deploy é manual. Antes de testar, confira qual commit está publicado.
+- O preview automático da Vercel é **instável** nesta organização: às
+  vezes não sai e o deploy tem que ser disparado à mão. Confira o
+  comentário do bot da Vercel no PR e, antes de testar, qual commit está
+  publicado.
 - O teste integrado é o `teste.beara.com.br` (branch
   `kauan/teste-integrado`, back de teste). Detalhes em
   [`docs/primeiros-passos.md`](./docs/primeiros-passos.md).
