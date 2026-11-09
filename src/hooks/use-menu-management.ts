@@ -822,9 +822,10 @@ export const useMenuManagement = () => {
         { id: "menu-availability" },
       );
     } catch (error) {
+      // O useUpdateProduct já mostra o erro - um toast aqui empilhava uma
+      // segunda mensagem para a mesma falha.
       queryClient.setQueryData(productsQueryKey, previousProducts);
       console.error("Erro ao atualizar disponibilidade:", error);
-      toast.error("Erro ao atualizar disponibilidade");
     }
   };
 

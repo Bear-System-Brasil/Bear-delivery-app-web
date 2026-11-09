@@ -719,7 +719,9 @@ describe("useMenuManagement", () => {
       });
 
       await waitFor(() => expect(result.current.allProducts[0].isAvailable).toBe(true));
-      expect(toast.error).toHaveBeenCalledWith("Erro ao atualizar disponibilidade");
+      // Uma mensagem só: a do useUpdateProduct, com o motivo do back.
+      expect(toast.error).toHaveBeenCalledTimes(1);
+      expect(toast.error).toHaveBeenCalledWith("offline");
     });
 
     it("avisa que salvou ao virar a disponibilidade", async () => {
