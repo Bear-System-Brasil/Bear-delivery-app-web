@@ -173,9 +173,9 @@ export function AdminDishCard({
 
         {/* Paleta calma: "Editar" rotulado + acoes secundarias em neutro, so o
           excluir em vermelho - antes eram quatro icones em quatro cores. */}
-        {/* No modo Duplicar as ações somem e o selo "Duplicar" ocupa a
-            lateral inteira, no mesmo tamanho dela. O clique vai para o botão
-            que cobre o card; o selo é só visual. */}
+        {/* No modo Duplicar as ações somem e entra um botão "Duplicar" na
+            lateral, com a largura dela e a altura do "Editar". O clique vai
+            para o botão que cobre o card; este é só visual. */}
         <div
           className={cn(
             "relative flex shrink-0 flex-col content-center justify-center gap-1.5",
@@ -185,12 +185,12 @@ export function AdminDishCard({
           {duplicateMode && (
             <span
               aria-hidden="true"
-              className="visible absolute inset-0 flex flex-col items-center justify-center gap-1 rounded-lg bg-brand-500 text-[11.5px] font-extrabold text-white transition-colors group-hover:bg-brand-600"
+              className="visible absolute inset-x-0 top-1/2 flex h-7 -translate-y-1/2 items-center justify-center gap-1.5 rounded-lg bg-brand-500 text-[11.5px] font-extrabold text-white transition-colors group-hover:bg-brand-600"
             >
               {isDuplicating ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
               ) : (
-                <Copy className="h-4 w-4" />
+                <Copy className="h-3.5 w-3.5" />
               )}
               {isDuplicating ? "Duplicando" : "Duplicar"}
             </span>
