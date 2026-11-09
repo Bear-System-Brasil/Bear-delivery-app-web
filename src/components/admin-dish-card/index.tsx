@@ -69,17 +69,8 @@ export function AdminDishCard({
           disabled={duplicateDisabled || isDuplicating}
           aria-label={`Duplicar ${dish.name}`}
           title="Duplicar este prato"
-          className="absolute inset-0 z-10 flex cursor-pointer items-start justify-end rounded-[13px] p-2 outline-none focus-visible:ring-2 focus-visible:ring-brand-500 disabled:cursor-not-allowed"
-        >
-          <span className="inline-flex items-center gap-1 rounded-md bg-brand-500 px-2 py-1 text-[10.5px] font-extrabold text-white shadow-sm">
-            {isDuplicating ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
-            ) : (
-              <Copy className="h-3 w-3" />
-            )}
-            {isDuplicating ? "Duplicando..." : "Duplicar"}
-          </span>
-        </button>
+          className="absolute inset-0 z-10 cursor-pointer rounded-[13px] outline-none focus-visible:ring-2 focus-visible:ring-brand-500 disabled:cursor-not-allowed"
+        />
       )}
 
       {/* No modo Duplicar o conteúdo fica inerte: nem clique nem Tab chegam
@@ -182,14 +173,28 @@ export function AdminDishCard({
 
         {/* Paleta calma: "Editar" rotulado + acoes secundarias em neutro, so o
           excluir em vermelho - antes eram quatro icones em quatro cores. */}
-        {/* No modo Duplicar as ações somem (sem mudar o tamanho do card) para
-            o selo "Duplicar" não ficar por cima do "Editar". */}
+        {/* No modo Duplicar as ações somem e o selo "Duplicar" ocupa a
+            lateral inteira, no mesmo tamanho dela. O clique vai para o botão
+            que cobre o card; o selo é só visual. */}
         <div
           className={cn(
-            "flex shrink-0 flex-col content-center justify-center gap-1.5",
+            "relative flex shrink-0 flex-col content-center justify-center gap-1.5",
             duplicateMode && "invisible",
           )}
         >
+          {duplicateMode && (
+            <span
+              aria-hidden="true"
+              className="visible absolute inset-0 flex flex-col items-center justify-center gap-1 rounded-lg bg-brand-500 text-[11.5px] font-extrabold text-white transition-colors group-hover:bg-brand-600"
+            >
+              {isDuplicating ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Copy className="h-4 w-4" />
+              )}
+              {isDuplicating ? "Duplicando" : "Duplicar"}
+            </span>
+          )}
           <button
             type="button"
             onClick={() => onEdit?.(dish)}
