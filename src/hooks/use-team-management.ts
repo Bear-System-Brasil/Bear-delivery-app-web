@@ -9,7 +9,7 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
 // O tipo mora em services/api.ts, junto do contrato de POST /company/invite.
-// Reexportado aqui porque a tela importa de "@/hooks".
+// Reexportado aqui porque a tela de Equipe importa daqui.
 export type { StaffRole };
 
 /**

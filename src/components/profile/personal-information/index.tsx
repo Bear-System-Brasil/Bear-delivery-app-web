@@ -23,10 +23,11 @@ import { BirthDateInput } from "@/components/birth-date-input";
 import { DataCard } from "@/components/data-card";
 import { ErrorState } from "@/components/states";
 import { UseMutationResult } from "@tanstack/react-query";
-import { ApiResponse } from "@/services";
-
-import { User as UserType } from "@/services";
-import type { UpdateUserRequest } from "@/services/api";
+import type {
+  ApiResponse,
+  UpdateUserRequest,
+  User as UserType,
+} from "@/services/api";
 import { Controller, UseFormReturn } from "react-hook-form";
 import type { ProfileFormData } from "@/hooks/use-form-validation";
 import {
