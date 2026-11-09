@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { DeliveryWrapper } from "./index";
+import { useAuthStore } from "@/stores/auth-store";
 
 const { router, auth, cart, checkout } = vi.hoisted(() => ({
   router: { push: vi.fn() },
@@ -85,6 +86,7 @@ describe("DeliveryWrapper", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     auth.isAuthenticated = true;
+    useAuthStore.setState({ _hasHydrated: true });
     cart.syncCartFromBackend.mockResolvedValue(undefined);
     setCheckout();
   });
@@ -318,6 +320,18 @@ describe("DeliveryWrapper", () => {
     await user.click(screen.getByRole("button", { name: "Fazer login" }));
     expect(auth.showAuthModal).toHaveBeenCalledTimes(2);
     expect(cart.syncCartFromBackend).not.toHaveBeenCalled();
+  });
+
+  it("não abre o login antes de ler a sessão salva no navegador (LDMF-495)", () => {
+    // Antes da leitura, isAuthenticated é false mesmo para quem está logado.
+    useAuthStore.setState({ _hasHydrated: false });
+    auth.isAuthenticated = false;
+
+    render(<DeliveryWrapper />);
+    expect(auth.showAuthModal).not.toHaveBeenCalled();
+
+    act(() => useAuthStore.setState({ _hasHydrated: true }));
+    expect(auth.showAuthModal).toHaveBeenCalledTimes(1);
   });
 
   it("bloqueia o avanço da entrega quando o restaurante está fechado", async () => {
