@@ -204,13 +204,14 @@ describe("DeliveryForm - campos faltando", () => {
 });
 
 describe("DeliveryForm - CPF da conta (LDMF-362)", () => {
-  const VALIDATED = "CPF já validado na sua conta. Pode prosseguir com o pedido.";
+  // Sem a mensagem "CPF já validado", que confundia (LDMF-495).
+  const VALIDATED = /CPF já validado/;
 
-  it("conta com CPF não vê o campo e vê a mensagem de CPF validado", () => {
+  it("conta com CPF não vê o campo nem mensagem sobre o CPF", () => {
     renderForm({ hasCpf: true });
 
     expect(screen.queryByLabelText("CPF")).not.toBeInTheDocument();
-    expect(screen.getByText(VALIDATED)).toBeInTheDocument();
+    expect(screen.queryByText(VALIDATED)).not.toBeInTheDocument();
   });
 
   it("conta sem CPF vê o campo e não vê a mensagem", () => {
