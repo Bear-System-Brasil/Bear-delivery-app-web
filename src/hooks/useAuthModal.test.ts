@@ -389,10 +389,8 @@ describe("useAuthModal", () => {
       expect(result.current.birthDateServerError).toBe(
         "Data de nascimento inválida, usuário menor de idade.",
       );
-      expect(result.current.submitMessage).toEqual({
-        type: "error",
-        text: "Data de nascimento inválida, usuário menor de idade.",
-      });
+      // Só no campo: o aviso de baixo repetia a mesma mensagem.
+      expect(result.current.submitMessage).toBeNull();
 
       type(result, { birthDate: "02011990" });
       expect(result.current.birthDateServerError).toBeNull();
