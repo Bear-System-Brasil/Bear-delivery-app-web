@@ -9,7 +9,14 @@ import { useAuthStore } from "@/stores";
 import { useMenuManagement } from "./use-menu-management";
 
 vi.mock("sonner", () => ({
-  toast: { success: vi.fn(), error: vi.fn() },
+  toast: { success: vi.fn(), error: vi.fn(), loading: vi.fn(() => "toast-id") },
+}));
+
+const { duplicateProductMock } = vi.hoisted(() => ({
+  duplicateProductMock: vi.fn(),
+}));
+vi.mock("@/services/products/duplicate-product", () => ({
+  duplicateProduct: duplicateProductMock,
 }));
 
 vi.mock("@/services/api", async (importOriginal) => {
@@ -910,6 +917,76 @@ describe("useMenuManagement", () => {
       );
       // Prato continua criado no cache e modal fecha normalmente
       expect(result.current.isModalOpen).toBe(false);
+    });
+  });
+  describe("duplicar prato (LDMF-489)", () => {
+    it("passa os nomes existentes, põe a cópia na lista e abre a edição dela", async () => {
+      server = [product("p1", { productCategories: linkedTo("p1", "cat-lanches") as never })];
+      const copy = product("p9", { name: "Prato p1 (cópia)", isAvailable: false });
+      duplicateProductMock.mockImplementation(async () => {
+        // O back já tem a cópia quando a lista recarrega.
+        server = [...server, { ...copy, productCategories: linkedTo("p9", "cat-lanches") as never }];
+        return { product: copy, warnings: ["Não deu para copiar a foto"] };
+      });
+      const { result } = await renderMenu();
+
+      let returned: Product | null = null;
+      await act(async () => {
+        returned = await result.current.handleDuplicateProduct(result.current.products[0]);
+      });
+
+      expect(duplicateProductMock).toHaveBeenCalledWith({
+        source: expect.objectContaining({ id: "p1" }),
+        companyId: "c1",
+        existingNames: ["Prato p1"],
+      });
+      expect(returned).toMatchObject({ id: "p9" });
+      expect(result.current.products.map((p) => p.id)).toContain("p9");
+      expect(result.current.isModalOpen).toBe(true);
+      expect(result.current.editingProduct?.id).toBe("p9");
+      expect(result.current.formData.name).toBe("Prato p1 (cópia)");
+      expect(result.current.formData.available).toBe(false);
+      expect(toast.error).toHaveBeenCalledWith("Não deu para copiar a foto");
+      expect(result.current.duplicatingProductId).toBeNull();
+    });
+
+    it("falha na duplicação mostra o erro e não abre modal", async () => {
+      server = [product("p1")];
+      duplicateProductMock.mockRejectedValue(new Error("Nada foi criado."));
+      const { result } = await renderMenu();
+
+      let returned: Product | null = product("x");
+      await act(async () => {
+        returned = await result.current.handleDuplicateProduct(result.current.products[0]);
+      });
+
+      expect(returned).toBeNull();
+      expect(result.current.isModalOpen).toBe(false);
+      expect(toast.error).toHaveBeenCalledWith("Nada foi criado.", { id: "toast-id" });
+    });
+
+    it("clique duplo não cria duas cópias", async () => {
+      server = [product("p1")];
+      let finish: (value: unknown) => void = () => {};
+      duplicateProductMock.mockImplementation(
+        () => new Promise((resolve) => { finish = resolve; }),
+      );
+      const { result } = await renderMenu();
+
+      let first: Promise<unknown> = Promise.resolve();
+      act(() => {
+        first = result.current.handleDuplicateProduct(result.current.products[0]);
+      });
+      await waitFor(() => expect(result.current.duplicatingProductId).toBe("p1"));
+      await act(async () => {
+        await result.current.handleDuplicateProduct(result.current.products[0]);
+      });
+      expect(duplicateProductMock).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        finish({ product: product("p9"), warnings: [] });
+        await first;
+      });
     });
   });
 });
