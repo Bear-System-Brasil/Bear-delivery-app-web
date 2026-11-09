@@ -15,6 +15,7 @@ import {
   MapPin,
   Phone,
   Plus,
+  ShieldCheck,
   Store,
   User,
 } from "lucide-react";
@@ -289,6 +290,15 @@ export function DeliveryForm({
             </Field>
           )}
 
+          {hasCpf && (
+            <p
+              role="status"
+              className="md:col-span-2 flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300"
+            >
+              <ShieldCheck className="h-4 w-4 shrink-0" />
+              CPF já validado na sua conta. Pode prosseguir com o pedido.
+            </p>
+          )}
         </div>
       </section>
 
