@@ -21,7 +21,6 @@ import { Input } from "@/components/ui/input";
 import { FormField } from "@/components/form-field";
 import { BirthDateInput } from "@/components/birth-date-input";
 import { DataCard } from "@/components/data-card";
-import { ErrorState } from "@/components/states";
 import { UseMutationResult } from "@tanstack/react-query";
 import { ApiResponse } from "@/services";
 
@@ -108,13 +107,9 @@ export function PersonalInformation({
         )
       }
     >
-      {updateProfile.isError && (
-        <ErrorState
-          message="Erro ao atualizar perfil. Tente novamente."
-          retry={() => updateProfile.reset()}
-        />
-      )}
-
+      {/* Falha ao salvar sai só pelo handleSaveProfile: toast com o motivo do
+          back, ou a mensagem embaixo do campo de data. Um quadro genérico
+          aqui mostrava o mesmo erro duas vezes. */}
       <form className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <FormField
           label="Nome Completo"
