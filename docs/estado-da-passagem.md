@@ -61,4 +61,4 @@ repositório): as demais `LDMF-*`, `ccr-*`, `super/menulateral-nav-cardapio`,
 | Projeto `likedeliveryapp-kitchen` | A variável de Production diz "API de teste", mas o deploy no ar apontava para o banco real | LDMF-479 |
 | Jenkins | Promove para `main`, que não existe (o repositório usa `prod`) | `Jenkinsfile` |
 | Testes | 7 falhas em `delivery-form.test.tsx`: falta um import | [testes-e-qualidade.md](./testes-e-qualidade.md) |
-| Vercel | Não gera preview sozinha (organização privada no plano Hobby) | LDMF-472 |
+| Vercel | Preview automático instável: não saiu em 07/11 (plano Hobby, organização privada), saiu no PR 278 em 09/11. Produção fica na conta `matheus-projects` | LDMF-472, PR 278 |

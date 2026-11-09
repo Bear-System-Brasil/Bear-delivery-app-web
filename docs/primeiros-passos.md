@@ -51,15 +51,18 @@ Confira na Vercel antes de confiar, porque isso muda.
 
 | Site | Projeto na Vercel | Back | Para quê |
 | --- | --- | --- | --- |
-| `beardelivery.vercel.app` | não está no time "Bear System" da Vercel (conferido em 09/11/2026; deve estar em outra conta) | banco real | Produção. Pelo fluxo, recebe a branch `prod` (não conferido na Vercel) |
+| `beardelivery.vercel.app` | `beardelivery`, na conta `matheus-projects` da Vercel (não no time "Bear System") | banco real | Produção. Pelo fluxo, recebe a branch `prod` (não conferido na Vercel) |
 | `teste.beara.com.br` | `likedeliveryapp` | back de teste (`like-delivery-backend.onrender.com`) | Teste integrado. Recebe a branch `kauan/teste-integrado` |
 | `likedeliveryapp-kitchen.vercel.app` | `likedeliveryapp-kitchen` | `bearsystem.tech` | Projeto descrito como "de teste", mas, na última medição, apontava para o banco real. Ver [estado-da-passagem.md](./estado-da-passagem.md) |
 
 ### Deploy e preview
 
-- A organização do GitHub é privada e a Vercel está no plano Hobby, então
-  **a Vercel não gera preview sozinha para cada PR** (LDMF-472). Os deploys
-  de preview e do teste integrado são disparados à mão.
+- **O preview automático já falhou e já funcionou.** Em 07/11/2026 a Vercel
+  não gerava preview dos PRs ("private GitHub organization repository on the
+  Hobby plan", LDMF-472) e os deploys eram disparados à mão. Em 09/11/2026 o
+  PR 278 ganhou preview sozinho nos três projetos. Confira no comentário do
+  bot da Vercel no PR: se ele não aparecer, dispare o deploy à mão.
+- O deploy do `teste.beara.com.br` é manual (LDMF-481).
 - Já aconteceu de alguém testar um deploy antigo achando que era o novo
   (LDMF-481). Antes de testar, confira **qual commit** está publicado.
 - "Pronto e testado" no `CLAUDE.md` significa testado por uma pessoa no
