@@ -182,7 +182,14 @@ export function AdminDishCard({
 
         {/* Paleta calma: "Editar" rotulado + acoes secundarias em neutro, so o
           excluir em vermelho - antes eram quatro icones em quatro cores. */}
-        <div className="flex shrink-0 flex-col content-center justify-center gap-1.5">
+        {/* No modo Duplicar as ações somem (sem mudar o tamanho do card) para
+            o selo "Duplicar" não ficar por cima do "Editar". */}
+        <div
+          className={cn(
+            "flex shrink-0 flex-col content-center justify-center gap-1.5",
+            duplicateMode && "invisible",
+          )}
+        >
           <button
             type="button"
             onClick={() => onEdit?.(dish)}
