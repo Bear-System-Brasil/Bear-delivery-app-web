@@ -363,17 +363,23 @@ export const useMenuManagement = () => {
       }
 
       if (editingProduct) {
-        await updateProduct.mutateAsync({
-          id: editingProduct.id,
-          data: {
-            name: formData.name,
-            description: formData.description,
-            costPrice: formData.costPrice ?? 0,
-            salePrice: formData.salePrice ?? 0,
-            isAvailable: formData.available,
-            stockQuantity: formData.stockQuantity ?? 0,
-          },
-        });
+        try {
+          await updateProduct.mutateAsync({
+            id: editingProduct.id,
+            data: {
+              name: formData.name,
+              description: formData.description,
+              costPrice: formData.costPrice ?? 0,
+              salePrice: formData.salePrice ?? 0,
+              isAvailable: formData.available,
+              stockQuantity: formData.stockQuantity ?? 0,
+            },
+          });
+        } catch {
+          // O useUpdateProduct já mostrou o erro; o catch de baixo repetiria
+          // a mesma mensagem.
+          return;
+        }
         productId = editingProduct.id;
 
         const oldCategoryId =
@@ -406,16 +412,21 @@ export const useMenuManagement = () => {
           }
         }
       } else {
-        const result = unwrapProduct(
-          await createProduct.mutateAsync({
+        let created: Awaited<ReturnType<typeof createProduct.mutateAsync>>;
+        try {
+          created = await createProduct.mutateAsync({
             name: formData.name,
             description: formData.description,
             costPrice: formData.costPrice ?? 0,
             salePrice: formData.salePrice ?? 0,
             isAvailable: formData.available,
             stockQuantity: formData.stockQuantity ?? 0,
-          }),
-        );
+          });
+        } catch {
+          // O useCreateProduct já mostrou o erro.
+          return;
+        }
+        const result = unwrapProduct(created);
         productId = result?.id || null;
 
         if (!result || !productId) {

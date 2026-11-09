@@ -279,6 +279,20 @@ describe("useMenuManagement", () => {
       expect(result.current.isModalOpen).toBe(false);
     });
 
+    it("recusa do back mostra um erro só e mantém o formulário aberto", async () => {
+      api.createProduct.mockResolvedValue({ success: false, message: "Nome já usado" });
+      const { result } = await renderMenu();
+      act(() => result.current.handleOpenCreateModal());
+      fill(result, validForm);
+
+      await save(result);
+
+      expect(toast.error).toHaveBeenCalledTimes(1);
+      expect(toast.error).toHaveBeenCalledWith("Nome já usado");
+      expect(result.current.isModalOpen).toBe(true);
+      expect(result.current.isSaving).toBe(false);
+    });
+
     it("sem descrição, o vínculo usa o nome", async () => {
       api.createProduct.mockResolvedValue({ success: true, data: product("novo") });
       const { result } = await renderMenu();
@@ -381,6 +395,20 @@ describe("useMenuManagement", () => {
         imageURL: [{ id: "img1", url: "https://r2.test/a.jpg" }] as never,
         productCategories: linkedTo("p1", "cat-lanches") as never,
       });
+
+    it("recusa do back mostra um erro só e mantém o formulário aberto", async () => {
+      server = [existing()];
+      api.updateProduct.mockResolvedValue({ success: false, message: "Preço inválido" });
+      const { result } = await renderMenu();
+      act(() => result.current.handleOpenEditModal(result.current.allProducts[0]));
+
+      await save(result);
+
+      expect(toast.error).toHaveBeenCalledTimes(1);
+      expect(toast.error).toHaveBeenCalledWith("Preço inválido");
+      expect(result.current.isModalOpen).toBe(true);
+      expect(result.current.isSaving).toBe(false);
+    });
 
     it("abre o formulário com os dados do prato", async () => {
       server = [existing()];
