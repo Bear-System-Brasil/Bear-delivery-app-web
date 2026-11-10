@@ -213,7 +213,7 @@ export const useOrderStatus = () => {
 
   // Contagem regressiva visual
   useEffect(() => {
-    if (!order || order.status === "delivered" || order.isCanceled) {
+    if (!order?.status || order.status === "delivered" || order.isCanceled) {
       return;
     }
 

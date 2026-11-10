@@ -217,7 +217,7 @@ export function useAuthModal({
           });
         }
       }
-    } catch (error) {
+    } catch (_error) {
       setSubmitMessage({ type: "error", text: "Erro de conexão. Verifique sua internet e tente novamente." });
     } finally {
       setIsLoading(false);
@@ -240,7 +240,7 @@ export function useAuthModal({
         setSubmitMessage({ type: "error", text: response.message || "Código inválido. Tente novamente." });
         setOtpData((prev) => ({ ...prev, code: "" }));
       }
-    } catch (error) {
+    } catch (_error) {
       setSubmitMessage({ type: "error", text: "Erro de conexão. Tente novamente." });
     } finally {
       setIsLoading(false);
@@ -262,7 +262,7 @@ export function useAuthModal({
       } else {
         setSubmitMessage({ type: "error", text: response.message || "Não foi possível enviar o código. Tente novamente." });
       }
-    } catch (error) {
+    } catch (_error) {
       setSubmitMessage({ type: "error", text: "Erro de conexão. Tente novamente." });
     } finally {
       setIsLoading(false);
@@ -308,7 +308,7 @@ export function useAuthModal({
       } else {
         setSubmitMessage({ type: "error", text: response.message || "Código inválido. Verifique e tente novamente." });
       }
-    } catch (error) {
+    } catch (_error) {
       setSubmitMessage({ type: "error", text: "Erro de conexão. Tente novamente." });
     } finally {
       setIsLoading(false);

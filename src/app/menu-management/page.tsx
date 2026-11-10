@@ -35,10 +35,10 @@ import { useMenuManagement, type MenuModalTab } from "@/hooks/use-menu-managemen
 import { useProductAddOns } from "@/hooks/use-product-add-ons";
 import { useProductVariations } from "@/hooks/use-product-variations";
 import { groupMenuByCategory } from "@/lib/menu-grouping";
-import { cn } from "@/lib/utils";
 import type { Product } from "@/services/api";
 import {
   Building2,
+  Copy,
   Eye,
   GripHorizontal,
   Loader2,
@@ -106,6 +106,8 @@ function MenuManagementContent() {
     handleConfirmDelete,
     handleCancelDelete,
     handleToggleAvailability,
+    handleDuplicateProduct,
+    duplicatingProductId,
     handleDeleteProductImage,
     updateFormField,
     isSaving,
@@ -129,6 +131,15 @@ function MenuManagementContent() {
   // O prato abre em modo read-only (CustomizeOrder preview), igual à Categoria.
   const [showPreview, setShowPreview] = useState(false);
   const [previewItem, setPreviewItem] = useState<Product | null>(null);
+
+  // Modo "Duplicar" (LDMF-489), no mesmo esquema do "Ordenar" das
+  // categorias: liga o modo e o próximo prato clicado é duplicado.
+  const [isDuplicateMode, setIsDuplicateMode] = useState(false);
+  // Cópia recém-criada, para o modal deixar claro que é uma cópia.
+  const [lastCopy, setLastCopy] = useState<{
+    copyId: string;
+    originalName: string;
+  } | null>(null);
 
   const previewCategoryMap = useMemo(
     () =>
@@ -256,7 +267,7 @@ function MenuManagementContent() {
     syncCategoryDragVisualState();
   }, [syncCategoryDragVisualState]);
 
-  const requestCategoryScrollLeft = useCallback(
+  const _requestCategoryScrollLeft = useCallback(
     (nextScrollLeft: number) => {
       pendingCategoryScrollLeftRef.current = nextScrollLeft;
 
@@ -452,6 +463,17 @@ function MenuManagementContent() {
     }
   };
 
+  const handleDuplicateDish = async (dish: AdminDish) => {
+    const product = products.find((p) => p.id === dish.id);
+    if (!product) return;
+    resetImageState();
+    const copy = await handleDuplicateProduct(product);
+    if (copy) {
+      setLastCopy({ copyId: copy.id, originalName: product.name });
+      setIsDuplicateMode(false);
+    }
+  };
+
   const handleToggleAvail = async (dish: AdminDish) => {
     const product = products.find((p) => p.id === dish.id);
     if (product) {
@@ -538,6 +560,25 @@ function MenuManagementContent() {
             </Button>
 
             <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsDuplicateMode((prev) => !prev)}
+              disabled={
+                !!duplicatingProductId ||
+                (!isDuplicateMode && filteredDishes.length === 0)
+              }
+              aria-pressed={isDuplicateMode}
+              className={`h-[34px] flex-1 cursor-pointer rounded-[9px] px-3 text-[12.5px] font-bold shadow-none transition-colors sm:flex-none ${
+                isDuplicateMode
+                  ? "border-brand-500 bg-brand-500 text-white hover:bg-brand-600 hover:text-white"
+                  : "border-border bg-card text-foreground hover:border-brand-200 dark:hover:border-brand-800 hover:bg-card hover:text-brand-500"
+              }`}
+            >
+              <Copy className="h-4 w-4" />
+              {isDuplicateMode ? "Cancelar" : "Duplicar"}
+            </Button>
+
+            <Button
               onClick={() => {
                 resetImageState();
                 handleOpenCreateModal();
@@ -606,6 +647,19 @@ function MenuManagementContent() {
           )}
         </Tabs>
 
+        {isDuplicateMode && (
+          <div
+            role="status"
+            className="mb-3 flex flex-col gap-2 rounded-xl border border-brand-200 bg-brand-50 px-3.5 py-2.5 dark:border-brand-800 dark:bg-brand-950/40 sm:flex-row sm:items-center sm:justify-between"
+          >
+            <p className="text-[12.5px] font-bold text-brand-700 dark:text-brand-300">
+              {duplicatingProductId
+                ? "Criando a cópia com tamanhos, complementos e foto..."
+                : "Clique no prato que você quer duplicar. A cópia sai igual, indisponível, para você trocar nome, foto e descrição."}
+            </p>
+          </div>
+        )}
+
         {loading ? (
           <div className="grid grid-cols-1 gap-2.5 lg:grid-cols-2">
             {[1, 2, 3, 4, 5, 6].map((i) => (
@@ -644,6 +698,10 @@ function MenuManagementContent() {
                 onToggleAvailability={handleToggleAvail}
                 onManageAddOns={handleManageAddOns}
                 onManageVariations={handleManageVariations}
+                duplicateMode={isDuplicateMode}
+                onDuplicate={handleDuplicateDish}
+                isDuplicating={duplicatingProductId === dish.id}
+                duplicateDisabled={!!duplicatingProductId}
               />
             ))}
           </div>
@@ -682,6 +740,16 @@ function MenuManagementContent() {
                 ? `Gerencie informações, tamanhos e complementos de "${editingProduct.name}".`
                 : "Preencha as informações, tamanhos e complementos do prato."}
             </DialogDescription>
+            {editingProduct && lastCopy?.copyId === editingProduct.id && (
+              <p className="mt-2 flex items-start gap-1.5 rounded-lg bg-brand-50 px-2.5 py-2 text-xs font-bold text-brand-700 dark:bg-brand-950/40 dark:text-brand-300">
+                <Copy className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <span>
+                  Cópia de &ldquo;{lastCopy.originalName}&rdquo;, criada
+                  indisponível. Troque o que mudar (nome, foto, descrição),
+                  salve e ative o prato quando estiver pronto.
+                </span>
+              </p>
+            )}
           </DialogHeader>
 
           <Tabs
@@ -761,6 +829,7 @@ function MenuManagementContent() {
                           key={img.id}
                           className="relative h-16 w-16 shrink-0"
                         >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
                             src={img.url}
                             alt="Foto do prato"
@@ -792,6 +861,7 @@ function MenuManagementContent() {
                         key={preview}
                         className="relative h-16 w-16 shrink-0"
                       >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={preview}
                           alt={`Nova foto ${index + 1}`}

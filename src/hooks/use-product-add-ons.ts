@@ -101,7 +101,7 @@ export const useUpdateProductAddOn = () => {
   return useMutation({
     mutationFn: async ({
       id,
-      productId,
+      productId: _productId,
       data,
     }: {
       id: string;

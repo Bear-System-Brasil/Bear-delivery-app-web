@@ -50,6 +50,7 @@ export default function RestaurantRegisterPage() {
   // Aceite dos termos e da política (LDMF-281). Só trava o envio na tela: o
   // backend não tem campo pra guardar o aceite, então não vai no corpo.
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   return (
     <>
@@ -317,6 +318,8 @@ export default function RestaurantRegisterPage() {
                         onChange={(e) =>
                           handleInputChange("password", e.target.value)
                         }
+                        isPasswordVisible={showPassword}
+                        onTogglePasswordVisibility={() => setShowPassword((prev) => !prev)}
                         className="h-12 rounded-xl border-2 border-border focus:border-brand-400 transition-colors"
                         required
                       />
@@ -357,6 +360,8 @@ export default function RestaurantRegisterPage() {
                         onChange={(e) =>
                           handleInputChange("confirmPassword", e.target.value)
                         }
+                        isPasswordVisible={showPassword}
+                        showPasswordToggle={false}
                         className="h-12 rounded-xl border-2 border-border focus:border-brand-400 transition-colors"
                         required
                       />

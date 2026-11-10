@@ -3,6 +3,7 @@ import {
   Payment,
   PaymentMethod,
   PaymentStatus,
+  toPaginated,
   type PaginationParams,
 } from "@/services/api";
 import { useCallback, useState } from "react";
@@ -86,9 +87,15 @@ export const usePayment = () => {
           params,
         );
         if (response.success && response.data) {
-          const paymentList = response.data.data;
+          // toPaginated aceita o envelope { data, meta } e o array cru. Ler
+          // `.data.data` direto deixava `payments` undefined com array cru e
+          // derrubava a tela de Finanças no `.reduce` (LDMF-495).
+          const { items: paymentList, meta } = toPaginated(
+            response.data,
+            params,
+          );
           setPayments(paymentList);
-          setPaymentsMeta(response.data.meta);
+          setPaymentsMeta(meta);
           return paymentList;
         } else {
           throw new Error(response.message || "Nenhum pagamento encontrado");
@@ -139,9 +146,15 @@ export const usePayment = () => {
           params,
         );
         if (response.success && response.data) {
-          const paymentList = response.data.data;
+          // toPaginated aceita o envelope { data, meta } e o array cru. Ler
+          // `.data.data` direto deixava `payments` undefined com array cru e
+          // derrubava a tela de Finanças no `.reduce` (LDMF-495).
+          const { items: paymentList, meta } = toPaginated(
+            response.data,
+            params,
+          );
           setPayments(paymentList);
-          setPaymentsMeta(response.data.meta);
+          setPaymentsMeta(meta);
           return paymentList;
         } else {
           throw new Error(response.message || "Nenhum pagamento encontrado");
@@ -174,9 +187,15 @@ export const usePayment = () => {
           params,
         );
         if (response.success && response.data) {
-          const paymentList = response.data.data;
+          // toPaginated aceita o envelope { data, meta } e o array cru. Ler
+          // `.data.data` direto deixava `payments` undefined com array cru e
+          // derrubava a tela de Finanças no `.reduce` (LDMF-495).
+          const { items: paymentList, meta } = toPaginated(
+            response.data,
+            params,
+          );
           setPayments(paymentList);
-          setPaymentsMeta(response.data.meta);
+          setPaymentsMeta(meta);
           return paymentList;
         } else {
           throw new Error(response.message || "Nenhum pagamento encontrado");

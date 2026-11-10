@@ -10,6 +10,7 @@ import { useCartActions } from "@/hooks/use-cart-actions";
 import { useCheckoutProcess } from "@/hooks/use-checkout-process";
 
 import { useAuth } from "@/contexts/auth-provider";
+import { useAuthStore } from "@/stores/auth-store";
 
 import { ArrowLeft, ShieldCheck, Store, ThumbsUp } from "lucide-react";
 
@@ -48,6 +49,11 @@ function fieldElementId(field: CheckoutField, isNewAddress: boolean) {
 export function DeliveryWrapper() {
   const router = useRouter();
   const { isAuthenticated, showAuthModal } = useAuth();
+  // A sessão salva no navegador é lida depois da primeira renderização.
+  // Antes disso `isAuthenticated` é sempre false, e quem estava logado e
+  // recarregava o checkout via o modal de login (LDMF-495). Mesma espera do
+  // perfil e das rotas protegidas.
+  const hasHydrated = useAuthStore((s) => s._hasHydrated);
   const { syncCartFromBackend } = useCartActions();
   const [isSyncing, setIsSyncing] = useState(false);
   const syncAttemptedRef = useRef(false);
@@ -206,10 +212,11 @@ export function DeliveryWrapper() {
     syncAttemptedRef.current = true;
     setIsSyncing(true);
     syncCartFromBackend().finally(() => setIsSyncing(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, cartItems.length, restaurant?.id]);
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (hasHydrated && !isAuthenticated) {
       showAuthModal();
     }
 
@@ -232,6 +239,7 @@ export function DeliveryWrapper() {
     }
   }, [
     isAuthenticated,
+    hasHydrated,
     showAuthModal,
     cartItems.length,
     restaurant,

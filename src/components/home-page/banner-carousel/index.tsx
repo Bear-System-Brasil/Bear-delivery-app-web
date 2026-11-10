@@ -98,6 +98,16 @@ export function BannerCarousel() {
                           src={banner.image}
                           alt={banner.title}
                           fill
+                          // Largura em que a arte é DESENHADA, não a da caixa: ela é
+                          // 16:3 dentro de uma caixa mais alta com object-cover, então
+                          // fica mais larga que a tela e só o miolo aparece. Abaixo de
+                          // 640px a altura segue a largura (12:5) e a arte sai com
+                          // ~210% da tela; no sm, 208px de altura = 1110px; do md para
+                          // cima, 240px = 1280px (largura máxima do container). Sem
+                          // isso o Next assumia 100vw e mandava 1200px para um
+                          // celular 3x, que precisa de ~2400px: as letras saíam
+                          // esticadas e borradas (LDMF-495).
+                          sizes="(max-width: 639px) 210vw, (max-width: 767px) 1110px, 1280px"
                           priority={banner.id === 1}
                           className="object-cover object-center"
                         />

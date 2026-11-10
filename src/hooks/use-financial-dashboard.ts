@@ -142,6 +142,7 @@ export function useFinancialDashboard() {
 
   const openedAt = register.data?.openedAt;
   const openForHours = useMemo(() => {
+    void cashSummary.dataUpdatedAt;
     if (!openedAt) return null;
     const date = new Date(openedAt);
     if (Number.isNaN(date.getTime())) return null;

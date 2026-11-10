@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
@@ -65,6 +66,9 @@ export default function AuthModal({
     handleResetPasswordSubmit,
     handleClose,
   } = useAuthModal({ isOpen, onClose, onAuthSuccess, defaultTab });
+
+  const [showRegisterPassword, setShowRegisterPassword] = useState(false);
+  const [showResetPassword, setShowResetPassword] = useState(false);
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
@@ -132,7 +136,7 @@ export default function AuthModal({
                       Senha
                     </Label>
                     <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                      <Lock className="pointer-events-none absolute left-3 top-1/2 z-10 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                       <Input
                         id="password"
                         type="password"
@@ -248,13 +252,15 @@ export default function AuthModal({
                       Senha
                     </Label>
                     <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                      <Lock className="pointer-events-none absolute left-3 top-1/2 z-10 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                       <Input
                         id="passwordRegister"
                         type="password"
                         placeholder="Crie uma senha forte"
                         value={registerData.password}
                         onChange={(e) => handleInputChange("password", e.target.value)}
+                        isPasswordVisible={showRegisterPassword}
+                        onTogglePasswordVisibility={() => setShowRegisterPassword((prev) => !prev)}
                         className={`pl-10 rounded-xl border-2 h-9 sm:h-10 text-xs sm:text-sm ${
                           passwordErrors.length > 0 && registerData.password
                             ? "border-red-300 dark:border-red-700 focus:border-red-400"
@@ -277,13 +283,15 @@ export default function AuthModal({
                       Confirmar Senha
                     </Label>
                     <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                      <Lock className="pointer-events-none absolute left-3 top-1/2 z-10 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                       <Input
                         id="confirmPassword"
                         type="password"
                         placeholder="Confirme sua senha"
                         value={registerData.confirmPassword}
                         onChange={(e) => handleInputChange("confirmPassword", e.target.value)}
+                        isPasswordVisible={showRegisterPassword}
+                        showPasswordToggle={false}
                         className={`pl-10 rounded-xl border-2 h-9 sm:h-10 text-xs sm:text-sm ${
                           !passwordMatch && registerData.confirmPassword
                             ? "border-red-300 dark:border-red-700 focus:border-red-400"
@@ -491,13 +499,15 @@ export default function AuthModal({
                 <div className="space-y-2">
                   <Label htmlFor="new-password" className="text-sm font-semibold text-foreground">Nova Senha</Label>
                   <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                    <Lock className="pointer-events-none absolute left-3 top-1/2 z-10 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                     <Input
                       id="new-password"
                       type="password"
                       placeholder="Nova senha"
                       value={resetPasswordData.newPassword}
                       onChange={(e) => setResetPasswordData((prev) => ({ ...prev, newPassword: e.target.value }))}
+                      isPasswordVisible={showResetPassword}
+                      onTogglePasswordVisibility={() => setShowResetPassword((prev) => !prev)}
                       className="pl-10 rounded-xl border-2 border-border focus:border-brand-400"
                     />
                   </div>
@@ -506,13 +516,15 @@ export default function AuthModal({
                 <div className="space-y-2">
                   <Label htmlFor="confirm-new-password" className="text-sm font-semibold text-foreground">Confirmar Nova Senha</Label>
                   <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                    <Lock className="pointer-events-none absolute left-3 top-1/2 z-10 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                     <Input
                       id="confirm-new-password"
                       type="password"
                       placeholder="Confirme a nova senha"
                       value={resetPasswordData.confirmPassword}
                       onChange={(e) => setResetPasswordData((prev) => ({ ...prev, confirmPassword: e.target.value }))}
+                      isPasswordVisible={showResetPassword}
+                      showPasswordToggle={false}
                       className="pl-10 rounded-xl border-2 border-border focus:border-brand-400"
                     />
                   </div>
