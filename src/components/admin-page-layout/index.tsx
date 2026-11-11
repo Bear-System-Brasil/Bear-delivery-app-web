@@ -93,7 +93,11 @@ export function AdminPageLayout({
             : "min-h-screen",
         )}
       >
-        <header className="sticky top-0 z-10 border-b bg-card print:hidden">
+        {/* z-30: acima de tudo que rola nas telas (o botão "Arraste" do
+            Cardápio, a camada do card de prato e os ícones dos campos usam
+            z-10 e, com o header também em z-10, apareciam por cima dele ao
+            rolar; LDMF-495). Abaixo do menu lateral (z-40) e dos modais (z-50). */}
+        <header className="sticky top-0 z-30 border-b bg-card print:hidden">
           {/* Uma linha só em todas as larguras: o botão da tela vira só
               ícone no mobile, pra não empurrar o sino pra baixo. */}
           <div className="flex min-h-[52px] items-center justify-between gap-2 p-3 sm:gap-3 lg:px-8">

@@ -1,4 +1,4 @@
-import { apiService, MAX_PAGE_LIMIT, type Category, type CreateCategoryRequest } from "@/services/api";
+import { apiService, MAX_PAGE_LIMIT, toPaginated, type Category, type CreateCategoryRequest } from "@/services/api";
 import { useAuthStore } from "@/stores";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -43,7 +43,8 @@ export const useCategories = () => {
         throw new Error("Falha ao carregar categorias");
       }
 
-      const categories = response.data.data;
+      // toPaginated aceita envelope e array cru (LDMF-495).
+      const categories = toPaginated(response.data).items;
 
       // Filtrar categorias pela empresa autenticada
       if (companyIdToMatch) {
