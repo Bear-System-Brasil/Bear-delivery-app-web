@@ -142,5 +142,6 @@ apagar quando o back corrigir.
 | 403 "Usuário sem empresa" vira mensagem leve | O guard do back barra rotas de cliente | LDMF-466 |
 | Loja aberta/fechada calculada no front | O `isOpen` guardado no back fica desatualizado | LDMF-469 |
 | Lê `speciality` e `specialty` | A doc e o código usam grafias diferentes | LDMF-395 |
+| Tipos de restaurante com o mesmo nome aparecem uma vez no Perfil da loja (`src/lib/specialty-dedupe.ts`) | O back tem o mesmo tipo cadastrado mais de uma vez, com ids diferentes ("Hambúrgueres" 3x, "Bebidas"/"BeBidas") | LDMF-497 |
 | `GET /product/recent` com reserva | A rota ainda não existe | ver `RecentProduct` em `api-types.ts` |
 | Pedido do entregador à gerência desligado | A rota ainda não existe | LDMF-284 (`manager-requests.ts`) |
