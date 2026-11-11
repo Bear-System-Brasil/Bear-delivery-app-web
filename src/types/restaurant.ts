@@ -87,7 +87,12 @@ export interface Restaurant {
 
   status: "active" | "inactive";
 
-  openingHours: unknown[];
+  /**
+   * Grade da semana, no mesmo formato de `days` em
+   * GET /opening-hours/:companyId (LDMF-480). Opcional: se a resposta não
+   * trouxer, a listagem não mostra o status.
+   */
+  openingHours?: unknown[];
   categories: Category[];
   specialty?: Specialty[];
 

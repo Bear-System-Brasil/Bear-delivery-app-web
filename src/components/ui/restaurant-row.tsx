@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { Heart } from "lucide-react";
 
 import { DeliveryBikeIcon } from "@/components/ui/delivery-bike-icon";
+import { getListingOpenStatus } from "@/constants/opening-hours";
+import { useMinuteTick } from "@/hooks/use-opening-hours";
 import { getStoreColor, getStoreInitials } from "@/lib/store-avatar";
 import { cn } from "@/lib/utils";
 import { useFavoritesStore } from "@/stores";
@@ -46,6 +48,10 @@ export function RestaurantRow({ restaurant, index }: Props) {
   const router = useRouter();
   const { favorites, toggleFavorite } = useFavoritesStore();
   const [logoFailed, setLogoFailed] = useState(false);
+  // Aberto/Fechado sai do relógio (LDMF-480): sem re-render por minuto, a
+  // linha só mudaria quando a listagem fosse buscada de novo.
+  useMinuteTick();
+  const openStatus = getListingOpenStatus(restaurant.openingHours);
 
   const isFavorite = favorites.includes(restaurant.id);
   const specialties = restaurant.specialty ?? [];
@@ -124,9 +130,23 @@ export function RestaurantRow({ restaurant, index }: Props) {
       )}
 
       <div className="min-w-0 flex-1">
-        <h3 className="truncate text-[14.5px] font-bold tracking-tight text-foreground">
-          {restaurant.tradeName}
-        </h3>
+        <div className="flex min-w-0 items-center gap-1.5">
+          <h3 className="truncate text-[14.5px] font-bold tracking-tight text-foreground">
+            {restaurant.tradeName}
+          </h3>
+          {openStatus && (
+            <span
+              className={cn(
+                "shrink-0 rounded-full px-1.5 py-px text-[10px] font-bold leading-4",
+                openStatus.isOpen
+                  ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400"
+                  : "bg-muted text-muted-foreground",
+              )}
+            >
+              {openStatus.isOpen ? "Aberto" : "Fechado"}
+            </span>
+          )}
+        </div>
         {description && (
           <p className="mt-0.5 truncate text-xs text-muted-foreground">
             {description}
@@ -156,6 +176,11 @@ export function RestaurantRow({ restaurant, index }: Props) {
               </span>
             ))}
           </div>
+        )}
+        {openStatus?.nextOpeningLabel && (
+          <p className="mt-[3px] truncate text-[11px] font-semibold text-muted-foreground">
+            {openStatus.nextOpeningLabel}
+          </p>
         )}
       </div>
 

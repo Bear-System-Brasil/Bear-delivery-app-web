@@ -524,6 +524,32 @@ export function getNextOpeningLabel(
   return null;
 }
 
+/**
+ * Status da loja na listagem da home (LDMF-480), pela grade de horários que
+ * `GET /company` já traz em `openingHours` - sem uma chamada por loja.
+ *
+ * Mesma regra da página da loja (LDMF-469): grade + relógio de São Paulo,
+ * sem horário cadastrado = fechada. A listagem não traz
+ * `linkedToCashRegister`; loja ligada ao caixa fica fora do escopo por
+ * decisão do card (nenhuma loja usa hoje).
+ *
+ * `null` quando a resposta não trouxe o campo: sem dado, a linha não mostra
+ * selo em vez de chutar "Fechado".
+ */
+export function getListingOpenStatus(
+  openingHours: unknown,
+  now = new Date(),
+): { isOpen: boolean; nextOpeningLabel: string | null } | null {
+  if (!Array.isArray(openingHours)) return null;
+
+  const days = toDayHours(openingHours);
+  if (isOpenBySchedule(days, now)) {
+    return { isOpen: true, nextOpeningLabel: null };
+  }
+
+  return { isOpen: false, nextOpeningLabel: getNextOpeningLabel(days, now) };
+}
+
 export interface RestaurantOpenStatus {
   isOpen: boolean;
   reason?: string;

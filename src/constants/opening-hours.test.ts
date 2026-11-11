@@ -1,6 +1,9 @@
+import { describe, expect, it } from "vitest";
+
 import type { OpeningHoursResponse } from "@/services/api";
 import {
   DayHours,
+  getListingOpenStatus,
   getNextOpeningLabel,
   getStoreClock,
   getTodayKey,
@@ -214,5 +217,55 @@ describe("isOpenBySchedule e status pela grade (LDMF-469)", () => {
     expect(
       resolveRestaurantOpenStatus({ ...response, isOpen: false }, null, at("12:00")).isOpen,
     ).toBe(false);
+  });
+});
+
+describe("getListingOpenStatus (LDMF-480)", () => {
+  // 04/11/2026 é quarta (day 3). Horário de São Paulo, independente do TZ.
+  const at = (spTime: string) => new Date(`2026-11-04T${spTime}:00-03:00`);
+  // Formato medido em GET /company no back de teste: igual a `days` de
+  // /opening-hours/:companyId, com breakStart/breakEnd null quando não há.
+  const listing = [
+    { id: "a", day: 3, openTime: "11:00", closeTime: "22:00", breakStart: "15:00", breakEnd: "17:00", companyId: "c" },
+    { id: "b", day: 6, openTime: "18:00", closeTime: "23:00", breakStart: null, breakEnd: null, companyId: "c" },
+  ];
+
+  it("aberta dentro do horário do dia", () => {
+    expect(getListingOpenStatus(listing, at("12:00"))).toEqual({
+      isOpen: true,
+      nextOpeningLabel: null,
+    });
+  });
+
+  it("fechada antes de abrir mostra a abertura de hoje", () => {
+    expect(getListingOpenStatus(listing, at("09:00"))).toEqual({
+      isOpen: false,
+      nextOpeningLabel: "Abre hoje às 11:00",
+    });
+  });
+
+  it("fechada na pausa mostra a volta da pausa", () => {
+    expect(getListingOpenStatus(listing, at("16:00"))).toEqual({
+      isOpen: false,
+      nextOpeningLabel: "Abre hoje às 17:00",
+    });
+  });
+
+  it("fechada depois do expediente mostra o próximo dia com horário", () => {
+    expect(getListingOpenStatus(listing, at("22:30"))).toEqual({
+      isOpen: false,
+      nextOpeningLabel: "Abre sábado às 18:00",
+    });
+  });
+
+  it("não confia no isOpen guardado: sem horário cadastrado é fechada", () => {
+    expect(getListingOpenStatus([], at("12:00"))).toEqual({
+      isOpen: false,
+      nextOpeningLabel: null,
+    });
+  });
+
+  it("sem o campo na resposta não decide nada", () => {
+    expect(getListingOpenStatus(undefined, at("12:00"))).toBeNull();
   });
 });

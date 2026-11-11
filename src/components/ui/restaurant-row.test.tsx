@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Restaurant } from "@/types/restaurant";
 
@@ -95,5 +95,81 @@ describe("RestaurantRow", () => {
     // "do" é ignorado: Burger + Ze
     expect(screen.getByText("BZ")).toBeInTheDocument();
     expect(screen.getByText("Burger")).toBeInTheDocument();
+  });
+
+  describe("status da loja (LDMF-480)", () => {
+    // Quarta 04/11/2026, 12:00 em São Paulo.
+    const NOW = new Date("2026-11-04T12:00:00-03:00");
+    const day = (openTime: string, closeTime: string) => ({
+      id: "h",
+      day: 3,
+      openTime,
+      closeTime,
+      breakStart: null,
+      breakEnd: null,
+      companyId: "comp-1",
+    });
+
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(NOW);
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("mostra Aberto pela grade de horários", () => {
+      render(
+        <RestaurantRow
+          restaurant={{ ...BASE, openingHours: [day("11:00", "22:00")] }}
+          index={0}
+        />,
+      );
+
+      expect(screen.getByText("Aberto")).toBeInTheDocument();
+      expect(screen.queryByText(/^Abre /)).not.toBeInTheDocument();
+    });
+
+    it("mostra Fechado e a próxima abertura, mesmo com isOpen guardado true", () => {
+      render(
+        <RestaurantRow
+          restaurant={{
+            ...BASE,
+            isOpen: true,
+            openingHours: [day("18:00", "23:00")],
+          }}
+          index={0}
+        />,
+      );
+
+      expect(screen.getByText("Fechado")).toBeInTheDocument();
+      expect(screen.getByText("Abre hoje às 18:00")).toBeInTheDocument();
+    });
+
+    it("loja fechada continua abrindo o cardápio", async () => {
+      vi.useRealTimers();
+      render(<RestaurantRow restaurant={BASE} index={0} />);
+
+      expect(screen.getByText("Fechado")).toBeInTheDocument();
+      await userEvent.click(
+        screen.getByRole("button", {
+          name: "Abrir cardapio de Burger do Ze Pilantra",
+        }),
+      );
+      expect(push).toHaveBeenCalledWith("/restaurant/comp-1");
+    });
+
+    it("sem openingHours na resposta não mostra selo", () => {
+      render(
+        <RestaurantRow
+          restaurant={{ ...BASE, openingHours: undefined }}
+          index={0}
+        />,
+      );
+
+      expect(screen.queryByText("Aberto")).not.toBeInTheDocument();
+      expect(screen.queryByText("Fechado")).not.toBeInTheDocument();
+    });
   });
 });
