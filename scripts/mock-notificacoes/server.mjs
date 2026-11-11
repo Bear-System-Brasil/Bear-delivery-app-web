@@ -52,8 +52,7 @@ async function repassar(req, res) {
   for (const h of ["host", "connection", "content-length", "accept-encoding"]) delete headers[h];
 
   try {
-    const upstreamUrl = encodeURI(new URL(req.url, UPSTREAM).toString());
-    const upstream = await fetch(upstreamUrl, {
+    const upstream = await fetch(UPSTREAM + req.url, {
       method: req.method,
       headers,
       body: ["GET", "HEAD"].includes(req.method) ? undefined : Buffer.concat(partes),
@@ -64,9 +63,9 @@ async function repassar(req, res) {
     });
     res.writeHead(upstream.status, saida);
     res.end(Buffer.from(await upstream.arrayBuffer()));
-  } catch {
+  } catch (erro) {
     res.writeHead(502, { "content-type": "application/json" });
-    res.end(JSON.stringify({ message: "mock: o back de teste não respondeu" }));
+    res.end(JSON.stringify({ message: "mock: o back de teste não respondeu", erro: String(erro) }));
   }
 }
 
@@ -81,8 +80,8 @@ const server = http.createServer(async (req, res) => {
     };
 
     if (url.pathname === "/__mock/novo") {
-      const qtd = Math.min(Math.max(1, Number(url.searchParams.get("qtd") ?? 1)), 50);
-      const gap = Math.min(Math.max(0, Number(url.searchParams.get("gap") ?? 0)), 10000);
+      const qtd = Number(url.searchParams.get("qtd") ?? 1);
+      const gap = Number(url.searchParams.get("gap") ?? 0);
       const lista = [];
       for (let i = 0; i < qtd; i++) {
         if (i > 0 && gap > 0) await new Promise((ok) => setTimeout(ok, gap));
