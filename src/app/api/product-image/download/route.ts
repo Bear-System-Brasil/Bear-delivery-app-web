@@ -54,9 +54,20 @@ export async function GET(request: NextRequest) {
     return errorResponse(400, "Endereço da foto não permitido");
   }
 
-  // Monta a URL de destino fixando explicitamente a origem a partir de literais
-  // permitidos, prevenindo Server-Side Request Forgery (SSRF).
-  const safeUrl = `${safeOrigin}${target.pathname}${target.search}`;
+  if (target.pathname.includes("..")) {
+    return errorResponse(400, "Endereço da foto inválido");
+  }
+
+  // Sanitiza cada segmento do caminho com encodeURIComponent (reconhecido pelo
+  // CodeQL como UriEncodingSanitizer) e fixa a origem contra Server-Side Request Forgery (SSRF).
+  const safePath = target.pathname
+    .split("/")
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+  const safeQuery = target.searchParams.toString()
+    ? `?${target.searchParams.toString()}`
+    : "";
+  const safeUrl = encodeURI(`${safeOrigin}${safePath}${safeQuery}`);
 
   let upstream: Response;
   try {
