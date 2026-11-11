@@ -228,7 +228,9 @@ export const useCartStore = create<CartState>()(
 // orderId persistido de uma conta com outra já logada (ou orderId antigo,
 // gravado antes de existir `ownerId`). Descartar o orderId da própria conta
 // não perde o carrinho - o sync do useCartActions recupera pelo `cart:<id>`.
-useCartStore.getState().bindToUser(useAuthStore.getState().user?.id ?? null);
-useAuthStore.subscribe((state) => {
-  useCartStore.getState().bindToUser(state.user?.id ?? null);
-});
+if (typeof window !== "undefined") {
+  useCartStore.getState().bindToUser(useAuthStore.getState().user?.id ?? null);
+  useAuthStore.subscribe((state) => {
+    useCartStore.getState().bindToUser(state.user?.id ?? null);
+  });
+}

@@ -15,10 +15,8 @@ export const dynamic = "force-dynamic";
  * https e sem seguir redirecionamento, para a rota não virar um proxy
  * aberto. Exige sessão: só quem está logado no painel usa a duplicação.
  */
-const ALLOWED_IMAGE_HOSTS = new Set([
-  "like-delivery.s3.us-east-2.amazonaws.com",
-  "pub-e75b88e293b14bb3978db5a6fe91a9bd.r2.dev",
-]);
+const ALLOWED_HOST_S3 = "like-delivery.s3.us-east-2.amazonaws.com";
+const ALLOWED_HOST_R2 = "pub-e75b88e293b14bb3978db5a6fe91a9bd.r2.dev";
 
 /** Teto de tamanho da foto baixada (10 MB). */
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
@@ -43,13 +41,26 @@ export async function GET(request: NextRequest) {
     return errorResponse(400, "Endereço da foto inválido");
   }
 
-  if (target.protocol !== "https:" || !ALLOWED_IMAGE_HOSTS.has(target.hostname)) {
+  let safeOrigin: string;
+  if (target.hostname === ALLOWED_HOST_S3) {
+    safeOrigin = `https://${ALLOWED_HOST_S3}`;
+  } else if (target.hostname === ALLOWED_HOST_R2) {
+    safeOrigin = `https://${ALLOWED_HOST_R2}`;
+  } else {
     return errorResponse(400, "Endereço da foto não permitido");
   }
 
+  if (target.protocol !== "https:") {
+    return errorResponse(400, "Endereço da foto não permitido");
+  }
+
+  // Monta a URL de destino fixando explicitamente a origem a partir de literais
+  // permitidos, prevenindo Server-Side Request Forgery (SSRF).
+  const safeUrl = `${safeOrigin}${target.pathname}${target.search}`;
+
   let upstream: Response;
   try {
-    upstream = await fetch(target, { cache: "no-store", redirect: "error" });
+    upstream = await fetch(safeUrl, { cache: "no-store", redirect: "error" });
   } catch {
     return errorResponse(502, "Não foi possível baixar a foto");
   }
