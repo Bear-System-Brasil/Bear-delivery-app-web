@@ -277,6 +277,31 @@ describe("Perfil da Empresa - layout novo", () => {
     expect(h.profile.setSpecialtySlot).toHaveBeenCalledWith(0, "s4");
   });
 
+  it("tipo cadastrado mais de uma vez no back aparece uma vez só (LDMF-497)", () => {
+    const original = h.specialties.data;
+    h.specialties.data = [
+      { id: "s1", name: "Pizzaria" },
+      { id: "b1", name: "Bebidas" },
+      { id: "s2", name: "Hamburgueria" },
+      { id: "b2", name: "BeBidas" },
+      { id: "s2b", name: "Hambúrgueria " },
+    ];
+    try {
+      render(<CompanyProfilePage />);
+      openSlot("2º tipo");
+      expect(screen.getAllByRole("option", { name: /bebidas/i })).toHaveLength(1);
+      expect(
+        screen.getAllByRole("option", { name: /hamb[uú]rgueria/i }),
+      ).toHaveLength(1);
+
+      // Envia só o id que representa o nome (o primeiro cadastro).
+      fireEvent.click(screen.getByRole("option", { name: "Bebidas" }));
+      expect(h.profile.setSpecialtySlot).toHaveBeenCalledWith(1, "b1");
+    } finally {
+      h.specialties.data = original;
+    }
+  });
+
   it("sem especialidades no servidor, avisa e não mostra campos nem Salvar", () => {
     h.specialties.data = [];
     render(<CompanyProfilePage />);
