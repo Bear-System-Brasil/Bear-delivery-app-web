@@ -155,11 +155,13 @@ export const useNotificationsStore = create<NotificationsState>()(
 
 // Mesmo gatilho do carrinho (LDMF-239): todo caminho que troca o usuário
 // passa pelo auth-store. A chamada inicial monta o feed da conta do boot.
-let boundUserId = useAuthStore.getState().user?.id ?? null
-useNotificationsStore.getState().bindToUser(boundUserId)
-useAuthStore.subscribe((state) => {
-  const userId = state.user?.id ?? null
-  if (userId === boundUserId) return
-  boundUserId = userId
-  useNotificationsStore.getState().bindToUser(userId)
-})
+if (typeof window !== "undefined") {
+  let boundUserId = useAuthStore.getState().user?.id ?? null;
+  useNotificationsStore.getState().bindToUser(boundUserId);
+  useAuthStore.subscribe((state) => {
+    const userId = state.user?.id ?? null;
+    if (userId === boundUserId) return;
+    boundUserId = userId;
+    useNotificationsStore.getState().bindToUser(userId);
+  });
+}

@@ -24,6 +24,7 @@ function TestWrapper({
   handleSaveProfile = vi.fn(),
   open = vi.fn(),
   isPending = false,
+  isError = false,
   user = mockUser,
 }: {
   isOpen?: boolean;
@@ -31,6 +32,7 @@ function TestWrapper({
   handleSaveProfile?: () => void;
   open?: () => void;
   isPending?: boolean;
+  isError?: boolean;
   user?: User;
 }) {
   const form = useForm<ProfileFormData>({
@@ -53,7 +55,7 @@ function TestWrapper({
 
   const updateProfile = {
     isPending,
-    isError: false,
+    isError,
     reset: vi.fn(),
   } as unknown as ComponentProps<typeof PersonalInformation>["updateProfile"];
 
@@ -88,6 +90,13 @@ describe("PersonalInformation Component", () => {
     expect(birthDateInput).toBeDisabled();
     // Exibição formatada em DD/MM/YYYY
     expect(birthDateInput).toHaveValue("15/05/1990");
+  });
+
+  it("falha ao salvar não mostra quadro de erro genérico além do toast/campo", () => {
+    render(<TestWrapper isOpen isError />);
+
+    expect(screen.queryByText(/algo deu errado/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/erro ao atualizar perfil/i)).not.toBeInTheDocument();
   });
 
   it("ao clicar em Editar, chama a ação de abrir edição", () => {

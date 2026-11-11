@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import OrderHistoryPage from "./page";
 import { apiService } from "@/services/api";
+import { toast } from "sonner";
 import type { CustomerOrder } from "@/constants/order-management";
 
 // Referências estáveis: mock com identidade nova a cada render causa laço
@@ -11,6 +12,8 @@ const router = { push: vi.fn(), back: vi.fn() };
 const handleAddToCart = vi.fn();
 const refreshHistory = vi.fn();
 const AUTH = { user: { id: "user-1", role: "client" } };
+// Loja em que o carrinho está; a tela lê depois de cada recusa.
+const CART: { restaurant: { id: string } | null } = { restaurant: null };
 
 const ORDER_B = {
   id: "pedido-b",
@@ -64,6 +67,9 @@ vi.mock("@/hooks/use-restaurants", () => ({
 }))
 
 vi.mock("@/stores/auth-store", () => ({ useAuthStore: () => AUTH }));
+vi.mock("@/stores/cart-store", () => ({
+  useCartStore: { getState: () => CART },
+}));
 
 vi.mock("@/services/api", () => ({
   apiService: {
@@ -85,6 +91,7 @@ const item = (productId: string, name: string, quantity = 1) => ({
 describe("Meus pedidos - Pedir novamente (LDMF-317)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    CART.restaurant = null;
     handleAddToCart.mockResolvedValue(true);
     vi.mocked(apiService.orders.getCustomerOrder).mockResolvedValue({
       success: true,
@@ -128,5 +135,63 @@ describe("Meus pedidos - Pedir novamente (LDMF-317)", () => {
       }),
     ]);
     expect(router.push).toHaveBeenCalledWith("/cart");
+  });
+
+  const clickRepeat = () =>
+    userEvent.click(screen.getByRole("button", { name: "Pedir novamente" }));
+
+  it("loja recusada pelo carrinho (ex.: fechada) mostra só o aviso do carrinho e para no primeiro item", async () => {
+    // O carrinho recusa e já mostra o motivo; o carrinho segue fora da loja.
+    handleAddToCart.mockResolvedValue(false);
+    render(<OrderHistoryPage />);
+
+    await clickRepeat();
+
+    await waitFor(() => expect(handleAddToCart).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Pedir novamente" })).toBeEnabled(),
+    );
+    expect(toast.error).not.toHaveBeenCalled();
+    expect(router.push).not.toHaveBeenCalled();
+  });
+
+  it("recusa de um item com o carrinho na loja segue para os outros itens", async () => {
+    CART.restaurant = { id: "rB" };
+    handleAddToCart.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    render(<OrderHistoryPage />);
+
+    await clickRepeat();
+
+    await waitFor(() => expect(handleAddToCart).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(router.push).toHaveBeenCalledWith("/cart"));
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("todos os itens recusados com o carrinho na loja: nenhum aviso extra além dos do carrinho", async () => {
+    CART.restaurant = { id: "rB" };
+    handleAddToCart.mockResolvedValue(false);
+    render(<OrderHistoryPage />);
+
+    await clickRepeat();
+
+    await waitFor(() => expect(handleAddToCart).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Pedir novamente" })).toBeEnabled(),
+    );
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("sem nenhum item que dê para levar ao carrinho, avisa uma vez", async () => {
+    vi.mocked(apiService.orders.getCustomerOrder).mockResolvedValue({
+      success: true,
+      data: { ...ORDER_B, orderedItems: [] } as unknown as CustomerOrder,
+    });
+    render(<OrderHistoryPage />);
+
+    await clickRepeat();
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1));
+    expect(toast.error).toHaveBeenCalledWith("Itens indisponíveis para repetir");
+    expect(handleAddToCart).not.toHaveBeenCalled();
   });
 });
