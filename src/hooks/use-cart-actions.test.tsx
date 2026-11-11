@@ -149,17 +149,22 @@ describe("useCartActions", () => {
       login();
       vi.mocked(apiService.openingHours.getByCompany).mockResolvedValue({
         success: true,
+        // Todo dia em pausa o dia inteiro: fechado a qualquer hora. A grade
+        // antiga (segunda 18h-23h) contava com o `isOpen: false`, que o
+        // status não usa mais desde o LDMF-469, e o teste falhava nas
+        // segundas entre 18h e 23h de Brasília (LDMF-495).
         data: {
           isOpen: false,
           linkedToCashRegister: false,
-          days: [
-            {
-              day: "mon",
-              isOpen: false,
-              openTime: "18:00",
-              closeTime: "23:00",
-            },
-          ],
+          days: [0, 1, 2, 3, 4, 5, 6].map((day) => ({
+            id: `h${day}`,
+            companyId: "r1",
+            day,
+            openTime: "00:00",
+            closeTime: "23:59",
+            breakStart: "00:00",
+            breakEnd: "23:59",
+          })),
         } as unknown as NonNullable<Awaited<ReturnType<typeof apiService.openingHours.getByCompany>>["data"]>,
       });
 
@@ -179,6 +184,7 @@ describe("useCartActions", () => {
       expect(added).toBe(false);
       expect(toast.error).toHaveBeenCalledWith(
         expect.stringContaining("Restaurante fechado"),
+        { id: "restaurant-closed" },
       );
       expect(useCartStore.getState().items).toHaveLength(0);
       expect(apiService.orders.openCart).not.toHaveBeenCalled();
@@ -279,6 +285,7 @@ describe("useCartActions", () => {
 
         expect(toast.error).toHaveBeenCalledWith(
           expect.stringContaining("Restaurante fechado"),
+          { id: "restaurant-closed" },
         );
         expect(apiService.orders.openCart).not.toHaveBeenCalled();
         expect(useCartStore.getState().items).toHaveLength(0);

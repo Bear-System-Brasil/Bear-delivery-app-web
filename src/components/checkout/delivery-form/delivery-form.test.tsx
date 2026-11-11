@@ -3,6 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DeliveryInfo } from "@/hooks/use-checkout-process";
+import { useAddressEditor } from "@/hooks/use-address-editor";
 import type { CheckoutFieldErrors } from "@/lib/checkout-validation";
 import { DeliveryForm } from "./index";
 

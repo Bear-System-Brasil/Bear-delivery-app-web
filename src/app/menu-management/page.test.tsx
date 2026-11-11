@@ -43,6 +43,8 @@ const {
     handleConfirmDelete: vi.fn(),
     handleCancelDelete: vi.fn(),
     handleToggleAvailability: vi.fn(),
+    handleDuplicateProduct: vi.fn(),
+    duplicatingProductId: null as string | null,
     handleDeleteProductImage: vi.fn(),
     updateFormField: vi.fn(),
     isCreatingCategory: false,
@@ -295,5 +297,99 @@ describe("MenuManagementPage - prato sem controle de estoque", () => {
       "stockQuantity",
       undefined,
     );
+  });
+});
+
+describe("MenuManagementPage - Duplicar prato (LDMF-489)", () => {
+  beforeEach(() => {
+    mockHandleOpenEditModal.mockReset();
+    menuHookState.products = [
+      makeProduct("p1", "Pizza Margherita"),
+      makeProduct("p2", "Lasanha"),
+    ];
+    menuHookState.allProducts = menuHookState.products;
+    menuHookState.isModalOpen = false;
+    menuHookState.editingProduct = null;
+    menuHookState.duplicatingProductId = null;
+    menuHookState.handleDuplicateProduct = vi
+      .fn()
+      .mockResolvedValue(makeProduct("p3", "Pizza Margherita (cópia)"));
+  });
+
+  it("fora do modo, o card não oferece duplicar", () => {
+    render(<MenuManagementPage />);
+
+    expect(
+      screen.queryByRole("button", { name: /Duplicar Pizza Margherita/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("liga o modo e o clique no card duplica aquele prato", async () => {
+    const user = userEvent.setup();
+    render(<MenuManagementPage />);
+
+    await user.click(screen.getByRole("button", { name: /^Duplicar$/i }));
+    expect(
+      screen.getByText(/Clique no prato que você quer duplicar/i),
+    ).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: /Duplicar Lasanha/i }),
+    );
+
+    expect(menuHookState.handleDuplicateProduct).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "p2", name: "Lasanha" }),
+    );
+    // Duplicou: sai do modo.
+    expect(
+      screen.queryByText(/Clique no prato que você quer duplicar/i),
+    ).not.toBeInTheDocument();
+  });
+
+  it("no modo, editar e excluir ficam inacessíveis", async () => {
+    const user = userEvent.setup();
+    render(<MenuManagementPage />);
+
+    await user.click(screen.getByRole("button", { name: /^Duplicar$/i }));
+
+    // O jsdom não aplica `inert` na árvore de acessibilidade: confere o
+    // atributo, que no navegador bloqueia clique e Tab.
+    for (const name of [/Editar Pizza Margherita/i, /Remover Pizza Margherita/i]) {
+      expect(screen.getByRole("button", { name }).closest("[inert]")).not.toBeNull();
+    }
+    // O botão de duplicar fica fora da parte inerte.
+    expect(
+      screen
+        .getByRole("button", { name: /Duplicar Pizza Margherita/i })
+        .closest("[inert]"),
+    ).toBeNull();
+  });
+
+  it("Cancelar sai do modo sem duplicar", async () => {
+    const user = userEvent.setup();
+    render(<MenuManagementPage />);
+
+    await user.click(screen.getByRole("button", { name: /^Duplicar$/i }));
+    await user.click(screen.getByRole("button", { name: /^Cancelar$/i }));
+
+    expect(
+      screen.queryByRole("button", { name: /Duplicar Lasanha/i }),
+    ).not.toBeInTheDocument();
+    expect(menuHookState.handleDuplicateProduct).not.toHaveBeenCalled();
+  });
+
+  it("se a duplicação falha, continua no modo para tentar de novo", async () => {
+    const user = userEvent.setup();
+    menuHookState.handleDuplicateProduct = vi.fn().mockResolvedValue(null);
+    render(<MenuManagementPage />);
+
+    await user.click(screen.getByRole("button", { name: /^Duplicar$/i }));
+    await user.click(
+      screen.getByRole("button", { name: /Duplicar Lasanha/i }),
+    );
+
+    expect(
+      screen.getByRole("button", { name: /Duplicar Lasanha/i }),
+    ).toBeInTheDocument();
   });
 });
