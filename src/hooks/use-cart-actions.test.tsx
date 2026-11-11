@@ -179,6 +179,7 @@ describe("useCartActions", () => {
       expect(added).toBe(false);
       expect(toast.error).toHaveBeenCalledWith(
         expect.stringContaining("Restaurante fechado"),
+        { id: "restaurant-closed" },
       );
       expect(useCartStore.getState().items).toHaveLength(0);
       expect(apiService.orders.openCart).not.toHaveBeenCalled();
@@ -279,6 +280,7 @@ describe("useCartActions", () => {
 
         expect(toast.error).toHaveBeenCalledWith(
           expect.stringContaining("Restaurante fechado"),
+          { id: "restaurant-closed" },
         );
         expect(apiService.orders.openCart).not.toHaveBeenCalled();
         expect(useCartStore.getState().items).toHaveLength(0);

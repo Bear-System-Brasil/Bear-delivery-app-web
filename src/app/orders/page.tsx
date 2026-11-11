@@ -34,6 +34,7 @@ import { useCartActions } from "@/hooks/use-cart-actions";
 import { useOrderHistory } from "@/hooks/use-order-history";
 import { useRestaurants } from "@/hooks/use-restaurants";
 import { useAuthStore } from "@/stores/auth-store";
+import { useCartStore } from "@/stores/cart-store";
 import { apiService } from "@/services/api";
 import type { CustomerOrder } from "@/constants/order-management";
 import { getErrorMessage } from "@/utils";
@@ -211,6 +212,9 @@ function OrderHistoryContent() {
       }
 
       let addedItems = 0;
+      // Itens que chegaram ao carrinho e foram recusados por ele. Cada recusa
+      // já sai com o motivo em toast (loja fechada, estoque, limite...).
+      let refusedItems = 0;
 
       for (const item of orderItems) {
         const embeddedProduct = item.product;
@@ -231,10 +235,23 @@ function OrderHistoryContent() {
           image: product.imageURL?.[0]?.url,
         });
 
-        if (added) addedItems += 1;
+        if (added) {
+          addedItems += 1;
+          continue;
+        }
+
+        refusedItems += 1;
+        // Carrinho fora desta loja depois da recusa: o motivo vale para o
+        // pedido inteiro (loja fechada, troca de loja recusada, carrinho que
+        // não abriu). Seguir repetiria o mesmo aviso, ou a mesma pergunta,
+        // a cada item.
+        if (useCartStore.getState().restaurant?.id !== companyId) break;
       }
 
       if (addedItems === 0) {
+        // O carrinho já explicou cada recusa; um segundo aviso aqui
+        // empilhava duas mensagens de erro para a mesma tentativa.
+        if (refusedItems > 0) return;
         throw new Error("Nenhum item disponível para repetir");
       }
 
