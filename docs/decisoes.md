@@ -32,6 +32,7 @@ Legenda da última coluna:
 | Loja aberta/fechada calculada no front pelo horário | O `isOpen` guardado no back fica desatualizado | LDMF-469 | 🔁 Quando o back calcular na hora, o front pode voltar a confiar nele |
 | Horário sempre de Brasília (`America/Sao_Paulo`), sem fuso por loja | Decisão do responsável; o `timeZone` por empresa do back não é usado | LDMF-480 | ✅ Até existir loja fora do fuso |
 | Loja ligada ao caixa usa o `isOpen` do back | Nenhuma loja usa isso hoje | LDMF-469, LDMF-480 | 🔁 Rever quando alguma loja usar |
+| Listagem da home calcula Aberto/Fechado só pela grade (`openingHours` de `GET /company`), sem uma chamada por loja | `GET /company` não traz `linkedToCashRegister`; loja ligada ao caixa ficou fora do escopo. Sem o campo `openingHours` na resposta, a linha não mostra selo | LDMF-480 | 🔁 Rever quando alguma loja usar o caixa |
 | Dado pessoal fora do `localStorage` | Privacidade: e-mail, telefone e nascimento ficam só em memória | LDMF-424 | ✅ |
 | Carrinho salva só `orderId` e `ownerId` | O carrinho de verdade é o do back; o `ownerId` evita usar o carrinho de outra conta | LDMF-317 (contexto) | ✅ |
 | `/api/auth/register` não repassa o `role` do corpo | Qualquer pessoa conseguia criar conta admin pelo site | LDMF-425 | ✅ Nunca repasse `role` vindo do navegador |
