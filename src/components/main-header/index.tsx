@@ -359,7 +359,8 @@ export function MainHeader({
                     aria-label={`Entregar em: ${locationLabel}. Trocar endereço`}
                     className="flex h-9 min-w-0 max-w-full items-center gap-2 rounded-xl px-1.5 text-left transition-colors hover:bg-muted/60 sm:max-w-[260px] lg:max-w-[320px]"
                   >
-                    <MapPin className="h-5 w-5 shrink-0 fill-brand-500 text-brand-500" />
+                    {/* Pino cheio com a bolinha branca no meio, como no design. */}
+                    <MapPin className="h-5 w-5 shrink-0 fill-brand-500 text-brand-500 [&>circle]:fill-white [&>circle]:stroke-none" />
                     <span className="flex min-w-0 flex-col leading-tight">
                       <span className="text-[11px] font-medium text-muted-foreground">
                         Entregar em:
