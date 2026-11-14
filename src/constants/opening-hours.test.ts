@@ -258,6 +258,23 @@ describe("getListingOpenStatus (LDMF-480)", () => {
     });
   });
 
+  it("diz o nome do dia também quando a abertura é amanhã", () => {
+    // Segunda 02/11/2026 às 18:00, loja fechada na segunda, abre terça 20:00.
+    const tuesdayOnly = [
+      { id: "t", day: 2, openTime: "20:00", closeTime: "23:00", breakStart: null, breakEnd: null, companyId: "c" },
+    ];
+    const mondayAt18 = new Date("2026-11-02T18:00:00-03:00");
+
+    expect(getListingOpenStatus(tuesdayOnly, mondayAt18)).toEqual({
+      isOpen: false,
+      nextOpeningLabel: "Abre terça às 20:00",
+    });
+    // A página da loja continua com "amanhã".
+    expect(getNextOpeningLabel(toDayHours(tuesdayOnly), mondayAt18)).toBe(
+      "Abre amanhã às 20:00",
+    );
+  });
+
   it("não confia no isOpen guardado: sem horário cadastrado é fechada", () => {
     expect(getListingOpenStatus([], at("12:00"))).toEqual({
       isOpen: false,
