@@ -77,6 +77,39 @@ vi.mock("@/hooks/use-product-variations", () => ({
   }),
 }))
 
+describe("CartPage - tempo de entrega (LDMF-534)", () => {
+  it("sem tempo na API, não mostra o '30-40 min' inventado", () => {
+    cartItems = [
+      {
+        id: "l1",
+        productId: "p1",
+        name: "Pizza Margherita",
+        price: 40,
+        quantity: 1,
+        restaurantId: "rest-1",
+        restaurantName: "Pizzaria do Urso",
+      },
+    ];
+    mockProducts = [
+      {
+        id: "p1",
+        name: "Pizza Margherita",
+        description: "",
+        salePrice: 40,
+        isAvailable: true,
+        companyId: "rest-1",
+        stockQuantity: 10,
+      },
+    ];
+    mockVariations = [];
+
+    render(<CartPage />);
+
+    expect(screen.queryByText("30-40 min")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Calculado no checkout").length).toBeGreaterThan(0);
+  });
+});
+
 describe("CartPage - checagem de estoque (LDMF-273)", () => {
   beforeEach(() => {
     vi.clearAllMocks();

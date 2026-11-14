@@ -25,7 +25,6 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MenuItemsList } from "@/components/menu-items-list";
 import { groupMenuByCategory } from "@/lib/menu-grouping";
-import { withDeliveryDefaults } from "@/constants/delivery-defaults";
 import {
   getTodayKey,
   resolveRestaurantOpenStatus,
@@ -38,10 +37,14 @@ import { useCompanyProducts } from "@/hooks/use-products";
 import { usePublicCompanyProductVariations } from "@/hooks/use-product-variations";
 import { useRestaurant } from "@/hooks/use-restaurants";
 import { useRestaurantOpeningHours } from "@/hooks/use-opening-hours";
+import { useSyncedUserLocation } from "@/hooks/use-synced-user-location";
+import {
+  getRestaurantCoords,
+  resolveStoreDeliveryFee,
+} from "@/lib/shipping-fee";
 import { useFavoritesStore } from "@/stores";
 import { useAuthStore } from "@/stores/auth-store";
 import { formatCurrency } from "@/utils/format-currency";
-import { formatDeliveryFee } from "@/utils/format-delivery-fee";
 import { isCompanyStaffRole } from "@/utils/role-helpers";
 import type { Category, OpeningHoursResponse, Product } from "@/services/api";
 import type { Restaurant } from "@/types/restaurant";
@@ -84,6 +87,7 @@ export default function RestaurantPage() {
   const { data: companyVariations = [] } =
     usePublicCompanyProductVariations(companyId);
   const { data: openingHoursData } = useRestaurantOpeningHours(companyId);
+  const { location: userLocation } = useSyncedUserLocation();
 
   const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [infoOpen, setInfoOpen] = useState(false);
@@ -206,14 +210,19 @@ export default function RestaurantPage() {
   const restaurantRating = Number(restaurant?.rating || 0);
   const totalReviews = Number(restaurant?.totalReviews || 0);
   const hasRating = Number.isFinite(restaurantRating) && restaurantRating > 0;
-  // Mesmos valores de vitrine da home enquanto a API não manda frete/tempo.
-  const delivery = withDeliveryDefaults({
+  // Frete (LDMF-534): o do back quando vier; senão, a mesma estimativa do
+  // checkout (loja + endereço escolhido); sem endereço, "a partir de".
+  // Tempo só quando a API mandar - o back não tem tempo antes do pedido.
+  const deliveryFee = resolveStoreDeliveryFee({
     deliveryFee: restaurant?.deliveryFee,
-    time: restaurant?.time,
+    storeCoords: getRestaurantCoords(restaurant),
+    customerCoords: userLocation
+      ? { lat: userLocation.lat, lng: userLocation.lng }
+      : null,
   });
-  const deliveryTime = delivery.time;
-  const deliveryLabel = formatDeliveryFee(delivery.deliveryFee) ?? "Grátis";
-  const isFreeDelivery = deliveryLabel === "Grátis";
+  const deliveryTime = restaurant?.time?.trim() || null;
+  const deliveryLabel = deliveryFee.label;
+  const isFreeDelivery = deliveryFee.isFree;
   const openStatus = resolveRestaurantOpenStatus(openingHoursData, restaurant);
   const isOpen = openStatus.isOpen;
   const restaurantDescription = restaurant?.description?.trim();
@@ -330,7 +339,11 @@ export default function RestaurantPage() {
                     </p>
                   )}
 
-                  <div className="relative mx-auto mt-6 grid max-w-md grid-cols-3 divide-x divide-border rounded-2xl border border-border bg-card">
+                  <div
+                    className={`relative mx-auto mt-6 grid max-w-md divide-x divide-border rounded-2xl border border-border bg-card ${
+                      deliveryTime ? "grid-cols-3" : "grid-cols-2"
+                    }`}
+                  >
                     {isOpen !== null && (
                       <span
                         className={`absolute -top-3 left-1/2 flex -translate-x-1/2 items-center gap-1.5 rounded-full border-[3px] border-card px-2.5 py-1 text-[11px] font-bold leading-none shadow-sm ${
@@ -367,9 +380,11 @@ export default function RestaurantPage() {
                           : "sem avaliações"}
                       </p>
                     </div>
-                    <div className="flex items-center justify-center px-2 py-3 text-[15px] font-bold text-foreground">
-                      {deliveryTime}
-                    </div>
+                    {deliveryTime && (
+                      <div className="flex items-center justify-center px-2 py-3 text-[15px] font-bold text-foreground">
+                        {deliveryTime}
+                      </div>
+                    )}
                     <div
                       className={`flex items-center justify-center gap-1.5 px-2 py-3 text-[15px] font-bold ${
                         isFreeDelivery

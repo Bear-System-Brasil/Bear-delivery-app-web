@@ -96,4 +96,35 @@ describe("RestaurantRow", () => {
     expect(screen.getByText("BZ")).toBeInTheDocument();
     expect(screen.getByText("Burger")).toBeInTheDocument();
   });
+
+  describe("frete e tempo (LDMF-534)", () => {
+    it("sem frete da API, estima pela distância e não inventa tempo", () => {
+      render(
+        <RestaurantRow
+          restaurant={{ ...BASE, deliveryFee: "", time: "", distanceKm: 4.2 }}
+          index={0}
+        />,
+      );
+      expect(screen.getByText(/^R\$\s7,40$/)).toBeInTheDocument();
+      expect(screen.getByText("4,2 km")).toBeInTheDocument();
+      expect(screen.queryByText(/min/)).not.toBeInTheDocument();
+    });
+
+    it("sem frete nem distância, mostra 'a partir de R$ 5,00'", () => {
+      render(
+        <RestaurantRow
+          restaurant={{ ...BASE, deliveryFee: "", distanceKm: undefined }}
+          index={0}
+        />,
+      );
+      expect(
+        screen.getByText(/^a partir de R\$\s5,00$/),
+      ).toBeInTheDocument();
+    });
+
+    it("frete zero da API continua 'Grátis'", () => {
+      render(<RestaurantRow restaurant={BASE} index={0} />);
+      expect(screen.getByText("Grátis")).toBeInTheDocument();
+    });
+  });
 });

@@ -10,7 +10,7 @@ import { getStoreColor, getStoreInitials } from "@/lib/store-avatar";
 import { cn } from "@/lib/utils";
 import { useFavoritesStore } from "@/stores";
 import { Restaurant as RestaurantType } from "@/types/restaurant";
-import { formatDeliveryFee } from "@/utils/format-delivery-fee";
+import { resolveStoreDeliveryFee } from "@/lib/shipping-fee";
 
 type Props = {
   index: number;
@@ -64,8 +64,14 @@ export function RestaurantRow({ restaurant, index }: Props) {
           maximumFractionDigits: 1,
         })} km`
       : null;
-  const deliveryFeeLabel = formatDeliveryFee(restaurant.deliveryFee);
-  const isFreeDelivery = deliveryFeeLabel === "Grátis";
+  // Frete do back quando vier; senão, estimativa pela distância da listagem
+  // ou "a partir de" (LDMF-534). O cobrado é o do back, no fechamento.
+  const deliveryFee = resolveStoreDeliveryFee({
+    deliveryFee: restaurant.deliveryFee,
+    distanceKm: restaurant.distanceKm,
+  });
+  const deliveryFeeLabel = deliveryFee.label;
+  const isFreeDelivery = deliveryFee.isFree;
   // "R$ 6,90 · 35-45 min · 0,6 km" - tempo e distância só quando existem.
   const deliveryDetails = [restaurant.time, distance].filter(
     (detail): detail is string => Boolean(detail),

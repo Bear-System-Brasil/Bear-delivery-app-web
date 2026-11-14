@@ -142,5 +142,6 @@ apagar quando o back corrigir.
 | 403 "Usuário sem empresa" vira mensagem leve | O guard do back barra rotas de cliente | LDMF-466 |
 | Loja aberta/fechada calculada no front | O `isOpen` guardado no back fica desatualizado | LDMF-469 |
 | Lê `speciality` e `specialty` | A doc e o código usam grafias diferentes | LDMF-395 |
+| Frete da lista, das Novidades e da página da loja estimado no front com a regra do back copiada (R$ 5 até 3 km, + R$ 2/km), em `resolveStoreDeliveryFee` (`src/lib/shipping-fee.ts`); sem distância, "a partir de R$ 5,00". Tempo de entrega escondido | O back não devolve frete nem tempo antes do pedido. Se a regra mudar no back, o front erra sem aviso. Quando a API mandar `deliveryFee`, ele vale | LDMF-534 |
 | `GET /product/recent` com reserva | A rota ainda não existe | ver `RecentProduct` em `api-types.ts` |
 | Pedido do entregador à gerência desligado | A rota ainda não existe | LDMF-284 (`manager-requests.ts`) |
