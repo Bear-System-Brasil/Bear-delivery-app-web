@@ -144,5 +144,6 @@ apagar quando o back corrigir.
 | Lê `speciality` e `specialty` | A doc e o código usam grafias diferentes | LDMF-395 |
 | Tipos de restaurante com o mesmo nome aparecem uma vez no Perfil da loja (`src/lib/specialty-dedupe.ts`) | O back tem o mesmo tipo cadastrado mais de uma vez, com ids diferentes ("Hambúrgueres" 3x, "Bebidas"/"BeBidas") | LDMF-497 |
 | Nota e total de avaliações da página da loja vêm do `GET /reviews`, não dos campos da loja | O back não atualiza `rating`/`totalReviews` da loja quando entra avaliação | LDMF-498 |
+| Frete da lista, das Novidades e da página da loja estimado no front com a regra do back copiada (R$ 5 até 3 km, + R$ 2/km), em `resolveStoreDeliveryFee` (`src/lib/shipping-fee.ts`); sem distância, "a partir de R$ 5,00". Tempo de entrega escondido | O back não devolve frete nem tempo antes do pedido. Se a regra mudar no back, o front erra sem aviso. Quando a API mandar `deliveryFee`, ele vale | LDMF-534 |
 | `GET /product/recent` com reserva | A rota ainda não existe | ver `RecentProduct` em `api-types.ts` |
 | Pedido do entregador à gerência desligado | A rota ainda não existe | LDMF-284 (`manager-requests.ts`) |

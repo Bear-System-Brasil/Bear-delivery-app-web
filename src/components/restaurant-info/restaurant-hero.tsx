@@ -44,9 +44,13 @@ type RestaurantHeroProps = {
   /** Média e total já resolvidos (avaliações do back ou campos da loja). */
   rating: number;
   totalReviews: number;
-  deliveryTime?: string;
+  /** Sem tempo da API, a coluna some (LDMF-534). */
+  deliveryTime?: string | null;
+  /** Valor da taxa ("R$ 7,40", "Grátis"). */
   deliveryLabel: string;
   isFreeDelivery: boolean;
+  /** Taxa mínima sem endereço: mostra "a partir de" antes do valor. */
+  isDeliveryFeeFrom?: boolean;
 };
 
 /**
@@ -90,6 +94,7 @@ export function RestaurantHero({
   deliveryTime,
   deliveryLabel,
   isFreeDelivery,
+  isDeliveryFeeFrom = false,
 }: RestaurantHeroProps) {
   const name = restaurant.tradeName || "Restaurante";
   const description = restaurant.description?.trim();
@@ -183,7 +188,11 @@ export function RestaurantHero({
           </div>
         </div>
 
-        <dl className="mt-4 grid grid-cols-3 divide-x divide-white/25 lg:mt-0 lg:w-[440px] lg:shrink-0">
+        <dl
+          className={`mt-4 grid divide-x divide-white/25 lg:mt-0 lg:shrink-0 ${
+            deliveryTime ? "grid-cols-3 lg:w-[440px]" : "grid-cols-2 lg:w-[320px]"
+          }`}
+        >
           <div className="px-2 text-center">
             <dt className="sr-only">Avaliação</dt>
             <dd className="flex items-center justify-center gap-1 text-[15px] font-extrabold">
@@ -203,14 +212,16 @@ export function RestaurantHero({
                 : "sem avaliações"}
             </dd>
           </div>
-          <div className="px-2 text-center">
-            <dt className="sr-only">Tempo de entrega</dt>
-            <dd className="flex items-center justify-center gap-1 text-[15px] font-extrabold">
-              <Clock3 className="h-4 w-4" />
-              {deliveryTime || "—"}
-            </dd>
-            <dd className="mt-0.5 text-[11px] text-white/75">Tempo</dd>
-          </div>
+          {deliveryTime && (
+            <div className="px-2 text-center">
+              <dt className="sr-only">Tempo de entrega</dt>
+              <dd className="flex items-center justify-center gap-1 text-[15px] font-extrabold">
+                <Clock3 className="h-4 w-4" />
+                {deliveryTime}
+              </dd>
+              <dd className="mt-0.5 text-[11px] text-white/75">Tempo</dd>
+            </div>
+          )}
           <div className="px-2 text-center">
             <dt className="sr-only">Taxa de entrega</dt>
             <dd
@@ -219,6 +230,11 @@ export function RestaurantHero({
               }`}
             >
               <DeliveryBikeIcon />
+              {isDeliveryFeeFrom && (
+                <span className="text-[11px] font-semibold text-white/80">
+                  a partir de
+                </span>
+              )}
               {deliveryLabel}
             </dd>
             <dd className="mt-0.5 text-[11px] text-white/75">Entrega</dd>

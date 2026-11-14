@@ -85,6 +85,18 @@ describe("RestaurantHero", () => {
     expect(screen.getByText("12 avaliações")).toBeInTheDocument();
   });
 
+  it("sem tempo da API, a coluna de tempo some (LDMF-534)", () => {
+    renderHero({ deliveryTime: null });
+    expect(screen.queryByText("Tempo")).not.toBeInTheDocument();
+    expect(screen.getByText("Entrega")).toBeInTheDocument();
+  });
+
+  it("taxa mínima sem endereço mostra 'a partir de' antes do valor", () => {
+    renderHero({ deliveryLabel: "R$ 5,00", isDeliveryFeeFrom: true });
+    expect(screen.getByText("a partir de")).toBeInTheDocument();
+    expect(screen.getByText("R$ 5,00")).toBeInTheDocument();
+  });
+
   it("favoritar e voltar chamam os handlers", () => {
     const props = renderHero();
     fireEvent.click(screen.getByRole("button", { name: "Salvar nos favoritos" }));

@@ -1,5 +1,4 @@
 import { Restaurant, UserLocation } from "@/types/restaurant";
-import { withDeliveryDefaults } from "@/constants/delivery-defaults";
 import { apiService } from "@/services/api";
 import { isSameCity, parseCoords } from "@/lib/geocode";
 
@@ -53,7 +52,7 @@ export async function getActiveRestaurants(userLocation?: UserLocation) {
       throw new Error("Falha ao carregar restaurantes");
     }
 
-    return response.data.filter(isActive).map(withDeliveryDefaults);
+    return response.data.filter(isActive);
   }
 
   // Buscamos o catalogo completo em paralelo porque a busca por raio descarta
@@ -68,14 +67,12 @@ export async function getActiveRestaurants(userLocation?: UserLocation) {
     throw new Error("Falha ao carregar restaurantes");
   }
 
-  const nearby = nearbyResponse.data.filter(isActive).map((restaurant) =>
-    withDeliveryDefaults({
-      ...restaurant,
-      isWithinRadius: hasOnlyDeletedCoords(restaurant)
-        ? false
-        : (restaurant.isWithinRadius ?? true),
-    }),
-  );
+  const nearby = nearbyResponse.data.filter(isActive).map((restaurant) => ({
+    ...restaurant,
+    isWithinRadius: hasOnlyDeletedCoords(restaurant)
+      ? false
+      : (restaurant.isWithinRadius ?? true),
+  }));
 
   if (!catalogResponse.success || !catalogResponse.data) return nearby;
 
@@ -92,9 +89,7 @@ export async function getActiveRestaurants(userLocation?: UserLocation) {
         !hasMappedCoords(restaurant) &&
         isInUserCity(restaurant, userLocation.city),
     )
-    .map((restaurant) =>
-      withDeliveryDefaults({ ...restaurant, isWithinRadius: false }),
-    );
+    .map((restaurant) => ({ ...restaurant, isWithinRadius: false }));
 
   return [...nearby, ...unmappedInUserCity];
 }

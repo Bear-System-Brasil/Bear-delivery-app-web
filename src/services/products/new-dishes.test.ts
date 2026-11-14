@@ -109,17 +109,41 @@ describe("getNewDishes", () => {
     // com foto primeiro, uma loja por vez, indisponível fora
     expect(dishes.map((dish) => dish.id)).toEqual(["a2", "b1", "a1"]);
     expect(dishes[0].imageUrl).toBe("https://cdn/a2.png");
-    // loja sem frete/tempo na API mostra os valores padrão de vitrine
+    // loja sem frete/tempo na API e sem distância: frete "a partir de" e
+    // nenhum tempo inventado (LDMF-534)
     expect(dishes[0].restaurant).toMatchObject({
       id: "a",
       name: "Loja a",
-      deliveryFeeLabel: formatCurrency(99),
+      deliveryFeeLabel: `a partir de ${formatCurrency(5)}`,
       isFreeDelivery: false,
-      deliveryTimeLabel: "0-100 min",
-      deliveryMaxMinutes: 100,
+      deliveryTimeLabel: null,
+      deliveryMaxMinutes: null,
     });
     expect(dishes[0].discountPercent).toBe(0);
     expect(dishes[0].originalPrice).toBeNull();
+  });
+
+  it("estima o frete pela distância da loja e mostra o tempo só se a API mandar (LDMF-534)", async () => {
+    const { getNewDishes } = await import("./new-dishes");
+    getRecentProducts.mockResolvedValue(notFound);
+    getProductsByCompany.mockResolvedValue({
+      success: true,
+      data: {
+        data: [product("a1", "a")],
+        meta: { page: 1, limit: 6, total: 1, totalPages: 1 },
+      },
+    });
+
+    const dishes = await getNewDishes([
+      store("a", { distanceKm: 4.2, time: "20-30 min" }),
+    ]);
+
+    expect(dishes[0].restaurant).toMatchObject({
+      deliveryFeeLabel: formatCurrency(7.4),
+      isFreeDelivery: false,
+      deliveryTimeLabel: "20-30 min",
+      deliveryMaxMinutes: 30,
+    });
   });
 
   it("depois do primeiro 404 não bate mais na rota de recentes", async () => {

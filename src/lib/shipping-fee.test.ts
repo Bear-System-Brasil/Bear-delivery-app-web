@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { formatCurrency } from "@/utils/format-currency";
 import {
   calculateShippingFeeFromCoords,
+  calculateShippingFeeFromDistance,
   resolveCheckoutShipping,
+  resolveStoreDeliveryFee,
 } from "./shipping-fee";
 
 const STORE_COORDS = { lat: -8.062916, lng: -34.874124 };
@@ -125,5 +128,69 @@ describe("resolveCheckoutShipping", () => {
       deliveryFee: 8.5,
       isDeliveryFeeKnown: true,
     });
+  });
+});
+
+describe("calculateShippingFeeFromDistance", () => {
+  it("R$ 5,00 até 3 km e + R$ 2,00 por km acima, em 2 casas", () => {
+    expect(calculateShippingFeeFromDistance(0)).toBe(5);
+    expect(calculateShippingFeeFromDistance(3)).toBe(5);
+    expect(calculateShippingFeeFromDistance(4.2)).toBe(7.4);
+    expect(calculateShippingFeeFromDistance(10)).toBe(19);
+  });
+});
+
+describe("resolveStoreDeliveryFee (LDMF-534)", () => {
+  it("vale o frete que a API mandar, inclusive grátis", () => {
+    expect(
+      resolveStoreDeliveryFee({ deliveryFee: "6,90", distanceKm: 10 }),
+    ).toMatchObject({ kind: "api", label: formatCurrency(6.9), isFree: false });
+    expect(resolveStoreDeliveryFee({ deliveryFee: 0 })).toMatchObject({
+      kind: "api",
+      label: "Grátis",
+      isFree: true,
+    });
+  });
+
+  it("ignora o 99 de vitrine antigo", () => {
+    expect(resolveStoreDeliveryFee({ deliveryFee: "99" }).kind).toBe("from");
+  });
+
+  it("estima pela distância da listagem", () => {
+    expect(
+      resolveStoreDeliveryFee({ deliveryFee: "", distanceKm: 4.2 }),
+    ).toMatchObject({
+      kind: "estimate",
+      label: formatCurrency(7.4),
+      isFree: false,
+    });
+  });
+
+  it("estima pelas coordenadas da loja e do cliente (mesma conta do checkout)", () => {
+    const customerCoords = { lat: -8.07, lng: -34.874124 };
+    const result = resolveStoreDeliveryFee({
+      storeCoords: STORE_COORDS,
+      customerCoords,
+    });
+    expect(result.kind).toBe("estimate");
+    expect(result.label).toBe(
+      formatCurrency(
+        calculateShippingFeeFromCoords(STORE_COORDS, customerCoords),
+      ),
+    );
+  });
+
+  it("sem distância nem coordenadas, mostra 'a partir de R$ 5,00'", () => {
+    const result = resolveStoreDeliveryFee({ deliveryFee: null });
+    expect(result).toMatchObject({
+      kind: "from",
+      label: `a partir de ${formatCurrency(5)}`,
+      valueLabel: formatCurrency(5),
+      isFree: false,
+    });
+    expect(
+      resolveStoreDeliveryFee({ storeCoords: STORE_COORDS, customerCoords: null })
+        .kind,
+    ).toBe("from");
   });
 });

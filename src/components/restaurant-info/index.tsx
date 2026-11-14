@@ -27,7 +27,6 @@ import {
 } from "@/components/restaurant-info/restaurant-hero";
 import { RestaurantReviews } from "@/components/restaurant-info/restaurant-reviews";
 import { groupMenuByCategory } from "@/lib/menu-grouping";
-import { withDeliveryDefaults } from "@/constants/delivery-defaults";
 import {
   getTodayKey,
   resolveRestaurantOpenStatus,
@@ -41,10 +40,14 @@ import { useCompanyReviews } from "@/hooks/use-company-reviews";
 import { usePublicCompanyProductVariations } from "@/hooks/use-product-variations";
 import { useRestaurant } from "@/hooks/use-restaurants";
 import { useRestaurantOpeningHours } from "@/hooks/use-opening-hours";
+import { useSyncedUserLocation } from "@/hooks/use-synced-user-location";
+import {
+  getRestaurantCoords,
+  resolveStoreDeliveryFee,
+} from "@/lib/shipping-fee";
 import { useFavoritesStore } from "@/stores";
 import { useAuthStore } from "@/stores/auth-store";
 import { formatCurrency } from "@/utils/format-currency";
-import { formatDeliveryFee } from "@/utils/format-delivery-fee";
 import { isCompanyStaffRole } from "@/utils/role-helpers";
 import type { Category, OpeningHoursResponse, Product } from "@/services/api";
 import type { Restaurant } from "@/types/restaurant";
@@ -100,6 +103,7 @@ export default function RestaurantPage() {
     usePublicCompanyProductVariations(companyId);
   const { data: openingHoursData } = useRestaurantOpeningHours(companyId);
   const reviewsQuery = useCompanyReviews(companyId);
+  const { location: userLocation } = useSyncedUserLocation();
 
   const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [activeTab, setActiveTab] = useState<RestaurantTab>("menu");
@@ -225,14 +229,20 @@ export default function RestaurantPage() {
   const reviewsSummary = reviewsQuery.data;
   const { rating: restaurantRating, total: totalReviews } =
     resolveRestaurantRating(reviewsSummary, restaurant);
-  // Mesmos valores de vitrine da home enquanto a API não manda frete/tempo.
-  const delivery = withDeliveryDefaults({
+  // Frete (LDMF-534): o do back quando vier; senão, a mesma estimativa do
+  // checkout (loja + endereço escolhido); sem endereço, "a partir de".
+  // Tempo só quando a API mandar - o back não tem tempo antes do pedido.
+  const deliveryFee = resolveStoreDeliveryFee({
     deliveryFee: restaurant?.deliveryFee,
-    time: restaurant?.time,
+    storeCoords: getRestaurantCoords(restaurant),
+    customerCoords: userLocation
+      ? { lat: userLocation.lat, lng: userLocation.lng }
+      : null,
   });
-  const deliveryTime = delivery.time;
-  const deliveryLabel = formatDeliveryFee(delivery.deliveryFee) ?? "Grátis";
-  const isFreeDelivery = deliveryLabel === "Grátis";
+  const deliveryTime = restaurant?.time?.trim() || null;
+  // O cabeçalho escreve o "a partir de" à parte, menor que o valor.
+  const deliveryLabel = deliveryFee.valueLabel;
+  const isFreeDelivery = deliveryFee.isFree;
   const openStatus = resolveRestaurantOpenStatus(openingHoursData, restaurant);
   const isOpen = openStatus.isOpen;
 
@@ -291,6 +301,7 @@ export default function RestaurantPage() {
                 deliveryTime={deliveryTime}
                 deliveryLabel={deliveryLabel}
                 isFreeDelivery={isFreeDelivery}
+                isDeliveryFeeFrom={deliveryFee.kind === "from"}
               />
 
               {/* Abas no lugar do botão "Informações" que abria uma gaveta. */}
