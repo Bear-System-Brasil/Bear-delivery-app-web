@@ -142,5 +142,6 @@ apagar quando o back corrigir.
 | 403 "Usuário sem empresa" vira mensagem leve | O guard do back barra rotas de cliente | LDMF-466 |
 | Loja aberta/fechada calculada no front | O `isOpen` guardado no back fica desatualizado | LDMF-469 |
 | Lê `speciality` e `specialty` | A doc e o código usam grafias diferentes | LDMF-395 |
+| Nota e total de avaliações da página da loja vêm do `GET /reviews`, não dos campos da loja | O back não atualiza `rating`/`totalReviews` da loja quando entra avaliação | LDMF-498 |
 | `GET /product/recent` com reserva | A rota ainda não existe | ver `RecentProduct` em `api-types.ts` |
 | Pedido do entregador à gerência desligado | A rota ainda não existe | LDMF-284 (`manager-requests.ts`) |

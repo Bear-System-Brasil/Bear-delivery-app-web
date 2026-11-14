@@ -77,6 +77,7 @@ import type {
   CompanyStaffMember,
   StaffInvite,
   OpeningHoursResponse,
+  CompanyReviewsSummary,
   UpdateOpeningHoursRequest,
   Address,
   CreateAddressRequest,
@@ -1127,6 +1128,19 @@ export const apiService = {
           : `/company/staff/${userId}`,
         undefined,
         true,
+      ),
+  },
+
+  reviews: {
+    /**
+     * Avaliações aprovadas de uma loja, com média e total (rota pública).
+     * Os campos `rating`/`totalReviews` da loja não são atualizados pelo
+     * back quando entra avaliação - a nota certa vem daqui (LDMF-498).
+     */
+    getByCompany: (companyId: string) =>
+      apiRequest<CompanyReviewsSummary>(
+        "GET",
+        `/reviews?targetType=COMPANY&targetId=${encodeURIComponent(companyId)}`,
       ),
   },
 
