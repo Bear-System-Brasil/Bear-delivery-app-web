@@ -1,4 +1,6 @@
 import { DEFAULT_DELIVERY_FEE } from "@/constants/delivery-defaults";
+import { formatCurrency } from "@/utils/format-currency";
+import { formatDeliveryFee } from "@/utils/format-delivery-fee";
 import { Coords } from "@/types/restaurant";
 
 /**
@@ -62,16 +64,22 @@ export function calculateHaversineDistanceKm(
   return EARTH_RADIUS_KM * c;
 }
 
-export function calculateShippingFeeFromCoords(
-  storeCoords: Coords,
-  customerCoords: Coords,
-): number {
-  const distanceKm = calculateHaversineDistanceKm(storeCoords, customerCoords);
+/** Frete pela distância em km (mesma regra do backend). */
+export function calculateShippingFeeFromDistance(distanceKm: number): number {
   const extraKm = Math.max(0, distanceKm - BASE_SHIPPING_DISTANCE_KM);
 
   return (
     Math.round((BASE_SHIPPING_FEE + extraKm * EXTRA_KM_SHIPPING_FEE) * 100) /
     100
+  );
+}
+
+export function calculateShippingFeeFromCoords(
+  storeCoords: Coords,
+  customerCoords: Coords,
+): number {
+  return calculateShippingFeeFromDistance(
+    calculateHaversineDistanceKm(storeCoords, customerCoords),
   );
 }
 
@@ -143,3 +151,67 @@ export function resolveCheckoutShipping(params: {
   return { deliveryFee: 0, isDeliveryFeeKnown: false };
 }
 
+
+/**
+ * Taxa de entrega exibida antes do checkout (lista de lojas, Novidades e
+ * página da loja) - LDMF-534, caminho 3 do LDMF-251:
+ * - `api`: a loja/API mandou `deliveryFee` - vale o valor do back.
+ * - `estimate`: calculada aqui com a mesma regra do back, pela distância
+ *   (`distanceKm` da listagem) ou pelas coordenadas da loja e do cliente.
+ * - `from`: sem distância nem coordenadas, mostra o mínimo ("a partir de").
+ * O valor cobrado é sempre o do back, no fechamento do pedido.
+ */
+export type StoreDeliveryFee = {
+  kind: "api" | "estimate" | "from";
+  /** Texto pronto: "R$ 7,40", "Grátis", "a partir de R$ 5,00". */
+  label: string;
+  /** Só o valor, sem o "a partir de" (para quem monta o rótulo à parte). */
+  valueLabel: string;
+  isFree: boolean;
+};
+
+export function resolveStoreDeliveryFee(params: {
+  deliveryFee?: string | number | null;
+  distanceKm?: number | null;
+  storeCoords?: Coords | null;
+  customerCoords?: Coords | null;
+}): StoreDeliveryFee {
+  const { deliveryFee, distanceKm, storeCoords, customerCoords } = params;
+
+  const apiLabel =
+    String(deliveryFee ?? "").trim() === DEFAULT_DELIVERY_FEE
+      ? null
+      : formatDeliveryFee(deliveryFee);
+  if (apiLabel) {
+    return {
+      kind: "api",
+      label: apiLabel,
+      valueLabel: apiLabel,
+      isFree: apiLabel === "Grátis",
+    };
+  }
+
+  let amount: number | null = null;
+  if (storeCoords && customerCoords) {
+    amount = calculateShippingFeeFromCoords(storeCoords, customerCoords);
+  } else if (
+    typeof distanceKm === "number" &&
+    Number.isFinite(distanceKm) &&
+    distanceKm >= 0
+  ) {
+    amount = calculateShippingFeeFromDistance(distanceKm);
+  }
+
+  if (amount !== null) {
+    const valueLabel = formatCurrency(amount);
+    return { kind: "estimate", label: valueLabel, valueLabel, isFree: false };
+  }
+
+  const valueLabel = formatCurrency(BASE_SHIPPING_FEE);
+  return {
+    kind: "from",
+    label: `a partir de ${valueLabel}`,
+    valueLabel,
+    isFree: false,
+  };
+}

@@ -134,7 +134,8 @@ export default function CartPage() {
   const restaurantName =
     restaurant?.tradeName || items[0]?.restaurantName || "Restaurante";
   const restaurantImage = restaurant?.logo_url || getItemImage(items[0]);
-  const restaurantTime = restaurant?.time || "30-40 min";
+  // Tempo só quando a API mandar: o "30-40 min" fixo saiu (LDMF-534).
+  const restaurantTime = restaurant?.time?.trim() || "";
   const rawDeliveryFeeString = String(restaurant?.deliveryFee ?? "").trim();
   const rawDeliveryFee = Number.parseFloat(
     rawDeliveryFeeString.replace(",", "."),
@@ -158,10 +159,11 @@ export default function CartPage() {
       : "Grátis";
 
   const restaurantMeta = useMemo(
-    () => [
-      { label: restaurantTime, icon: Clock3 },
-      { label: deliveryLabel, icon: Truck },
-    ],
+    () =>
+      [
+        { label: restaurantTime, icon: Clock3 },
+        { label: deliveryLabel, icon: Truck },
+      ].filter((item) => Boolean(item.label)),
     [deliveryLabel, restaurantTime],
   );
 

@@ -2,16 +2,15 @@
 
 import { useMemo, useState, useEffect, useRef } from "react";
 
-import Image from "next/image";
 import { useParams, useRouter } from "next/navigation";
 import {
-  ChevronLeft,
   Clock3,
-  Heart,
+  Info,
   MapPin,
   Phone,
   ShoppingBag,
   Star,
+  UtensilsCrossed,
 } from "lucide-react";
 
 import { CustomizeOrder } from "@/components/customize-order/customize-order";
@@ -19,13 +18,15 @@ import { MainHeader } from "@/components/main-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { AnimatedBackground } from "@/components/ui/animated-background";
-import { DeliveryBikeIcon } from "@/components/ui/delivery-bike-icon";
 import { GradientButton } from "@/components/ui/gradient-button";
-import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MenuItemsList } from "@/components/menu-items-list";
+import {
+  RestaurantHero,
+  resolveRestaurantRating,
+} from "@/components/restaurant-info/restaurant-hero";
+import { RestaurantReviews } from "@/components/restaurant-info/restaurant-reviews";
 import { groupMenuByCategory } from "@/lib/menu-grouping";
-import { withDeliveryDefaults } from "@/constants/delivery-defaults";
 import {
   getTodayKey,
   resolveRestaurantOpenStatus,
@@ -35,13 +36,18 @@ import {
 import { useAllCategories } from "@/hooks/use-categories";
 import { useCartActions } from "@/hooks/use-cart-actions";
 import { useCompanyProducts } from "@/hooks/use-products";
+import { useCompanyReviews } from "@/hooks/use-company-reviews";
 import { usePublicCompanyProductVariations } from "@/hooks/use-product-variations";
 import { useRestaurant } from "@/hooks/use-restaurants";
 import { useRestaurantOpeningHours } from "@/hooks/use-opening-hours";
+import { useSyncedUserLocation } from "@/hooks/use-synced-user-location";
+import {
+  getRestaurantCoords,
+  resolveStoreDeliveryFee,
+} from "@/lib/shipping-fee";
 import { useFavoritesStore } from "@/stores";
 import { useAuthStore } from "@/stores/auth-store";
 import { formatCurrency } from "@/utils/format-currency";
-import { formatDeliveryFee } from "@/utils/format-delivery-fee";
 import { isCompanyStaffRole } from "@/utils/role-helpers";
 import type { Category, OpeningHoursResponse, Product } from "@/services/api";
 import type { Restaurant } from "@/types/restaurant";
@@ -57,6 +63,18 @@ function slugify(text: string) {
     .replace(/(^-|-$)+/g, ""); // Remove hifens sobrando nas pontas
 }
 
+
+type RestaurantTab = "menu" | "info" | "reviews";
+
+const RESTAURANT_TABS: Array<{
+  id: RestaurantTab;
+  label: string;
+  icon: typeof UtensilsCrossed;
+}> = [
+  { id: "menu", label: "Cardápio", icon: UtensilsCrossed },
+  { id: "info", label: "Informações", icon: Info },
+  { id: "reviews", label: "Avaliações", icon: Star },
+];
 
 export default function RestaurantPage() {
   const router = useRouter();
@@ -84,9 +102,11 @@ export default function RestaurantPage() {
   const { data: companyVariations = [] } =
     usePublicCompanyProductVariations(companyId);
   const { data: openingHoursData } = useRestaurantOpeningHours(companyId);
+  const reviewsQuery = useCompanyReviews(companyId);
+  const { location: userLocation } = useSyncedUserLocation();
 
   const [selectedCategory, setSelectedCategory] = useState<string>("");
-  const [infoOpen, setInfoOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<RestaurantTab>("menu");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<Product | null>(null);
 
@@ -203,20 +223,28 @@ export default function RestaurantPage() {
     }
   };
 
-  const restaurantRating = Number(restaurant?.rating || 0);
-  const totalReviews = Number(restaurant?.totalReviews || 0);
-  const hasRating = Number.isFinite(restaurantRating) && restaurantRating > 0;
-  // Mesmos valores de vitrine da home enquanto a API não manda frete/tempo.
-  const delivery = withDeliveryDefaults({
+  // A nota vem do GET /reviews: o back não atualiza `rating`/`totalReviews`
+  // da loja quando entra avaliação (LDMF-498). Enquanto as avaliações não
+  // chegam (ou se falharem), fica o que a loja trouxer.
+  const reviewsSummary = reviewsQuery.data;
+  const { rating: restaurantRating, total: totalReviews } =
+    resolveRestaurantRating(reviewsSummary, restaurant);
+  // Frete (LDMF-534): o do back quando vier; senão, a mesma estimativa do
+  // checkout (loja + endereço escolhido); sem endereço, "a partir de".
+  // Tempo só quando a API mandar - o back não tem tempo antes do pedido.
+  const deliveryFee = resolveStoreDeliveryFee({
     deliveryFee: restaurant?.deliveryFee,
-    time: restaurant?.time,
+    storeCoords: getRestaurantCoords(restaurant),
+    customerCoords: userLocation
+      ? { lat: userLocation.lat, lng: userLocation.lng }
+      : null,
   });
-  const deliveryTime = delivery.time;
-  const deliveryLabel = formatDeliveryFee(delivery.deliveryFee) ?? "Grátis";
-  const isFreeDelivery = deliveryLabel === "Grátis";
+  const deliveryTime = restaurant?.time?.trim() || null;
+  // O cabeçalho escreve o "a partir de" à parte, menor que o valor.
+  const deliveryLabel = deliveryFee.valueLabel;
+  const isFreeDelivery = deliveryFee.isFree;
   const openStatus = resolveRestaurantOpenStatus(openingHoursData, restaurant);
   const isOpen = openStatus.isOpen;
-  const restaurantDescription = restaurant?.description?.trim();
 
   // Visitante deslogado abre o modal normalmente - descrição, tamanhos e
   // complementos são vitrine, não dado protegido. O login só é cobrado ao
@@ -261,182 +289,123 @@ export default function RestaurantPage() {
             </Card>
           ) : (
             <>
-              {/* === CABEÇALHO DO RESTAURANTE === */}
-              <section className="overflow-hidden rounded-[14px] border border-border bg-card shadow-sm">
-                {/* Capa do restaurante limpa, sem camada branca sobreposta (LDMF-270) */}
-                <div className="relative h-40 sm:h-48">
-                  <Image
-                    fill
-                    priority
-                    sizes="(max-width: 640px) 100vw, 1160px"
-                    src={
-                      restaurant.cover_url ||
-                      restaurant.logo_url ||
-                      "/placeholder.svg"
-                    }
-                    alt=""
-                    className="object-cover"
-                  />
-
-                  <button
-                    type="button"
-                    aria-label="Voltar para as lojas"
-                    onClick={() => router.push("/#lojas")}
-                    className="absolute left-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-border bg-card/95 text-foreground shadow-sm transition hover:bg-card"
-                  >
-                    <ChevronLeft className="h-5 w-5" />
-                  </button>
-                </div>
-
-                <div className="relative z-10 -mt-14 flex justify-center">
-                  <div className="relative">
-                    <Image
-                      width={176}
-                      height={176}
-                      src={restaurant.logo_url || "/placeholder.svg"}
-                      alt={`Logo de ${restaurant.tradeName || "restaurante"}`}
-                      className="h-[88px] w-[88px] rounded-[22px] border-4 border-card bg-muted object-cover shadow-md"
-                    />
-                    <button
-                      type="button"
-                      aria-label={
-                        isFavorite
-                          ? "Remover dos favoritos"
-                          : "Salvar nos favoritos"
-                      }
-                      aria-pressed={isFavorite}
-                      onClick={() => toggleFavorite(companyId)}
-                      className={`absolute -right-1.5 -top-1.5 flex h-8 w-8 items-center justify-center rounded-full border-[3px] border-card shadow-sm transition-colors ${
-                        isFavorite
-                          ? "bg-orange-500 text-white"
-                          : "bg-card text-zinc-300 hover:text-orange-500 dark:text-zinc-500"
-                      }`}
-                    >
-                      <Heart
-                        className={`h-3.5 w-3.5 ${isFavorite ? "fill-current" : ""}`}
-                      />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="px-4 pb-4 pt-3 text-center sm:px-6">
-                  <h1 className="text-xl font-extrabold tracking-[-0.02em] text-foreground">
-                    {restaurant.tradeName}
-                  </h1>
-
-                  {restaurantDescription && (
-                    <p className="mx-auto mt-1 max-w-md text-[13px] text-muted-foreground">
-                      {restaurantDescription}
-                    </p>
-                  )}
-
-                  <div className="relative mx-auto mt-6 grid max-w-md grid-cols-3 divide-x divide-border rounded-2xl border border-border bg-card">
-                    {isOpen !== null && (
-                      <span
-                        className={`absolute -top-3 left-1/2 flex -translate-x-1/2 items-center gap-1.5 rounded-full border-[3px] border-card px-2.5 py-1 text-[11px] font-bold leading-none shadow-sm ${
-                          isOpen
-                            ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400"
-                            : "bg-orange-50 text-[#e05a00] dark:bg-orange-950 dark:text-orange-400"
-                        }`}
-                      >
-                        <span
-                          className={`shrink-0 rounded-md px-2 py-0.5 text-[10px] font-extrabold ${
-                            isOpen
-                              ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400"
-                              : "bg-brand-50 dark:bg-brand-950/40 text-brand-600"
-                          }`}
-                        />
-                        {isOpen ? "Aberto" : "Fechado"}
-                      </span>
-                    )}
-                    <div className="px-2 py-3">
-                      <div className="flex items-center justify-center gap-1 text-base font-extrabold text-foreground">
-                        <Star className="h-3.5 w-3.5 fill-[#ffb020] text-[#ffb020]" />
-                        {hasRating
-                          ? restaurantRating.toLocaleString("pt-BR", {
-                              minimumFractionDigits: 1,
-                              maximumFractionDigits: 1,
-                            })
-                          : "Novo"}
-                      </div>
-                      <p className="mt-0.5 text-[11px] text-muted-foreground">
-                        {totalReviews > 0
-                          ? `${totalReviews.toLocaleString("pt-BR")} ${
-                              totalReviews === 1 ? "avaliação" : "avaliações"
-                            }`
-                          : "sem avaliações"}
-                      </p>
-                    </div>
-                    <div className="flex items-center justify-center px-2 py-3 text-[15px] font-bold text-foreground">
-                      {deliveryTime}
-                    </div>
-                    <div
-                      className={`flex items-center justify-center gap-1.5 px-2 py-3 text-[15px] font-bold ${
-                        isFreeDelivery
-                          ? "text-emerald-600 dark:text-emerald-400"
-                          : "text-foreground"
-                      }`}
-                    >
-                      <DeliveryBikeIcon />
-                      {deliveryLabel}
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => setInfoOpen(true)}
-                    className="mx-auto mt-3 flex h-12 w-full max-w-md items-center justify-center rounded-xl border border-border bg-card text-sm font-bold text-foreground transition-colors hover:bg-muted/60"
-                  >
-                    Informações
-                  </button>
-                </div>
-              </section>
-
-              <RestaurantInfoSheet
-                open={infoOpen}
-                onOpenChange={setInfoOpen}
+              {/* === CABEÇALHO DO RESTAURANTE (LDMF-498) === */}
+              <RestaurantHero
                 restaurant={restaurant}
                 isOpen={isOpen}
-                openingHoursData={openingHoursData}
-                openStatus={openStatus}
+                isFavorite={isFavorite}
+                onToggleFavorite={() => toggleFavorite(companyId)}
+                onBack={() => router.push("/#lojas")}
+                rating={restaurantRating}
+                totalReviews={totalReviews}
+                deliveryTime={deliveryTime}
+                deliveryLabel={deliveryLabel}
+                isFreeDelivery={isFreeDelivery}
+                isDeliveryFeeFrom={deliveryFee.kind === "from"}
               />
 
-              {/* === BARRA DE NAVEGAÇÃO DE CATEGORIAS FIXA ===
-                  Gruda logo abaixo do header, que tem 52px (64px a partir
-                  do sm) desde que ficou colado no topo (LDMF-495). */}
-              <nav
-                ref={navRef}
-                className="sticky top-[52px] z-30 -mx-3 flex gap-2 overflow-x-auto bg-muted/95 px-3 py-3 scrollbar-hide sm:top-[64px] sm:-mx-5 sm:px-5"
+              {/* Abas no lugar do botão "Informações" que abria uma gaveta. */}
+              <div
+                role="tablist"
+                aria-label="Seções da loja"
+                className="mt-3 grid grid-cols-3 gap-1 rounded-2xl border border-border bg-card p-1 shadow-sm"
               >
-                {categories.map((category) => {
-                  const isActive = selectedCategory === category;
+                {RESTAURANT_TABS.map(({ id, label, icon: Icon }) => {
+                  const selected = activeTab === id;
                   return (
                     <button
-                      key={category}
-                      id={`nav-btn-${slugify(category)}`} // Uso do slug
+                      key={id}
                       type="button"
-                      onClick={() => scrollToCategory(category)}
-                      className={`flex h-8 shrink-0 items-center whitespace-nowrap rounded-full border px-3 text-xs font-medium shadow-sm transition-all sm:h-9 sm:px-4 sm:text-sm ${
-                        isActive
-                          ? "border-orange-500 bg-orange-500 text-white"
-                          : "border-border bg-card text-foreground hover:border-orange-200 hover:bg-orange-50 dark:hover:border-orange-800 dark:hover:bg-orange-950/40"
+                      role="tab"
+                      id={`tab-${id}`}
+                      aria-selected={selected}
+                      aria-controls={`painel-${id}`}
+                      onClick={() => setActiveTab(id)}
+                      className={`flex h-11 items-center justify-center gap-1.5 rounded-xl text-[13px] font-bold transition-colors sm:text-sm ${
+                        selected
+                          ? "bg-orange-50 text-orange-600 dark:bg-orange-950/40 dark:text-orange-400"
+                          : "text-foreground hover:bg-muted/60"
                       }`}
                     >
-                      {category}
+                      <Icon className="h-4 w-4 shrink-0" />
+                      {label}
                     </button>
                   );
                 })}
-              </nav>
+              </div>
 
-              {/* Lista de produtos: componente compartilhado com a prévia do
-                  admin (LDMF-454). */}
-              <MenuItemsList
-                className="mt-2"
-                categories={categories}
-                groupedItems={groupedItems}
-                minVariationByProduct={minVariationModifierByProduct}
-                onSelectItem={isStaffAccount ? undefined : handleOpenModal}
-              />
+              {activeTab === "info" && (
+                <div
+                  role="tabpanel"
+                  id="painel-info"
+                  aria-labelledby="tab-info"
+                  className="mt-3"
+                >
+                  <RestaurantInfoDetails
+                    restaurant={restaurant}
+                    isOpen={isOpen}
+                    openingHoursData={openingHoursData}
+                    openStatus={openStatus}
+                  />
+                </div>
+              )}
+
+              {activeTab === "reviews" && (
+                <div
+                  role="tabpanel"
+                  id="painel-reviews"
+                  aria-labelledby="tab-reviews"
+                  className="mt-3"
+                >
+                  <RestaurantReviews
+                    summary={reviewsSummary}
+                    isLoading={reviewsQuery.isLoading}
+                    isError={reviewsQuery.isError}
+                    onRetry={() => reviewsQuery.refetch()}
+                  />
+                </div>
+              )}
+
+              {activeTab === "menu" && (
+                <div role="tabpanel" id="painel-menu" aria-labelledby="tab-menu">
+                {/* === BARRA DE NAVEGAÇÃO DE CATEGORIAS FIXA ===
+                    Gruda logo abaixo do header, que tem 52px (64px a partir
+                    do sm) desde que ficou colado no topo (LDMF-495). */}
+                <nav
+                  ref={navRef}
+                  className="sticky top-[52px] z-30 -mx-3 flex gap-2 overflow-x-auto bg-muted/95 px-3 py-3 scrollbar-hide sm:top-[64px] sm:-mx-5 sm:px-5"
+                >
+                  {categories.map((category) => {
+                    const isActive = selectedCategory === category;
+                    return (
+                      <button
+                        key={category}
+                        id={`nav-btn-${slugify(category)}`} // Uso do slug
+                        type="button"
+                        onClick={() => scrollToCategory(category)}
+                        className={`flex h-8 shrink-0 items-center whitespace-nowrap rounded-full border px-3 text-xs font-medium shadow-sm transition-all sm:h-9 sm:px-4 sm:text-sm ${
+                          isActive
+                            ? "border-orange-500 bg-orange-500 text-white"
+                            : "border-border bg-card text-foreground hover:border-orange-200 hover:bg-orange-50 dark:hover:border-orange-800 dark:hover:bg-orange-950/40"
+                        }`}
+                      >
+                        {category}
+                      </button>
+                    );
+                  })}
+                </nav>
+
+                {/* Lista de produtos: componente compartilhado com a prévia do
+                    admin (LDMF-454). */}
+                <MenuItemsList
+                  className="mt-2"
+                  categories={categories}
+                  groupedItems={groupedItems}
+                  minVariationByProduct={minVariationModifierByProduct}
+                  onSelectItem={isStaffAccount ? undefined : handleOpenModal}
+                />
+                </div>
+              )}
             </>
           )}
         </div>
@@ -486,16 +455,8 @@ export default function RestaurantPage() {
 function RestaurantPageSkeleton() {
   return (
     <div className="space-y-3">
-      <Card className="overflow-hidden border-border bg-card shadow-sm">
-        <Skeleton className="h-40 w-full rounded-none sm:h-48" />
-        <div className="flex flex-col items-center px-4 pb-4">
-          <Skeleton className="relative z-10 -mt-14 h-[88px] w-[88px] rounded-[22px] border-4 border-card" />
-          <Skeleton className="mt-3 h-6 w-48" />
-          <Skeleton className="mt-2 h-3 w-40" />
-          <Skeleton className="mt-4 h-16 w-full max-w-md rounded-2xl" />
-          <Skeleton className="mt-3 h-12 w-full max-w-md rounded-xl" />
-        </div>
-      </Card>
+      <Skeleton className="h-[260px] w-full rounded-[14px] sm:h-[300px] lg:h-[250px]" />
+      <Skeleton className="h-[54px] w-full rounded-2xl" />
 
       <div className="flex gap-2 overflow-hidden py-3">
         {["a", "b", "c", "d"].map((item) => (
@@ -522,24 +483,23 @@ function RestaurantPageSkeleton() {
   );
 }
 
-type RestaurantInfoSheetProps = {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+type RestaurantInfoDetailsProps = {
   restaurant: Restaurant;
   isOpen: boolean | null;
   openingHoursData?: OpeningHoursResponse | null;
   openStatus?: RestaurantOpenStatus;
 };
 
-/** "Informações": endereço, telefone e descrição da loja. */
-function RestaurantInfoSheet({
-  open,
-  onOpenChange,
+/**
+ * Aba "Informações": endereço, telefone, descrição e horários. Era uma
+ * gaveta aberta por botão; virou aba no LDMF-498.
+ */
+function RestaurantInfoDetails({
   restaurant,
   isOpen,
   openingHoursData,
   openStatus,
-}: RestaurantInfoSheetProps) {
+}: RestaurantInfoDetailsProps) {
   const address = restaurant.Address?.[0];
   const addressLine = address
     ? [
@@ -558,18 +518,12 @@ function RestaurantInfoSheet({
   const todayKey = getTodayKey();
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="bottom"
-        className="max-h-[85dvh] overflow-y-auto rounded-t-3xl border-t border-border bg-card px-4 pb-8 pt-4 sm:px-6"
-      >
-        <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-muted" />
-
+    <div className="rounded-2xl border border-border bg-card px-4 py-4 shadow-sm sm:px-6">
         <div className="mx-auto w-full max-w-xl space-y-4">
           <div className="space-y-1">
-            <SheetTitle className="text-lg font-bold text-foreground">
+            <h2 className="text-lg font-bold text-foreground">
               {restaurant.tradeName}
-            </SheetTitle>
+            </h2>
             {isOpen !== null && (
               <p
                 className={`text-xs font-bold ${
@@ -676,7 +630,6 @@ function RestaurantInfoSheet({
             )}
           </div>
         </div>
-      </SheetContent>
-    </Sheet>
+    </div>
   );
 }

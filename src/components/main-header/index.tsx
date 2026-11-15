@@ -327,7 +327,9 @@ export function MainHeader({
             {showLogo && (
               <Link
                 href={logoHref}
-                className="shrink-0"
+                // No celular, com o endereço à mostra, o logo sai para o topo
+                // ficar enxuto: "Início" já está na barra de baixo (LDMF-499).
+                className={clsx("shrink-0", showLocation && "max-sm:hidden")}
                 aria-label="Bear Delivery - início"
               >
                 <BearDeliveryLogo
@@ -349,13 +351,25 @@ export function MainHeader({
                 }}
               >
                 <SheetTrigger asChild>
+                  {/* "Entregar em:" + endereço em duas linhas (LDMF-499). Cabe
+                      nos 36px dos botões: o header continua com 52px, de que
+                      a barra de categorias da loja depende. */}
                   <button
                     type="button"
-                    className="flex max-w-[150px] sm:max-w-[220px] lg:max-w-[300px] items-center gap-1.5 rounded-lg bg-muted px-2.5 py-1.5 text-xs font-medium shadow-sm hover:bg-muted/80"
+                    aria-label={`Entregar em: ${locationLabel}. Trocar endereço`}
+                    className="flex h-9 min-w-0 max-w-full items-center gap-2 rounded-xl px-1.5 text-left transition-colors hover:bg-muted/60 sm:max-w-[260px] lg:max-w-[320px]"
                   >
-                    <MapPin className="h-3.5 w-3.5 shrink-0 fill-brand-500 text-brand-500" />
-                    <span className="truncate">{locationLabel}</span>
-                    <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    {/* Pino cheio com a bolinha branca no meio, como no design. */}
+                    <MapPin className="h-5 w-5 shrink-0 fill-brand-500 text-brand-500 [&>circle]:fill-white [&>circle]:stroke-none" />
+                    <span className="flex min-w-0 flex-col leading-tight">
+                      <span className="text-[11px] font-medium text-muted-foreground">
+                        Entregar em:
+                      </span>
+                      <span className="flex min-w-0 items-center gap-1 text-[13px] font-bold text-foreground">
+                        <span className="truncate">{locationLabel}</span>
+                        <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                      </span>
+                    </span>
                   </button>
                 </SheetTrigger>
                 <SheetContent
@@ -436,7 +450,8 @@ export function MainHeader({
                     <Button
                       variant="outline"
                       size="icon"
-                      className="h-9 w-9 rounded-xl border-0 bg-muted/50"
+                      aria-label="Buscar"
+                      className="h-9 w-9 rounded-full border-0 bg-muted/60"
                       onClick={() => setSearchOpen(true)}
                     >
                       <Search className="h-4 w-4" />
@@ -686,9 +701,10 @@ export function MainHeader({
                     )}
                     <Button
                       size="sm"
-                      className="rounded-xl bg-brand-50 text-brand-600 hover:bg-brand-100 font-medium"
+                      className="h-9 rounded-full bg-brand-50 px-3.5 font-semibold text-brand-600 hover:bg-brand-100"
                       onClick={() => showAuthModal("login")}
                     >
+                      <User className="h-4 w-4" />
                       Entrar
                     </Button>
                   </div>

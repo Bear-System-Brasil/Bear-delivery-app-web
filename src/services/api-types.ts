@@ -1040,3 +1040,23 @@ export interface CreateDeliveryRequest {
   observations?: string; // Observações sobre a entrega
   estimatedTime?: string; // Tempo estimado de entrega
 }
+
+/**
+ * Avaliação pública de uma loja - `GET /reviews?targetType=COMPANY&targetId=`
+ * (docs/review.md do back). Só vêm as aprovadas, mais novas primeiro, sem
+ * paginação. `comment` e `author.photoUrl` são opcionais no DTO do back.
+ */
+export interface CompanyReview {
+  id: string;
+  rating: number;
+  comment?: string | null;
+  author?: { id: string; name: string; photoUrl?: string | null } | null;
+  created_at: string;
+}
+
+/** Resposta de `GET /reviews`: média calculada na hora pelo back. */
+export interface CompanyReviewsSummary {
+  data: CompanyReview[];
+  average: number;
+  total: number;
+}
