@@ -47,7 +47,7 @@ async function fetchRestaurantOpeningHours(companyId: string) {
 }
 
 /** Re-renderiza quem usa a cada minuto cheio. */
-function useMinuteTick() {
+export function useMinuteTick() {
   const [, setTick] = useState(0);
   useEffect(() => {
     let interval: ReturnType<typeof setInterval> | undefined;

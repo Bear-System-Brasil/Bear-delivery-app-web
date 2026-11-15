@@ -5,6 +5,7 @@ import {
   apiService,
   PaymentMethod,
   PaymentStatus,
+  PaymentTiming,
   type Payment,
 } from "@/services/api";
 import { usePayment } from "./use-payment";
@@ -28,6 +29,10 @@ vi.mock("@/services/api", async (importOriginal) => {
         financialRefund: vi.fn(),
         update: vi.fn(),
         delete: vi.fn(),
+        getMe: vi.fn(),
+        checkout: vi.fn(),
+        oauthConnect: vi.fn(),
+        oauthCallback: vi.fn(),
       },
     },
   };
@@ -401,6 +406,77 @@ describe("usePayment", () => {
       expect(result.current.getPaymentStatusLabel(PaymentStatus.REFUNDED)).toBe("Reembolsado");
       expect(result.current.getPaymentMethodLabel("VOUCHER" as PaymentMethod)).toBe("VOUCHER");
       expect(result.current.getPaymentStatusLabel("ON_HOLD" as PaymentStatus)).toBe("ON_HOLD");
+      expect(result.current.getPaymentTimingLabel(PaymentTiming.ON_FULFILLMENT)).toBe("Na entrega/retirada");
+      expect(result.current.getPaymentTimingLabel(PaymentTiming.IMMEDIATE)).toBe("No pedido");
+      expect(result.current.getPaymentTimingLabel(undefined)).toBe("No pedido");
+    });
+  });
+
+  describe("Mercado Pago e /payment/me", () => {
+    it("fetchMyPayments carrega lista de pagamentos do cliente", async () => {
+      payments.getMe.mockResolvedValue({
+        success: true,
+        data: { data: [payment("p1")], meta },
+      });
+      const { result } = renderHook(() => usePayment());
+
+      let list: Payment[] = [];
+      await act(async () => {
+        list = await result.current.fetchMyPayments({ page: 1, limit: 10 });
+      });
+
+      expect(payments.getMe).toHaveBeenCalledWith({ page: 1, limit: 10 });
+      expect(list).toEqual([payment("p1")]);
+      expect(result.current.payments).toEqual([payment("p1")]);
+    });
+
+    it("checkoutPayment chama API e devolve resposta", async () => {
+      payments.checkout.mockResolvedValue({
+        success: true,
+        data: { checkoutUrl: "https://mp.com/checkout", mercadoPagoOrderId: "mp-1" },
+      });
+      const { result } = renderHook(() => usePayment());
+
+      let res: unknown = null;
+      await act(async () => {
+        res = await result.current.checkoutPayment("order-1");
+      });
+
+      expect(payments.checkout).toHaveBeenCalledWith("order-1");
+      expect(res).toEqual({ checkoutUrl: "https://mp.com/checkout", mercadoPagoOrderId: "mp-1" });
+    });
+
+    it("connectMercadoPago chama endpoint OAuth e retorna URL", async () => {
+      payments.oauthConnect.mockResolvedValue({
+        success: true,
+        data: { authorizationUrl: "https://auth.mercadopago.com/..." },
+      });
+      const { result } = renderHook(() => usePayment());
+
+      let res: unknown = null;
+      await act(async () => {
+        res = await result.current.connectMercadoPago();
+      });
+
+      expect(payments.oauthConnect).toHaveBeenCalled();
+      expect(res).toEqual({ authorizationUrl: "https://auth.mercadopago.com/..." });
+    });
+
+    it("callbackMercadoPago valida código e estado e emite toast de sucesso", async () => {
+      payments.oauthCallback.mockResolvedValue({
+        success: true,
+        data: { connected: true },
+      });
+      const { result } = renderHook(() => usePayment());
+
+      let res: unknown = null;
+      await act(async () => {
+        res = await result.current.callbackMercadoPago("code-123", "state-456");
+      });
+
+      expect(payments.oauthCallback).toHaveBeenCalledWith("code-123", "state-456");
+      expect(res).toEqual({ connected: true });
+      expect(toast.success).toHaveBeenCalledWith("Conta do Mercado Pago conectada com sucesso!");
     });
   });
 });

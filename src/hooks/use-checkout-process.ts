@@ -2,6 +2,7 @@ import { useSound } from "@/hooks/use-sound";
 import {
   apiService,
   PaymentMethod,
+  PaymentTiming,
   type Address,
   type CreateOrderRequest,
 } from "@/services/api";
@@ -909,11 +910,10 @@ export const useCheckoutProcess = () => {
         try {
           const paymentData = {
             orderId: finalOrderId,
-            // customerId: user.id,
             paymentMethod:
               CHECKOUT_PAYMENT_METHODS[paymentMethod] ?? PaymentMethod.CASH,
             amount: paymentAmount,
-            // status: PaymentStatus.PENDING,
+            paymentTiming: PaymentTiming.ON_FULFILLMENT,
           };
 
           const paymentResponse = await apiService.payments.create(paymentData);
