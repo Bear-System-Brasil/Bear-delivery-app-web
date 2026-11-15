@@ -18,11 +18,13 @@ import {
   CashMovementSource,
   CashMovementType,
   PaymentMethod,
+  type CashRegisterCloseResponse,
 } from "@/services/api";
 import { useAuthStore, useFinancialPreferencesStore } from "@/stores";
 import { formatCurrency } from "@/utils";
 import {
   Banknote,
+  CheckCircle2,
   CreditCard,
   Info,
   List,
@@ -399,6 +401,8 @@ export default function CashRegisterPage() {
   );
   const [description, setDescription] = useState("");
   const [closeConfirmed, setCloseConfirmed] = useState(false);
+  const [conciliationData, setConciliationData] =
+    useState<CashRegisterCloseResponse | null>(null);
 
   const [movementsPage, setMovementsPage] = useState(1);
   const [movementTypeFilter, setMovementTypeFilter] = useState<
@@ -506,7 +510,7 @@ export default function CashRegisterPage() {
     const counted = parseFloat(countedTotal.replace(",", "."));
     if (isNaN(counted) || counted < 0) return;
     if (confirmBeforeCloseRegister && !closeConfirmed) return;
-    await closeMutation.mutateAsync({
+    const response = await closeMutation.mutateAsync({
       countedTotal: counted,
       observations: closeObs || undefined,
     });
@@ -514,6 +518,9 @@ export default function CashRegisterPage() {
     setCloseObs("");
     setCloseConfirmed(false);
     setDialog(null);
+    if (response?.success && response.data) {
+      setConciliationData(response.data as CashRegisterCloseResponse);
+    }
   };
 
   const openMovementDialog = (type: MovementType) => {
@@ -1483,6 +1490,185 @@ export default function CashRegisterPage() {
             >
               {isMovementPending ? "Registrando..." : "Registrar"}
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Resumo de Conciliação pós-fechamento */}
+      <Dialog
+        open={conciliationData !== null}
+        onOpenChange={(open) => {
+          if (!open) setConciliationData(null);
+        }}
+      >
+        <DialogContent className="max-w-md rounded-2xl p-6">
+          <DialogTitle className="flex items-center gap-2 text-base font-bold text-foreground">
+            <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+            Caixa Fechado com Sucesso
+          </DialogTitle>
+          <div className="space-y-4 pt-2">
+            {conciliationData && (
+              <>
+                {/* Diferença status */}
+                <div
+                  className={cn(
+                    "rounded-xl border p-3.5 text-center text-xs font-semibold",
+                    conciliationData.difference === 0
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300"
+                      : conciliationData.difference > 0
+                        ? "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-300"
+                        : "border-red-200 bg-red-50 text-red-800 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300",
+                  )}
+                >
+                  {conciliationData.difference === 0 && (
+                    <span>Caixa conferido perfeitamente (Diferença: R$ 0,00)</span>
+                  )}
+                  {conciliationData.difference > 0 && (
+                    <span>
+                      Sobra de Caixa: +{formatCurrency(conciliationData.difference)}
+                    </span>
+                  )}
+                  {conciliationData.difference < 0 && (
+                    <span>
+                      Falta de Caixa: {formatCurrency(conciliationData.difference)}
+                    </span>
+                  )}
+                </div>
+
+                {/* Resumo valores principais */}
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="rounded-lg bg-muted/60 p-2.5">
+                    <span className="text-muted-foreground">Fundo de Abertura</span>
+                    <p className="mt-0.5 text-sm font-bold text-foreground">
+                      {formatCurrency(conciliationData.openingBalance)}
+                    </p>
+                  </div>
+                  <div className="rounded-lg bg-muted/60 p-2.5">
+                    <span className="text-muted-foreground">Total Esperado</span>
+                    <p className="mt-0.5 text-sm font-bold text-foreground">
+                      {formatCurrency(conciliationData.expectedTotal)}
+                    </p>
+                  </div>
+                  <div className="rounded-lg bg-muted/60 p-2.5">
+                    <span className="text-muted-foreground">Total Contado</span>
+                    <p className="mt-0.5 text-sm font-bold text-foreground">
+                      {formatCurrency(conciliationData.countedTotal)}
+                    </p>
+                  </div>
+                  <div className="rounded-lg bg-muted/60 p-2.5">
+                    <span className="text-muted-foreground">Diferença</span>
+                    <p
+                      className={cn(
+                        "mt-0.5 text-sm font-bold",
+                        conciliationData.difference === 0
+                          ? "text-emerald-600 dark:text-emerald-400"
+                          : conciliationData.difference > 0
+                            ? "text-amber-600 dark:text-amber-400"
+                            : "text-red-600 dark:text-red-400",
+                      )}
+                    >
+                      {formatCurrency(conciliationData.difference)}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Totais líquidos por método */}
+                <div className="rounded-xl border border-border p-3 text-xs">
+                  <div className="mb-2 font-bold text-foreground">
+                    Totais Líquidos por Forma de Pagamento
+                  </div>
+                  <div className="space-y-1.5 text-muted-foreground">
+                    <div className="flex justify-between">
+                      <span>Dinheiro:</span>
+                      <strong className="text-foreground">
+                        {formatCurrency(conciliationData.totalCash)}
+                      </strong>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>PIX:</span>
+                      <strong className="text-foreground">
+                        {formatCurrency(conciliationData.totalPix)}
+                      </strong>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Cartão de Crédito:</span>
+                      <strong className="text-foreground">
+                        {formatCurrency(conciliationData.totalCredit)}
+                      </strong>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Cartão de Débito:</span>
+                      <strong className="text-foreground">
+                        {formatCurrency(conciliationData.totalDebit)}
+                      </strong>
+                    </div>
+                    {typeof conciliationData.totalTransfer === "number" &&
+                      conciliationData.totalTransfer !== 0 && (
+                        <div className="flex justify-between">
+                          <span>Transferência:</span>
+                          <strong className="text-foreground">
+                            {formatCurrency(conciliationData.totalTransfer)}
+                          </strong>
+                        </div>
+                      )}
+                  </div>
+                </div>
+
+                {/* Movimentos brutos se disponíveis */}
+                {(conciliationData.totalSales !== undefined ||
+                  conciliationData.totalDeposits !== undefined ||
+                  conciliationData.totalWithdrawals !== undefined ||
+                  conciliationData.totalRefunds !== undefined) && (
+                  <div className="rounded-xl border border-border p-3 text-xs">
+                    <div className="mb-2 font-bold text-foreground">
+                      Movimentações do Turno
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-muted-foreground">
+                      {conciliationData.totalSales !== undefined && (
+                        <div className="flex justify-between">
+                          <span>Vendas:</span>
+                          <strong className="text-foreground">
+                            {formatCurrency(conciliationData.totalSales)}
+                          </strong>
+                        </div>
+                      )}
+                      {conciliationData.totalDeposits !== undefined && (
+                        <div className="flex justify-between">
+                          <span>Suprimentos:</span>
+                          <strong className="text-foreground">
+                            {formatCurrency(conciliationData.totalDeposits)}
+                          </strong>
+                        </div>
+                      )}
+                      {conciliationData.totalWithdrawals !== undefined && (
+                        <div className="flex justify-between">
+                          <span>Sangrias:</span>
+                          <strong className="text-foreground">
+                            {formatCurrency(conciliationData.totalWithdrawals)}
+                          </strong>
+                        </div>
+                      )}
+                      {conciliationData.totalRefunds !== undefined && (
+                        <div className="flex justify-between">
+                          <span>Reembolsos:</span>
+                          <strong className="text-foreground">
+                            {formatCurrency(conciliationData.totalRefunds)}
+                          </strong>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                <Button
+                  type="button"
+                  onClick={() => setConciliationData(null)}
+                  className="w-full rounded-xl"
+                >
+                  Concluir
+                </Button>
+              </>
+            )}
           </div>
         </DialogContent>
       </Dialog>

@@ -215,3 +215,54 @@ describe("Finanças - filtro de método (LDMF-391)", () => {
     ]);
   });
 });
+
+describe("Finanças - Ações de Pagamento (Aprovar, Rejeitar, Reembolsar)", () => {
+  beforeEach(() => {
+    HOOK.approvePayment.mockReset();
+    HOOK.rejectPayment.mockReset();
+    HOOK.refundPayment.mockReset();
+    fetchPaymentsByFilters.mockReset();
+    AUTH.user = { role: "manager" };
+  });
+
+  it("abre modal de aprovação e envia transação opcional", async () => {
+    const user = userEvent.setup();
+    render(<FinancePage />);
+
+    const confirmButtons = screen.getAllByRole("button", { name: /Confirmar/i });
+    await user.click(confirmButtons[0]);
+
+    expect(screen.getByText("Confirmar Aprovação")).toBeInTheDocument();
+    const input = screen.getByPlaceholderText("Ex: TX-987654");
+    await user.type(input, "TXN-1234");
+    await user.click(screen.getByRole("button", { name: "Aprovar Pagamento" }));
+
+    expect(HOOK.approvePayment).toHaveBeenCalledWith("pay-1", "TXN-1234");
+  });
+
+  it("abre modal de rejeição e confirma rejeição de pendente", async () => {
+    const user = userEvent.setup();
+    render(<FinancePage />);
+
+    const rejectButtons = screen.getAllByRole("button", { name: "Rejeitar" });
+    await user.click(rejectButtons[0]);
+
+    expect(screen.getByText("Rejeitar Pagamento")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Confirmar Rejeição" }));
+
+    expect(HOOK.rejectPayment).toHaveBeenCalledWith("pay-1");
+  });
+
+  it("abre modal de reembolso e confirma estorno de concluído", async () => {
+    const user = userEvent.setup();
+    render(<FinancePage />);
+
+    const refundButtons = screen.getAllByRole("button", { name: /Reembolsar/i });
+    await user.click(refundButtons[0]);
+
+    expect(screen.getByText("Confirmar Estorno / Reembolso")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Confirmar Estorno" }));
+
+    expect(HOOK.refundPayment).toHaveBeenCalledWith("pay-3");
+  });
+});
