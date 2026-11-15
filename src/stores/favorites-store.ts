@@ -115,11 +115,13 @@ export const useFavoritesStore = create<FavoritesState>()(
 
 // Mesmo gatilho do carrinho (LDMF-239): todo caminho que troca o usuário
 // passa pelo auth-store. A chamada inicial monta a lista da conta do boot.
-let boundUserId = useAuthStore.getState().user?.id ?? null
-useFavoritesStore.getState().bindToUser(boundUserId)
-useAuthStore.subscribe((state) => {
-  const userId = state.user?.id ?? null
-  if (userId === boundUserId) return
-  boundUserId = userId
-  useFavoritesStore.getState().bindToUser(userId)
-})
+if (typeof window !== "undefined") {
+  let boundUserId = useAuthStore.getState().user?.id ?? null;
+  useFavoritesStore.getState().bindToUser(boundUserId);
+  useAuthStore.subscribe((state) => {
+    const userId = state.user?.id ?? null;
+    if (userId === boundUserId) return;
+    boundUserId = userId;
+    useFavoritesStore.getState().bindToUser(userId);
+  });
+}

@@ -1,5 +1,11 @@
 # Bear Delivery App
 
+> **Documentação desatualizada.** Este arquivo é anterior à Sprint 5 e
+> descreve coisas que mudaram (fluxo de branch, estrutura, versões). A
+> documentação mantida está em [`docs/`](./docs/README.md), e as regras de
+> trabalho estão no [`CLAUDE.md`](./CLAUDE.md). Em caso de conflito, valem
+> esses dois.
+
 > A modern, full-featured food delivery platform built with Next.js 15 and React 19
 
 [![Next.js](https://img.shields.io/badge/Next.js-15.1.11-black?style=flat-square&logo=next.js)](https://nextjs.org)

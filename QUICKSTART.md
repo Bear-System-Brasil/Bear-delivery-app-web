@@ -1,5 +1,11 @@
 # Quick Start Guide
 
+> **Documentação desatualizada.** Este arquivo é anterior à Sprint 5 e
+> descreve coisas que mudaram (fluxo de branch, estrutura, versões). A
+> documentação mantida está em [`docs/`](./docs/README.md), e as regras de
+> trabalho estão no [`CLAUDE.md`](./CLAUDE.md). Em caso de conflito, valem
+> esses dois.
+
 Get up and running with Bear Delivery in 5 minutes!
 
 ## Prerequisites Check

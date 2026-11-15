@@ -8,6 +8,8 @@ import { getErrorMessage } from "@/utils";
 import { useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import { duplicateProduct } from "@/services/products/duplicate-product";
+import { uploadProductImageSafe } from "@/services/products/upload-product-image";
 import { useCategories } from "./use-categories";
 import {
   useCompanyProducts,
@@ -46,63 +48,6 @@ function unwrapProduct(raw: unknown): Product | null {
   }
 
   return null;
-}
-
-function readErrorMessage(payload: unknown, fallback: string) {
-  if (!payload || typeof payload !== "object") return fallback;
-  const body = payload as Record<string, unknown>;
-  if (typeof body.message === "string" && body.message.trim()) {
-    return body.message;
-  }
-  if (Array.isArray(body.message) && body.message.length) {
-    return String(body.message[0]);
-  }
-  if (typeof body.error === "string" && body.error.trim()) {
-    return body.error;
-  }
-  return fallback;
-}
-
-async function uploadProductImageSafe(productId: string, file: File) {
-  const fieldNames = ["image", "file", "photo"];
-  let lastMessage = "Erro ao fazer upload da imagem";
-
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    for (const field of fieldNames) {
-      const formData = new FormData();
-      formData.append(field, file, file.name);
-
-      const response = await fetch(`/api/proxy/product/image/${productId}`, {
-        method: "POST",
-        headers: { "X-Auth-Required": "1" },
-        body: formData,
-      });
-
-      const raw = await response.text();
-      let payload: unknown = null;
-      try {
-        payload = raw ? JSON.parse(raw) : null;
-      } catch {
-        payload = raw;
-      }
-
-      if (response.ok) {
-        return { success: true as const, data: payload };
-      }
-
-      lastMessage = readErrorMessage(
-        payload,
-        `Erro ${response.status} ao enviar a imagem`,
-      );
-
-      if (response.status === 404 && attempt === 0) {
-        await new Promise((resolve) => setTimeout(resolve, 600));
-        break;
-      }
-    }
-  }
-
-  return { success: false as const, message: lastMessage };
 }
 
 function buildCategoryLink(
@@ -167,6 +112,9 @@ export const useMenuManagement = () => {
   const [newCategoryName, setNewCategoryName] = useState("");
   const [createdProducts, setCreatedProducts] = useState<Product[]>([]);
   const [removedProductIds, setRemovedProductIds] = useState<string[]>([]);
+  const [duplicatingProductId, setDuplicatingProductId] = useState<
+    string | null
+  >(null);
 
   const upsertProductInCache = (product: Product) => {
     setCreatedProducts((prev) => {
@@ -415,17 +363,23 @@ export const useMenuManagement = () => {
       }
 
       if (editingProduct) {
-        await updateProduct.mutateAsync({
-          id: editingProduct.id,
-          data: {
-            name: formData.name,
-            description: formData.description,
-            costPrice: formData.costPrice ?? 0,
-            salePrice: formData.salePrice ?? 0,
-            isAvailable: formData.available,
-            stockQuantity: formData.stockQuantity ?? 0,
-          },
-        });
+        try {
+          await updateProduct.mutateAsync({
+            id: editingProduct.id,
+            data: {
+              name: formData.name,
+              description: formData.description,
+              costPrice: formData.costPrice ?? 0,
+              salePrice: formData.salePrice ?? 0,
+              isAvailable: formData.available,
+              stockQuantity: formData.stockQuantity ?? 0,
+            },
+          });
+        } catch {
+          // O useUpdateProduct já mostrou o erro; o catch de baixo repetiria
+          // a mesma mensagem.
+          return;
+        }
         productId = editingProduct.id;
 
         const oldCategoryId =
@@ -458,16 +412,21 @@ export const useMenuManagement = () => {
           }
         }
       } else {
-        const result = unwrapProduct(
-          await createProduct.mutateAsync({
+        let created: Awaited<ReturnType<typeof createProduct.mutateAsync>>;
+        try {
+          created = await createProduct.mutateAsync({
             name: formData.name,
             description: formData.description,
             costPrice: formData.costPrice ?? 0,
             salePrice: formData.salePrice ?? 0,
             isAvailable: formData.available,
             stockQuantity: formData.stockQuantity ?? 0,
-          }),
-        );
+          });
+        } catch {
+          // O useCreateProduct já mostrou o erro.
+          return;
+        }
+        const result = unwrapProduct(created);
         productId = result?.id || null;
 
         if (!result || !productId) {
@@ -678,6 +637,73 @@ export const useMenuManagement = () => {
     }
   };
 
+  /**
+   * Duplica o prato (LDMF-489) e abre a edição da cópia para o lojista
+   * trocar nome, foto e descrição. Devolve a cópia, ou null se não criou.
+   */
+  const handleDuplicateProduct = async (
+    product: Product,
+  ): Promise<Product | null> => {
+    if (duplicatingProductId) return null;
+    setDuplicatingProductId(product.id);
+    const toastId = toast.loading(`Duplicando "${product.name}"...`);
+
+    try {
+      const { product: copy, warnings } = await duplicateProduct({
+        source: product,
+        companyId,
+        existingNames: products.map((item) => item.name),
+      });
+
+      const categoryLinks = product.productCategories?.length
+        ? product.productCategories.map((link) => ({
+            ...link,
+            id: `${copy.id}-${link.categoryId}`,
+            productId: copy.id,
+          }))
+        : [];
+      // Entra na lista já, mesmo antes da recarga trazer a cópia.
+      upsertProductInCache({
+        ...copy,
+        companyId: copy.companyId || companyId || "",
+        productCategories: copy.productCategories?.length
+          ? copy.productCategories
+          : categoryLinks,
+      });
+
+      // Recarrega para a cópia vir com as fotos e as categorias reais.
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: productsQueryKey }),
+        queryClient.invalidateQueries({ queryKey: ["product-variations"] }),
+        queryClient.invalidateQueries({ queryKey: ["product-add-ons"] }),
+      ]);
+      const refreshed =
+        (queryClient.getQueryData(productsQueryKey) as Product[] | undefined)
+          ?.find?.((item) => item.id === copy.id) ?? null;
+      const finalCopy: Product = refreshed ?? {
+        ...copy,
+        productCategories: categoryLinks,
+      };
+
+      toast.success(
+        `"${finalCopy.name}" criado. A cópia está indisponível até você ativar.`,
+        { id: toastId },
+      );
+      warnings.forEach((warning) => toast.error(warning));
+
+      handleOpenEditModal(finalCopy, "details");
+      return finalCopy;
+    } catch (error) {
+      console.error("Erro ao duplicar prato:", error);
+      toast.error(getErrorMessage(error, "Erro ao duplicar o prato"), {
+        id: toastId,
+      });
+      return null;
+    } finally {
+      setDuplicatingProductId(null);
+    }
+  };
+
   const handleRequestDelete = (product: Product) => {
     setDeleteTarget(product);
   };
@@ -807,9 +833,10 @@ export const useMenuManagement = () => {
         { id: "menu-availability" },
       );
     } catch (error) {
+      // O useUpdateProduct já mostra o erro - um toast aqui empilhava uma
+      // segunda mensagem para a mesma falha.
       queryClient.setQueryData(productsQueryKey, previousProducts);
       console.error("Erro ao atualizar disponibilidade:", error);
-      toast.error("Erro ao atualizar disponibilidade");
     }
   };
 
@@ -834,6 +861,8 @@ export const useMenuManagement = () => {
     handleConfirmDelete,
     handleCancelDelete,
     handleToggleAvailability,
+    handleDuplicateProduct,
+    duplicatingProductId,
     handleDeleteProductImage,
     updateFormField,
     isCreatingCategory,

@@ -401,10 +401,12 @@ export default function RestaurantPage() {
                 openStatus={openStatus}
               />
 
-              {/* === BARRA DE NAVEGAÇÃO DE CATEGORIAS FIXA === */}
+              {/* === BARRA DE NAVEGAÇÃO DE CATEGORIAS FIXA ===
+                  Gruda logo abaixo do header, que tem 52px (64px a partir
+                  do sm) desde que ficou colado no topo (LDMF-495). */}
               <nav
                 ref={navRef}
-                className="sticky top-[72px] z-30 -mx-3 flex gap-2 overflow-x-auto bg-muted/95 px-3 py-3 scrollbar-hide sm:top-[82px] sm:-mx-5 sm:px-5"
+                className="sticky top-[52px] z-30 -mx-3 flex gap-2 overflow-x-auto bg-muted/95 px-3 py-3 scrollbar-hide sm:top-[64px] sm:-mx-5 sm:px-5"
               >
                 {categories.map((category) => {
                   const isActive = selectedCategory === category;

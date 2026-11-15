@@ -4,7 +4,7 @@ import { AdminPageLayout } from "@/components/admin-page-layout"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
-import { apiService, MAX_PAGE_LIMIT } from "@/services/api"
+import { apiService, MAX_PAGE_LIMIT, toPaginated } from "@/services/api"
 import { Order } from "@/services/api"
 import { formatCurrency, getCustomerDisplayName } from "@/utils"
 import { useAuthStore } from "@/stores"
@@ -64,8 +64,11 @@ export default function OrdersPage() {
           limit: MAX_PAGE_LIMIT,
         })
         if (!response.success || !response.data) break
-        allOrders.push(...response.data.data)
-        if (page >= response.data.meta.totalPages) break
+        // toPaginated aceita envelope e array cru; array cru conta como
+        // página única (LDMF-495).
+        const { items, meta } = toPaginated(response.data)
+        allOrders.push(...items)
+        if (page >= meta.totalPages) break
         page += 1
       }
       return allOrders

@@ -1,5 +1,11 @@
 # Contributing to Bear Delivery App
 
+> **Documentação desatualizada.** Este arquivo é anterior à Sprint 5 e
+> descreve coisas que mudaram (fluxo de branch, estrutura, versões). A
+> documentação mantida está em [`docs/`](./docs/README.md), e as regras de
+> trabalho estão no [`CLAUDE.md`](./CLAUDE.md). Em caso de conflito, valem
+> esses dois.
+
 Thank you for your interest in contributing to Bear Delivery! This document provides guidelines and best practices for contributing to the project.
 
 ## Table of Contents

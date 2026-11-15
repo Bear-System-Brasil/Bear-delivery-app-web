@@ -211,10 +211,14 @@ export function useAuthModal({
         } else {
           const birthDateError = getBirthDateApiError(response);
           setBirthDateServerError(birthDateError);
-          setSubmitMessage({
-            type: "error",
-            text: birthDateError || response.message || "Erro ao criar conta. Tente novamente.",
-          });
+          // Recusa da data já aparece embaixo do campo: repetir no aviso
+          // de baixo mostrava a mesma mensagem duas vezes.
+          if (!birthDateError) {
+            setSubmitMessage({
+              type: "error",
+              text: response.message || "Erro ao criar conta. Tente novamente.",
+            });
+          }
         }
       }
     } catch (_error) {

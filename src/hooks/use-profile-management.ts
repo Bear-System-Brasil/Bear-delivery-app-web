@@ -291,8 +291,9 @@ export const useProfileManagement = () => {
           ? getBirthDateApiError(error)
           : null;
       if (birthDateError) {
+        // A mensagem aparece embaixo do campo; um toast com o mesmo texto
+        // mostrava o erro duas vezes.
         profileForm.setError("birthDate", { message: birthDateError });
-        toast.error(birthDateError);
         return;
       }
       toast.error(getErrorMessage(error, "Erro ao atualizar perfil"));

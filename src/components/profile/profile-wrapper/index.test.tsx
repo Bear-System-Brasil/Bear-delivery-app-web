@@ -12,12 +12,8 @@ const { router, profileState, cartState } = vi.hoisted(() => ({
 
 vi.mock("next/navigation", () => ({ useRouter: () => router }));
 
-// Os dois jeitos de importar: pelo barrel @/hooks e pelo arquivo de cada
-// hook (LDMF-478 troca o wrapper para o segundo).
-vi.mock("@/hooks", () => ({
-  useCartActions: () => cartState,
-  useProfileManagement: () => profileState.current,
-}));
+// O wrapper importa cada hook pelo próprio arquivo (o barrel @/hooks não
+// existe mais, LDMF-478).
 vi.mock("@/hooks/use-cart-actions", () => ({
   useCartActions: () => cartState,
 }));

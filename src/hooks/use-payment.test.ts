@@ -90,6 +90,30 @@ describe("usePayment", () => {
       expect(result.current.isLoading).toBe(false);
     });
 
+    it.each([
+      ["fetchPaymentsByFilters", "findByFilters", {}],
+      ["fetchPaymentsByMethod", "findByMethod", PaymentMethod.PIX],
+      ["fetchPaymentsByDateRange", "findByDateRange", { startDate: "2026-11-01", endDate: "2026-11-09" }],
+    ] as const)(
+      "%s aceita array cru, sem envelope, e não deixa a lista undefined (LDMF-495)",
+      async (fn, method, arg) => {
+        // Com `.data.data` direto, a lista virava undefined e a tela de
+        // Finanças quebrava no `.reduce` do resumo.
+        payments[method].mockResolvedValue({
+          success: true,
+          data: [payment("p1"), payment("p2")],
+        } as never);
+        const { result } = renderHook(() => usePayment());
+
+        await act(async () => {
+          await (result.current[fn] as (a: unknown) => Promise<Payment[]>)(arg);
+        });
+
+        expect(result.current.payments).toEqual([payment("p1"), payment("p2")]);
+        expect(result.current.paymentsMeta).toMatchObject({ total: 2, totalPages: 1 });
+      },
+    );
+
     it("em falha, zera lista e meta e guarda a mensagem do backend", async () => {
       const { result } = await renderWithList();
       payments.findByFilters.mockResolvedValue({ success: false, message: "Sem permissão" });

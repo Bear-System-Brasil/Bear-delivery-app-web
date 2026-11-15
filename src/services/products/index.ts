@@ -1,4 +1,4 @@
-import { apiService, MAX_PAGE_LIMIT } from "../api";
+import { apiService, MAX_PAGE_LIMIT, toPaginated } from "../api";
 
 /**
  * Sem paginação de verdade (ver pagination.md): a tela de cardápio depende
@@ -18,5 +18,6 @@ export async function getCompanyProducts(companyId: string) {
     throw new Error("Falha ao carregar produtos");
   }
 
-  return response.data.data;
+  // toPaginated aceita envelope e array cru (LDMF-495).
+  return toPaginated(response.data).items;
 }

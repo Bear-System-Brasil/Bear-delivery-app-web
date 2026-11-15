@@ -24,6 +24,7 @@ function TestWrapper({
   handleSaveProfile = vi.fn(),
   open = vi.fn(),
   isPending = false,
+  isError = false,
   user = mockUser,
 }: {
   isOpen?: boolean;
@@ -31,6 +32,7 @@ function TestWrapper({
   handleSaveProfile?: () => void;
   open?: () => void;
   isPending?: boolean;
+  isError?: boolean;
   user?: User;
 }) {
   const form = useForm<ProfileFormData>({
@@ -53,7 +55,7 @@ function TestWrapper({
 
   const updateProfile = {
     isPending,
-    isError: false,
+    isError,
     reset: vi.fn(),
   } as unknown as ComponentProps<typeof PersonalInformation>["updateProfile"];
 
@@ -88,6 +90,13 @@ describe("PersonalInformation Component", () => {
     expect(birthDateInput).toBeDisabled();
     // Exibição formatada em DD/MM/YYYY
     expect(birthDateInput).toHaveValue("15/05/1990");
+  });
+
+  it("falha ao salvar não mostra quadro de erro genérico além do toast/campo", () => {
+    render(<TestWrapper isOpen isError />);
+
+    expect(screen.queryByText(/algo deu errado/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/erro ao atualizar perfil/i)).not.toBeInTheDocument();
   });
 
   it("ao clicar em Editar, chama a ação de abrir edição", () => {
@@ -229,28 +238,19 @@ describe("PersonalInformation - data de nascimento (LDMF-303)", () => {
   });
 });
 
-describe("PersonalInformation - CPF da conta (LDMF-362)", () => {
-  // O back só diz se a conta tem CPF; o número não vem.
+describe("PersonalInformation - sem CPF no perfil (LDMF-495)", () => {
+  // O back não devolve o número do CPF, então o perfil não mostra o campo
+  // nem o aviso de "cadastrado", com ou sem CPF na conta.
   const withCpf: User = { ...mockUser, cpf: "", hasCpf: true };
   const withoutCpf: User = { ...mockUser, cpf: "", hasCpf: false };
 
-  it("conta com CPF mostra que o CPF está cadastrado", () => {
-    render(<TestWrapper user={withCpf} />);
-    expect(screen.getByText("CPF cadastrado na sua conta.")).toBeInTheDocument();
-  });
-
-  it("conta com CPF continua podendo trocar o CPF na edição", () => {
-    render(<TestWrapper user={withCpf} isOpen />);
-    expect(screen.getByLabelText("CPF")).not.toBeDisabled();
-    expect(
-      screen.getByText(/CPF cadastrado na sua conta\. Para trocar/),
-    ).toBeInTheDocument();
-  });
-
-  it("conta sem CPF mostra que não há CPF cadastrado", () => {
-    render(<TestWrapper user={withoutCpf} />);
-    expect(
-      screen.getByText("Nenhum CPF cadastrado na sua conta."),
-    ).toBeInTheDocument();
+  it.each([
+    ["com CPF", withCpf],
+    ["sem CPF", withoutCpf],
+  ])("conta %s não vê campo nem aviso de CPF", (_nome, user) => {
+    render(<TestWrapper user={user} isOpen />);
+    expect(screen.queryByLabelText("CPF")).not.toBeInTheDocument();
+    expect(screen.queryByText(/CPF cadastrado/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Nenhum CPF/)).not.toBeInTheDocument();
   });
 });

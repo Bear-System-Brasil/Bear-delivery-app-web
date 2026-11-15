@@ -105,7 +105,7 @@ interface MainHeaderProps {
 }
 
 const POSITION_CLASS = {
-  fixed: "fixed top-1 left-1 right-1 z-50",
+  fixed: "fixed inset-x-0 top-0 z-50",
   sticky: "sticky top-0 z-50",
   static: "relative z-50",
 } as const;
@@ -309,8 +309,9 @@ export function MainHeader({
     <header
       className={clsx(
         POSITION_CLASS[position ?? (fixed ? "fixed" : "sticky")],
-        "bg-background/95 border border-brand-100/50 dark:border-brand-900/50",
-        "rounded-xl sm:rounded-2xl shadow-2xl overflow-hidden",
+        // Colado no topo, de ponta a ponta, branco e sem borda (LDMF-495).
+        // A sombra leve só separa o header do conteúdo que rola por baixo.
+        "bg-card shadow-sm overflow-hidden",
         className,
       )}
     >
