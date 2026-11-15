@@ -10,7 +10,7 @@ arquivo:** ele é o registro de um momento. O que mudar vai para o Jira.
 | Card | Situação | O que falta |
 | --- | --- | --- |
 | **LDMF-482** | To Do | **Remover item do carrinho usa a rota antiga** (`.../products/:productId/:quantity`). No back de teste, ela responde 404; o back passou a usar `.../items/:orderItemId/:quantity`. Impacto provável: remover item pelo app não funciona contra o back atual. Não foi conferido no back de produção |
-| **LDMF-480** | In Review | Selo Aberta/Fechada na listagem de lojas. Investigação e decisões feitas (loja fechada continua clicável, mantém a ordem, mostra "Abre…"). **Não há branch com implementação** |
+| **LDMF-480** | In Review | Selo Aberta/Fechada na listagem de lojas. Investigação e decisões feitas (loja fechada continua clicável, mantém a ordem, mostra "Abre…"). Implementado na branch `LDMF-480/status-loja-na-listagem`, sem PR. Falta o teste de uma pessoa |
 | **LDMF-251** | In Progress | Configurações do restaurante. Formas de pagamento feitas. Tempo de preparo e frete dependem do back: **o frete e o tempo mostrados na página da loja são valores fixos de teste no front** (R$ 99,00), iguais para todas as lojas |
 | **LDMF-489** | In Review | Duplicar prato. O PR 276 já entrou na `dev` (09/11). Falta o teste de uma pessoa |
 | **LDMF-357** | To Do | "Pedir novamente" dobra o carrinho a cada clique |

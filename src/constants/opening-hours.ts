@@ -453,10 +453,15 @@ export function isOpenBySchedule(
 /**
  * Descobre o próximo horário de abertura a partir da grade de horários da semana.
  * Retorna uma string amigável (ex: "Abre hoje às 18:00", "Abre amanhã às 11:30") ou null.
+ *
+ * `tomorrowAsWeekday`: diz o nome do dia também para o dia seguinte ("Abre
+ * terça às 20:00" em vez de "Abre amanhã às 20:00"). Usado na listagem da
+ * home, por decisão do responsável (LDMF-480).
  */
 export function getNextOpeningLabel(
   hours: DayHours[] | undefined | null,
   now = new Date(),
+  options: { tomorrowAsWeekday?: boolean } = {},
 ): string | null {
   if (!hours || hours.length === 0) return null;
 
@@ -514,7 +519,7 @@ export function getNextOpeningLabel(
           return `Abre hoje às ${dayEntry.openTime}`;
         }
       }
-    } else if (offset === 1) {
+    } else if (offset === 1 && !options.tomorrowAsWeekday) {
       return `Abre amanhã às ${dayEntry.openTime}`;
     } else {
       return `Abre ${dayEntry.label.toLowerCase()} às ${dayEntry.openTime}`;
@@ -522,6 +527,38 @@ export function getNextOpeningLabel(
   }
 
   return null;
+}
+
+/**
+ * Status da loja na listagem da home (LDMF-480), pela grade de horários que
+ * `GET /company` já traz em `openingHours` - sem uma chamada por loja.
+ *
+ * Mesma regra da página da loja (LDMF-469): grade + relógio de São Paulo,
+ * sem horário cadastrado = fechada. A listagem não traz
+ * `linkedToCashRegister`; loja ligada ao caixa fica fora do escopo por
+ * decisão do card (nenhuma loja usa hoje).
+ *
+ * `null` quando a resposta não trouxe o campo: sem dado, a linha não mostra
+ * selo em vez de chutar "Fechado".
+ */
+export function getListingOpenStatus(
+  openingHours: unknown,
+  now = new Date(),
+): { isOpen: boolean; nextOpeningLabel: string | null } | null {
+  if (!Array.isArray(openingHours)) return null;
+
+  const days = toDayHours(openingHours);
+  if (isOpenBySchedule(days, now)) {
+    return { isOpen: true, nextOpeningLabel: null };
+  }
+
+  return {
+    isOpen: false,
+    // Na listagem, sempre o nome do dia: "Abre terça às 20:00" (LDMF-480).
+    nextOpeningLabel: getNextOpeningLabel(days, now, {
+      tomorrowAsWeekday: true,
+    }),
+  };
 }
 
 export interface RestaurantOpenStatus {
