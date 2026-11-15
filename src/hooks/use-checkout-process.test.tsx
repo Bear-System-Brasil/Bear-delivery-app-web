@@ -242,6 +242,10 @@ vi.mock("@/services/api", () => ({
     PIX: "PIX",
     BANK_TRANSFER: "BANK_TRANSFER",
   },
+  PaymentTiming: {
+    IMMEDIATE: "IMMEDIATE",
+    ON_FULFILLMENT: "ON_FULFILLMENT",
+  },
   PaymentStatus: { PENDING: "PENDING" },
 }));
 
@@ -1123,6 +1127,7 @@ describe("useCheckoutProcess - frete, total e valor do pagamento (LDMF-315)", ()
       orderId: "order-125",
       paymentMethod: "PIX",
       amount: 40.9,
+      paymentTiming: "ON_FULFILLMENT",
     });
   });
 

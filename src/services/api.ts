@@ -100,9 +100,13 @@ import type {
   OpenCashRegisterRequest,
   CloseCashRegisterRequest,
   CashRegister,
+  CashRegisterCloseResponse,
   CashMovementSummary,
   Delivery,
   CreateDeliveryRequest,
+  MercadoPagoCheckoutResponse,
+  MercadoPagoOauthConnectResponse,
+  MercadoPagoOauthCallbackResponse,
 } from "./api-types";
 
 /**
@@ -1718,6 +1722,38 @@ export const apiService = {
         undefined,
         true,
       ),
+
+    getMe: (params?: PaginationParams) =>
+      apiRequest<PaginatedResponse<Payment>>(
+        "GET",
+        withPagination("/payment/me", params),
+        undefined,
+        true,
+      ),
+
+    checkout: (orderId: string) =>
+      apiRequest<MercadoPagoCheckoutResponse>(
+        "POST",
+        "/payment/checkout",
+        { orderId },
+        true,
+      ),
+
+    oauthConnect: () =>
+      apiRequest<MercadoPagoOauthConnectResponse>(
+        "GET",
+        "/payment/oauth/connect",
+        undefined,
+        true,
+      ),
+
+    oauthCallback: (code: string, state: string) =>
+      apiRequest<MercadoPagoOauthCallbackResponse>(
+        "GET",
+        `/payment/oauth/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`,
+        undefined,
+        false,
+      ),
   },
 
   // Delivery endpoints
@@ -1898,7 +1934,47 @@ export const apiService = {
     open: (data: OpenCashRegisterRequest) =>
       apiRequest<CashRegister>("POST", "/cash-register/open", data, true),
     close: (data: CloseCashRegisterRequest) =>
-      apiRequest<CashRegister>("POST", "/cash-register/close", data, true),
+      apiRequest<CashRegisterCloseResponse>(
+        "POST",
+        "/financial/cash-register/close",
+        data,
+        true,
+      ),
+  },
+  // Financial endpoints (fluxo transacional e orquestração)
+  financial: {
+    payments: {
+      approve: (id: string, transaction?: string) =>
+        apiRequest<Payment>(
+          "PATCH",
+          `/financial/payment/${id}/approve`,
+          transaction ? { transaction } : undefined,
+          true,
+        ),
+      reject: (id: string) =>
+        apiRequest<Payment>(
+          "PATCH",
+          `/financial/payment/${id}/reject`,
+          undefined,
+          true,
+        ),
+      refund: (id: string) =>
+        apiRequest<Payment>(
+          "PATCH",
+          `/financial/payment/${id}/refund`,
+          undefined,
+          true,
+        ),
+    },
+    cashRegister: {
+      close: (data: CloseCashRegisterRequest) =>
+        apiRequest<CashRegisterCloseResponse>(
+          "POST",
+          "/financial/cash-register/close",
+          data,
+          true,
+        ),
+    },
   },
   // Reports endpoints
   reports: {

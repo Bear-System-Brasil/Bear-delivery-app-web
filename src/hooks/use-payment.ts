@@ -3,6 +3,7 @@ import {
   Payment,
   PaymentMethod,
   PaymentStatus,
+  PaymentTiming,
   toPaginated,
   type PaginationParams,
 } from "@/services/api";
@@ -444,6 +445,129 @@ export const usePayment = () => {
     return labels[status] || status;
   }, []);
 
+  /**
+   * Buscar pagamentos do próprio cliente autenticado (/payment/me)
+   */
+  const fetchMyPayments = useCallback(
+    async (params?: PaginationParams) => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const response = await apiService.payments.getMe(params);
+        if (response.success && response.data) {
+          const { items: paymentList, meta } = toPaginated(
+            response.data,
+            params,
+          );
+          setPayments(paymentList);
+          setPaymentsMeta(meta);
+          return paymentList;
+        } else {
+          throw new Error(response.message || "Nenhum pagamento encontrado");
+        }
+      } catch (err) {
+        const errorMessage = getErrorMessage(err, "Erro ao buscar pagamentos");
+        setError(errorMessage);
+        setPayments([]);
+        setPaymentsMeta(null);
+        return [];
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [],
+  );
+
+  /**
+   * Gerar checkout do Mercado Pago para um pedido (/payment/checkout)
+   */
+  const checkoutPayment = useCallback(async (orderId: string) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await apiService.payments.checkout(orderId);
+      if (response.success && response.data) {
+        return response.data;
+      } else {
+        throw new Error(response.message || "Erro ao gerar checkout");
+      }
+    } catch (err) {
+      const errorMessage = getErrorMessage(err, "Erro ao gerar checkout");
+      setError(errorMessage);
+      toast.error(errorMessage);
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  /**
+   * Iniciar fluxo de conexão OAuth com Mercado Pago (/payment/oauth/connect)
+   */
+  const connectMercadoPago = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await apiService.payments.oauthConnect();
+      if (response.success && response.data) {
+        return response.data;
+      } else {
+        throw new Error(response.message || "Erro ao conectar Mercado Pago");
+      }
+    } catch (err) {
+      const errorMessage = getErrorMessage(
+        err,
+        "Erro ao iniciar conexão com Mercado Pago",
+      );
+      setError(errorMessage);
+      toast.error(errorMessage);
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  /**
+   * Callback OAuth do Mercado Pago (/payment/oauth/callback)
+   */
+  const callbackMercadoPago = useCallback(
+    async (code: string, state: string) => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const response = await apiService.payments.oauthCallback(code, state);
+        if (response.success && response.data) {
+          toast.success("Conta do Mercado Pago conectada com sucesso!");
+          return response.data;
+        } else {
+          throw new Error(
+            response.message || "Falha na vinculação do Mercado Pago",
+          );
+        }
+      } catch (err) {
+        const errorMessage = getErrorMessage(
+          err,
+          "Erro ao processar retorno do Mercado Pago",
+        );
+        setError(errorMessage);
+        toast.error(errorMessage);
+        return null;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [],
+  );
+
+  /**
+   * Obter label legível do momento de cobrança
+   */
+  const getPaymentTimingLabel = useCallback((timing?: PaymentTiming) => {
+    if (timing === PaymentTiming.ON_FULFILLMENT) return "Na entrega/retirada";
+    if (timing === PaymentTiming.IMMEDIATE) return "No pedido";
+    return "No pedido";
+  }, []);
+
   return {
     // State
     payments,
@@ -459,6 +583,12 @@ export const usePayment = () => {
     fetchPaymentsByCustomer,
     fetchPaymentsByMethod,
     fetchPaymentsByDateRange,
+    fetchMyPayments,
+
+    // Mercado Pago & Checkout operations
+    checkoutPayment,
+    connectMercadoPago,
+    callbackMercadoPago,
 
     // Update operations
     approvePayment,
@@ -474,5 +604,6 @@ export const usePayment = () => {
     isFailed,
     getPaymentMethodLabel,
     getPaymentStatusLabel,
+    getPaymentTimingLabel,
   };
 };

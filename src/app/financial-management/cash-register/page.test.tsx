@@ -378,6 +378,40 @@ describe("Controle de Caixa - caixa aberto", () => {
     });
     expect(confirmar).toBeEnabled();
   });
+
+  it("ao fechar o caixa, exibe modal de conciliação com os valores retornados pelo backend", async () => {
+    useFinancialPreferencesStore.setState({ confirmBeforeCloseRegister: false });
+    h.close.mutateAsync.mockResolvedValueOnce({
+      success: true,
+      data: {
+        id: "reg-1",
+        openingBalance: 100,
+        expectedTotal: 160,
+        countedTotal: 160,
+        difference: 0,
+        totalCash: 60,
+        totalCredit: 40,
+        totalDebit: 30,
+        totalPix: 10,
+        totalTransfer: 0,
+        totalSales: 140,
+        totalDeposits: 0,
+        totalWithdrawals: 0,
+        totalRefunds: 0,
+      },
+    });
+
+    render(<CashRegisterPage />);
+    fireEvent.click(screen.getByRole("button", { name: "Fechar caixa" }));
+    const dialog = screen.getByRole("dialog", { name: "Fechar caixa" });
+    fireEvent.change(within(dialog).getByPlaceholderText("0,00"), {
+      target: { value: "160" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar fechamento" }));
+
+    expect(await screen.findByText("Caixa Fechado com Sucesso")).toBeInTheDocument();
+    expect(screen.getByText("Caixa conferido perfeitamente (Diferença: R$ 0,00)")).toBeInTheDocument();
+  });
 });
 
 describe("Controle de Caixa - resumo indisponível (LDMF-427)", () => {
