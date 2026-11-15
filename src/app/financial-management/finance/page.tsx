@@ -15,7 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { usePayment } from "@/hooks/use-payment";
 import { buildPaymentMethodUpdate } from "@/lib/payment-update";
 import { cn } from "@/lib/utils";
-import { Payment, PaymentMethod, PaymentStatus } from "@/services/api";
+import { Payment, PaymentMethod, PaymentStatus, PaymentTiming } from "@/services/api";
 import { useAuthStore } from "@/stores";
 import { formatCurrency, getCustomerDisplayName } from "@/utils";
 import { isManagementRole } from "@/utils/role-helpers";
@@ -155,6 +155,7 @@ export default function FinancePage() {
     updatePayment,
     getPaymentMethodLabel,
     getPaymentStatusLabel,
+    getPaymentTimingLabel,
     isPending,
     isCompleted,
     isFailed,
@@ -166,6 +167,13 @@ export default function FinancePage() {
   const canManagePayments = isManagementRole(role);
   const [paymentToChange, setPaymentToChange] = useState<Payment | null>(null);
   const [isChangingMethod, setIsChangingMethod] = useState(false);
+
+  // Estados de modais para Aprovação, Rejeição e Estorno
+  const [paymentToApprove, setPaymentToApprove] = useState<Payment | null>(null);
+  const [approvalTransaction, setApprovalTransaction] = useState("");
+  const [paymentToReject, setPaymentToReject] = useState<Payment | null>(null);
+  const [paymentToRefund, setPaymentToRefund] = useState<Payment | null>(null);
+  const [isSubmittingAction, setIsSubmittingAction] = useState(false);
 
   const [filterMethod, setFilterMethod] = useState<PaymentMethod | "ALL">(
     "ALL",
@@ -255,19 +263,57 @@ export default function FinancePage() {
     appliedSearchRef.current(1);
   };
 
-  const handleApprove = async (payment: Payment) => {
-    await approvePayment(payment.id, `TXN-${Date.now()}`);
-    handleSearch();
+  const openApproveModal = (payment: Payment) => {
+    setPaymentToApprove(payment);
+    setApprovalTransaction(payment.transaction || "");
   };
 
-  const handleReject = async (payment: Payment) => {
-    await rejectPayment(payment.id);
-    handleSearch();
+  const confirmApprove = async () => {
+    if (!paymentToApprove) return;
+    setIsSubmittingAction(true);
+    try {
+      await approvePayment(
+        paymentToApprove.id,
+        approvalTransaction.trim() || undefined,
+      );
+      setPaymentToApprove(null);
+      setApprovalTransaction("");
+      handleSearch();
+    } finally {
+      setIsSubmittingAction(false);
+    }
   };
 
-  const handleRefund = async (payment: Payment) => {
-    await refundPayment(payment.id);
-    handleSearch();
+  const openRejectModal = (payment: Payment) => {
+    setPaymentToReject(payment);
+  };
+
+  const confirmReject = async () => {
+    if (!paymentToReject) return;
+    setIsSubmittingAction(true);
+    try {
+      await rejectPayment(paymentToReject.id);
+      setPaymentToReject(null);
+      handleSearch();
+    } finally {
+      setIsSubmittingAction(false);
+    }
+  };
+
+  const openRefundModal = (payment: Payment) => {
+    setPaymentToRefund(payment);
+  };
+
+  const confirmRefund = async () => {
+    if (!paymentToRefund) return;
+    setIsSubmittingAction(true);
+    try {
+      await refundPayment(paymentToRefund.id);
+      setPaymentToRefund(null);
+      handleSearch();
+    } finally {
+      setIsSubmittingAction(false);
+    }
   };
 
   // Forma só muda em pagamento pendente. Ao aprovar, o backend lança a venda
@@ -500,10 +546,19 @@ export default function FinancePage() {
                     </div>
 
                     <div className="mt-2 flex items-center justify-between gap-2 text-[11.5px] font-semibold text-muted-foreground">
-                      <span className="flex min-w-0 items-center gap-2">
+                      <span className="flex min-w-0 flex-wrap items-center gap-1.5">
                         <span className="truncate">
                           {getPaymentMethodLabel(payment.paymentMethod)}
                         </span>
+                        {payment.paymentTiming && (
+                          <span className="rounded bg-muted px-1.5 py-0.5 text-[9.5px] font-normal text-muted-foreground">
+                            {getPaymentTimingLabel
+                              ? getPaymentTimingLabel(payment.paymentTiming)
+                              : payment.paymentTiming === PaymentTiming.ON_FULFILLMENT
+                                ? "Na entrega/retirada"
+                                : "No pedido"}
+                          </span>
+                        )}
                         {canChangeMethod(payment) && (
                           <ChangeMethodLink onClick={() => setPaymentToChange(payment)} />
                         )}
@@ -532,14 +587,14 @@ export default function FinancePage() {
                         {isPending(payment) && (
                           <>
                             <RowActionButton
-                              onClick={() => handleApprove(payment)}
+                              onClick={() => openApproveModal(payment)}
                               className="flex flex-1 items-center justify-center gap-1 bg-zinc-900 text-white hover:bg-zinc-800"
                             >
                               <Check className="h-3.5 w-3.5" />
                               Confirmar
                             </RowActionButton>
                             <RowActionButton
-                              onClick={() => handleReject(payment)}
+                              onClick={() => openRejectModal(payment)}
                               aria-label="Rejeitar"
                               className="flex items-center justify-center gap-1 bg-red-50 px-3 text-red-600 hover:bg-red-100 dark:bg-red-950/40 dark:text-red-400"
                             >
@@ -550,7 +605,7 @@ export default function FinancePage() {
                         )}
                         {isFailed(payment) && (
                           <RowActionButton
-                            onClick={() => handleApprove(payment)}
+                            onClick={() => openApproveModal(payment)}
                             className="flex-1 bg-zinc-900 text-white hover:bg-zinc-800"
                           >
                             Reprocessar
@@ -558,7 +613,7 @@ export default function FinancePage() {
                         )}
                         {isCompleted(payment) && (
                           <RowActionButton
-                            onClick={() => handleRefund(payment)}
+                            onClick={() => openRefundModal(payment)}
                             className="flex-1 border border-border bg-card text-foreground hover:bg-muted"
                           >
                             Reembolsar
@@ -612,6 +667,15 @@ export default function FinancePage() {
                         <div className="truncate text-[11.5px] font-semibold text-foreground">
                           {getPaymentMethodLabel(payment.paymentMethod)}
                         </div>
+                        {payment.paymentTiming && (
+                          <div className="truncate text-[10px] text-muted-foreground">
+                            {getPaymentTimingLabel
+                              ? getPaymentTimingLabel(payment.paymentTiming)
+                              : payment.paymentTiming === PaymentTiming.ON_FULFILLMENT
+                                ? "Na entrega/retirada"
+                                : "No pedido"}
+                          </div>
+                        )}
                         {canChangeMethod(payment) && (
                           <ChangeMethodLink onClick={() => setPaymentToChange(payment)} />
                         )}
@@ -638,14 +702,14 @@ export default function FinancePage() {
                         {isPending(payment) && (
                           <>
                             <RowActionButton
-                              onClick={() => handleApprove(payment)}
+                              onClick={() => openApproveModal(payment)}
                               className="flex items-center justify-center gap-1 bg-zinc-900 text-white hover:bg-zinc-800"
                             >
                               <Check className="h-3.5 w-3.5" />
                               Confirmar
                             </RowActionButton>
                             <RowActionButton
-                              onClick={() => handleReject(payment)}
+                              onClick={() => openRejectModal(payment)}
                               aria-label="Rejeitar"
                               className="flex items-center justify-center bg-red-50 px-2 text-red-600 hover:bg-red-100 dark:bg-red-950/40 dark:text-red-400"
                             >
@@ -655,7 +719,7 @@ export default function FinancePage() {
                         )}
                         {isFailed(payment) && (
                           <RowActionButton
-                            onClick={() => handleApprove(payment)}
+                            onClick={() => openApproveModal(payment)}
                             className="bg-zinc-900 text-white hover:bg-zinc-800"
                           >
                             Reprocessar
@@ -663,7 +727,7 @@ export default function FinancePage() {
                         )}
                         {isCompleted(payment) && (
                           <RowActionButton
-                            onClick={() => handleRefund(payment)}
+                            onClick={() => openRefundModal(payment)}
                             className="border border-border bg-card text-foreground hover:bg-muted"
                           >
                             Reembolsar
@@ -789,6 +853,169 @@ export default function FinancePage() {
         confirmLabel="Salvar forma"
         isLoading={isChangingMethod}
       />
+
+      {/* Modal de Aprovação */}
+      <Dialog
+        open={paymentToApprove !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPaymentToApprove(null);
+            setApprovalTransaction("");
+          }
+        }}
+      >
+        <DialogContent className="max-w-[420px] rounded-2xl">
+          <DialogHeader>
+            <DialogTitle>Confirmar Aprovação</DialogTitle>
+            <DialogDescription>
+              {paymentToApprove && (
+                <span>
+                  Pedido #{paymentToApprove.orderId.slice(0, 8)} ·{" "}
+                  <strong>{formatCurrency(paymentToApprove.amount)}</strong> (
+                  {getPaymentMethodLabel(paymentToApprove.paymentMethod)})
+                </span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <p className="text-xs text-muted-foreground">
+              A aprovação concluirá o pagamento e, caso haja caixa aberto,
+              registrará automaticamente a movimentação de venda correspondente.
+            </p>
+            <div>
+              <label
+                htmlFor="approval-txn"
+                className="mb-1 block text-xs font-bold text-foreground"
+              >
+                Código da Transação / NSU (opcional)
+              </label>
+              <input
+                id="approval-txn"
+                placeholder="Ex: TX-987654"
+                value={approvalTransaction}
+                onChange={(e) => setApprovalTransaction(e.target.value)}
+                className={fieldClass}
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isSubmittingAction}
+              onClick={() => {
+                setPaymentToApprove(null);
+                setApprovalTransaction("");
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              disabled={isSubmittingAction}
+              onClick={confirmApprove}
+              className="bg-zinc-900 text-white hover:bg-zinc-800"
+            >
+              {isSubmittingAction ? "Aprovando..." : "Aprovar Pagamento"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Rejeição */}
+      <Dialog
+        open={paymentToReject !== null}
+        onOpenChange={(open) => {
+          if (!open) setPaymentToReject(null);
+        }}
+      >
+        <DialogContent className="max-w-[420px] rounded-2xl">
+          <DialogHeader>
+            <DialogTitle>Rejeitar Pagamento</DialogTitle>
+            <DialogDescription>
+              {paymentToReject && (
+                <span>
+                  Pedido #{paymentToReject.orderId.slice(0, 8)} ·{" "}
+                  <strong>{formatCurrency(paymentToReject.amount)}</strong>
+                </span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-2">
+            <p className="text-xs text-muted-foreground">
+              Apenas pagamentos pendentes podem ser rejeitados. O status será
+              marcado como <strong>Falhou</strong>.
+            </p>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isSubmittingAction}
+              onClick={() => setPaymentToReject(null)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={isSubmittingAction}
+              onClick={confirmReject}
+            >
+              {isSubmittingAction ? "Rejeitando..." : "Confirmar Rejeição"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Reembolso / Estorno */}
+      <Dialog
+        open={paymentToRefund !== null}
+        onOpenChange={(open) => {
+          if (!open) setPaymentToRefund(null);
+        }}
+      >
+        <DialogContent className="max-w-[420px] rounded-2xl">
+          <DialogHeader>
+            <DialogTitle>Confirmar Estorno / Reembolso</DialogTitle>
+            <DialogDescription>
+              {paymentToRefund && (
+                <span>
+                  Pedido #{paymentToRefund.orderId.slice(0, 8)} ·{" "}
+                  <strong>{formatCurrency(paymentToRefund.amount)}</strong> (
+                  {getPaymentMethodLabel(paymentToRefund.paymentMethod)})
+                </span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-2">
+            <p className="text-xs text-muted-foreground">
+              Esta ação alterará o status do pagamento para{" "}
+              <strong>Reembolsado</strong> e criará automaticamente uma saída
+              de <strong>Reembolso</strong> no caixa aberto da empresa com a mesma
+              forma de pagamento.
+            </p>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isSubmittingAction}
+              onClick={() => setPaymentToRefund(null)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={isSubmittingAction}
+              onClick={confirmRefund}
+            >
+              {isSubmittingAction ? "Estornando..." : "Confirmar Estorno"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AdminPageLayout>
   );
 }

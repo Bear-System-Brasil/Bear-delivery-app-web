@@ -795,6 +795,11 @@ export enum PaymentStatus {
   REFUNDED = "REFUNDED",
 }
 
+export enum PaymentTiming {
+  IMMEDIATE = "IMMEDIATE",
+  ON_FULFILLMENT = "ON_FULFILLMENT",
+}
+
 export interface Payment {
   id: string;
   amount: number;
@@ -803,6 +808,7 @@ export interface Payment {
   /** Relação incluída pelas listas de /payment (ver payment.md). */
   customer?: CustomerRef;
   paymentMethod: PaymentMethod;
+  paymentTiming?: PaymentTiming;
   status: PaymentStatus;
   transaction?: string;
   /** Devolvido em métodos que exigem redirecionamento externo (ex. PIX via gateway). */
@@ -815,9 +821,9 @@ export interface Payment {
 export interface CreatePaymentRequest {
   amount: number;
   orderId: string;
-  // customerId: string;
+  customerId?: string;
   paymentMethod: PaymentMethod;
-  // status: PaymentStatus;
+  paymentTiming?: PaymentTiming;
 }
 
 export interface UpdatePaymentRequest {
@@ -825,7 +831,25 @@ export interface UpdatePaymentRequest {
   orderId?: string;
   customerId?: string;
   paymentMethod?: PaymentMethod;
+  paymentTiming?: PaymentTiming;
   status?: PaymentStatus;
+}
+
+export interface MercadoPagoCheckoutRequest {
+  orderId: string;
+}
+
+export interface MercadoPagoCheckoutResponse {
+  checkoutUrl: string;
+  mercadoPagoOrderId: string;
+}
+
+export interface MercadoPagoOauthConnectResponse {
+  authorizationUrl: string;
+}
+
+export interface MercadoPagoOauthCallbackResponse {
+  connected: boolean;
 }
 
 // ======================
@@ -917,6 +941,22 @@ export interface OpenCashRegisterRequest {
 export interface CloseCashRegisterRequest {
   countedTotal: number;
   observations?: string;
+}
+
+export interface CashRegisterCloseResponse extends CashRegister {
+  openingBalance: number;
+  expectedTotal: number;
+  countedTotal: number;
+  difference: number;
+  totalCash: number;
+  totalCredit: number;
+  totalDebit: number;
+  totalPix: number;
+  totalTransfer: number;
+  totalSales?: number;
+  totalDeposits?: number;
+  totalWithdrawals?: number;
+  totalRefunds?: number;
 }
 
 export interface CashRegister {
