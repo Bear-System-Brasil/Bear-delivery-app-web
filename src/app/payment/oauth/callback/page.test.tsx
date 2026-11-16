@@ -75,4 +75,23 @@ describe("MercadoPagoOAuthCallbackPage", () => {
       expect(screen.getByText("State expirado ou inválido.")).toBeInTheDocument();
     });
   });
+
+  it("exibe sucesso direto quando o backend redireciona com connected=true", async () => {
+    mockSearchParams.set("connected", "true");
+
+    render(<MercadoPagoOAuthCallbackPage />);
+
+    expect(await screen.findByText("Mercado Pago Conectado!")).toBeInTheDocument();
+    expect(apiService.payments.oauthCallback).not.toHaveBeenCalled();
+  });
+
+  it("exibe erro direto quando a URL traz parâmetro error", async () => {
+    mockSearchParams.set("error", "access_denied");
+    mockSearchParams.set("error_description", "Usuário cancelou autorização.");
+
+    render(<MercadoPagoOAuthCallbackPage />);
+
+    expect(await screen.findByText("Falha na Conexão")).toBeInTheDocument();
+    expect(screen.getByText("Usuário cancelou autorização.")).toBeInTheDocument();
+  });
 });

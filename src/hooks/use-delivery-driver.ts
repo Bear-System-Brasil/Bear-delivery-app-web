@@ -45,7 +45,7 @@ const POLL_INTERVAL = 15_000; // ritmo padrão de polling para pedidos da equipe
 const DELIVERY_PAGE: PaginationParams = { page: 1, limit: MAX_PAGE_LIMIT };
 
 const DELIVERY_TRACKING_URL = process.env.NEXT_PUBLIC_API_URL
-  ? `${process.env.NEXT_PUBLIC_API_URL}/delivery-tracking`
+  ? `${process.env.NEXT_PUBLIC_API_URL.replace(/\/+$/, "")}/delivery-tracking`
   : "";
 
 /**

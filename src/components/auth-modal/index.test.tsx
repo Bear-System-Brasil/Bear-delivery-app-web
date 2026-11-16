@@ -27,7 +27,7 @@ const hookState = {
   setSubmitMessage: noop,
   formatPhone: (value: string) => value,
   handleInputChange: noop,
-  isFormValid: false,
+  isFormValid: () => false,
   handleSubmit: noop,
   handleOTPSubmit: noop,
   handleForgotPasswordSubmit: noop,
@@ -65,5 +65,23 @@ describe("AuthModal - Esqueci minha senha", () => {
     });
 
     expect(hookState.setForgotPasswordData).toHaveBeenCalledWith({ email: "ana@example.com" });
+  });
+});
+
+describe("AuthModal - Logins Rápidos de Teste (Dev)", () => {
+  it("exibe botões de teste e preenche email e senha ao clicar", () => {
+    hookState.step = "form";
+    hookState.activeTab = "login";
+    hookState.handleInputChange = vi.fn();
+
+    render(<AuthModal isOpen onClose={noop} />);
+
+    expect(screen.getByText("Logins Rápidos (Ambiente de Teste)")).toBeInTheDocument();
+
+    const ownerButton = screen.getByRole("button", { name: /Owner/i });
+    fireEvent.click(ownerButton);
+
+    expect(hookState.handleInputChange).toHaveBeenCalledWith("email", "Teste+Owner@bear.com");
+    expect(hookState.handleInputChange).toHaveBeenCalledWith("password", "Teste@123");
   });
 });
