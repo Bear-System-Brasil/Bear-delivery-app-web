@@ -518,10 +518,16 @@ function RestaurantInfoDetails({
   const todayKey = getTodayKey();
 
   return (
-    <div className="rounded-2xl border border-border bg-card px-4 py-4 shadow-sm sm:px-6">
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        side="bottom"
+        className="max-h-[85dvh] overflow-y-auto rounded-t-3xl border-t border-border bg-card px-4 pb-8 pt-4 sm:max-h-[85vh] sm:bottom-auto sm:top-1/2 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:-translate-y-1/2 sm:max-w-xl sm:w-[calc(100%-2rem)] sm:rounded-2xl sm:border sm:border-border sm:shadow-2xl sm:p-6 sm:data-[state=open]:slide-in-from-bottom-0 sm:data-[state=closed]:slide-out-to-bottom-0 sm:data-[state=open]:zoom-in-95 sm:data-[state=closed]:zoom-out-95"
+      >
+        <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-muted sm:hidden" />
+
         <div className="mx-auto w-full max-w-xl space-y-4">
           <div className="space-y-1">
-            <h2 className="text-lg font-bold text-foreground">
+            <SheetTitle className="pr-6 text-lg font-bold text-foreground">
               {restaurant.tradeName}
             </h2>
             {isOpen !== null && (
