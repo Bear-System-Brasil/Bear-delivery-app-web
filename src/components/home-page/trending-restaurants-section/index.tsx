@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { RESTAURANT_CATEGORIES } from "@/constants";
 import { getCategoryIconImage } from "@/constants/category-icons";
@@ -92,6 +92,26 @@ function StoreCategoriesFilter({
   onSelect: (value: string | null) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Cada seta só aparece quando há para onde rolar: no começo da lista a da
+  // esquerda cobria a primeira categoria ("Pizza").
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const updateScrollState = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 1);
+    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
+  }, []);
+
+  useEffect(() => {
+    updateScrollState();
+    const el = scrollRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(updateScrollState);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [updateScrollState, categories.length]);
 
   const scrollCategories = (direction: "left" | "right") => {
     if (!scrollRef.current) return;
@@ -110,18 +130,29 @@ function StoreCategoriesFilter({
         </h3>
       </div>
 
-      <div className="relative">
-        <button
-          type="button"
-          aria-label="Rolar categorias para a esquerda"
-          onClick={() => scrollCategories("left")}
-          className="hidden sm:flex absolute left-0 top-[42px] -translate-y-1/2 z-10 h-8 w-8 rounded-full bg-card/80 shadow-md border border-border items-center justify-center hover:bg-card transition-colors"
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </button>
+      {/* No PC/tablet, quando a lista não cabe, as setas ficam numa calha
+          própria (sm:px-10), fora da lista: assim nunca cobrem uma categoria.
+          Se tudo cabe, não há seta nem calha e a lista alinha com o título. */}
+      <div
+        className={cn(
+          "relative",
+          (canScrollLeft || canScrollRight) && "sm:px-10",
+        )}
+      >
+        {canScrollLeft && (
+          <button
+            type="button"
+            aria-label="Rolar categorias para a esquerda"
+            onClick={() => scrollCategories("left")}
+            className="hidden sm:flex absolute left-0 top-[42px] -translate-y-1/2 z-10 h-8 w-8 rounded-full bg-card/80 shadow-md border border-border items-center justify-center hover:bg-card transition-colors"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+        )}
 
         <div
           ref={scrollRef}
+          onScroll={updateScrollState}
           className="flex gap-2 sm:gap-3 overflow-x-auto scroll-smooth scrollbar-hide py-1"
         >
           {categories.map((category) => {
@@ -174,13 +205,16 @@ function StoreCategoriesFilter({
           })}
         </div>
 
-        <button
-          type="button"
-          onClick={() => scrollCategories("right")}
-          className="hidden sm:flex absolute right-0 top-[42px] -translate-y-1/2 z-10 h-8 w-8 rounded-full bg-card/80 shadow-md border border-border items-center justify-center hover:bg-card transition-colors"
-        >
-          <ChevronRight className="h-4 w-4" />
-        </button>
+        {canScrollRight && (
+          <button
+            type="button"
+            aria-label="Rolar categorias para a direita"
+            onClick={() => scrollCategories("right")}
+            className="hidden sm:flex absolute right-0 top-[42px] -translate-y-1/2 z-10 h-8 w-8 rounded-full bg-card/80 shadow-md border border-border items-center justify-center hover:bg-card transition-colors"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        )}
       </div>
     </div>
   );
