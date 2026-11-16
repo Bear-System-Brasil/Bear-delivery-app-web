@@ -3,7 +3,7 @@
 import { AdminPageLayout } from "@/components/admin-page-layout";
 import { Button } from "@/components/ui/button";
 import { OrderDetailSheet } from "@/components/order-detail-sheet";
-import { toDateInputValue } from "./helpers";
+import { canCancelKitchenOrder, toDateInputValue } from "./helpers";
 import { useKitchenOrders } from "@/hooks/use-kitchen-orders";
 import { useAuthStore } from "@/stores";
 import { acknowledgeOrder } from "@/lib/order-alerts";
@@ -112,10 +112,9 @@ export default function Kitchen() {
   const restaurantUser = useAuthStore((state) => state.user);
   const storeName = restaurantUser?.tradeName || restaurantUser?.legalName || null;
   const restaurantName = storeName || "Cozinha";
-  // `owner` não tem permissão pra cancelar pedido (order.md) - o backend
-  // rejeita com 403. Sem esconder o botão, a pessoa só descobre isso depois
-  // de tentar e ver o erro.
-  const canCancelOrder = restaurantUser?.role !== "owner";
+  // Só `owner` e `manager` cancelam pedido (order.md). Para o `cook` o
+  // backend responde 403, então o botão nem aparece.
+  const canCancelOrder = canCancelKitchenOrder(restaurantUser?.role);
 
   const [cancelTarget, setCancelTarget] = useState<KitchenOrder | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<KitchenOrder | null>(null);
