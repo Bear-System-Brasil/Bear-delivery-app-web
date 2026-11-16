@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
@@ -29,6 +29,36 @@ import {
   User,
 } from "lucide-react";
 
+const DEV_TEST_USERS = [
+  {
+    role: "Owner",
+    subtitle: "Proprietário",
+    email: "Teste+Owner@bear.com",
+    password: "Teste@123",
+    color: "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-800",
+  },
+  {
+    role: "Client",
+    subtitle: "Cliente",
+    email: "Teste+Client@bear.com",
+    password: "Teste@123",
+    color: "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-300 dark:border-blue-800",
+  },
+  {
+    role: "Courier",
+    subtitle: "Entregador",
+    email: "Teste+Courier@bear.com",
+    password: "Teste@123",
+    color: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800",
+  },
+  {
+    role: "Second",
+    subtitle: "Gerência",
+    email: "Teste+Second@bear.com",
+    password: "Teste@123",
+    color: "bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-300 dark:border-purple-800",
+  },
+];
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -43,6 +73,19 @@ export default function AuthModal({
   onAuthSuccess,
   defaultTab = "login",
 }: AuthModalProps) {
+  const [isDevMode, setIsDevMode] = useState(false);
+
+  useEffect(() => {
+    if (
+      process.env.NODE_ENV !== "production" ||
+      window.location.hostname === "localhost" ||
+      window.location.hostname === "127.0.0.1" ||
+      window.location.hostname.includes("dev") ||
+      window.location.hostname.includes("vercel.app")
+    ) {
+      setIsDevMode(true);
+    }
+  }, []);
   const {
     activeTab, setActiveTab,
     step, setStep,
@@ -157,6 +200,34 @@ export default function AuthModal({
                       Esqueci minha senha
                     </button>
                   </div>
+
+                  {isDevMode && (
+                    <div className="mt-3 rounded-xl border border-dashed border-amber-300 dark:border-amber-800/60 bg-amber-50/50 dark:bg-amber-950/20 p-2.5">
+                      <div className="mb-2 flex items-center justify-between">
+                        <span className="text-[11px] font-bold text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+                          <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+                          Logins Rápidos (Ambiente de Teste)
+                        </span>
+                        <span className="text-[10px] text-muted-foreground">Clique para preencher</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {DEV_TEST_USERS.map((user) => (
+                          <button
+                            key={user.role}
+                            type="button"
+                            onClick={() => {
+                              handleInputChange("email", user.email);
+                              handleInputChange("password", user.password);
+                            }}
+                            className={`flex flex-col items-start rounded-lg border p-1.5 text-left transition-all hover:opacity-90 active:scale-[0.98] cursor-pointer ${user.color}`}
+                          >
+                            <span className="text-[11px] font-bold">{user.role} <span className="text-[10px] font-normal opacity-80">({user.subtitle})</span></span>
+                            <span className="text-[10px] opacity-75 truncate max-w-full font-mono">{user.email}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </TabsContent>
 
                 <TabsContent value="register" className="space-y-2.5 sm:space-y-3 mt-3 sm:mt-4">
