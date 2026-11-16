@@ -1,4 +1,4 @@
-import { withDeliveryDefaults } from "@/constants/delivery-defaults";
+import { resolveStoreDeliveryFee } from "@/lib/shipping-fee";
 import {
   apiService,
   toPaginated,
@@ -6,10 +6,7 @@ import {
   type RecentProduct,
 } from "@/services/api";
 import type { Restaurant, UserLocation } from "@/types/restaurant";
-import {
-  formatDeliveryFee,
-  parseDeliveryMaxMinutes,
-} from "@/utils/format-delivery-fee";
+import { parseDeliveryMaxMinutes } from "@/utils/format-delivery-fee";
 
 /** Prato da seção "Novidades" já no formato que o card consome. */
 export interface NewDish {
@@ -41,7 +38,9 @@ const PRODUCTS_PER_STORE = 6;
 /** Tamanho do carrossel. */
 export const MAX_NEW_DISHES = 12;
 
-type StoreSummary = RecentProduct["company"];
+// `distanceKm` vem da listagem de lojas (não do contrato de /product/recent):
+// serve só para estimar o frete do card (LDMF-534).
+type StoreSummary = RecentProduct["company"] & { distanceKm?: number };
 
 // GET /product/recent ainda não existe (ver RecentProduct). Depois do
 // primeiro 404 da sessão paramos de tentar e vamos direto na agregação -
@@ -56,6 +55,7 @@ function toStoreSummary(restaurant: Restaurant): StoreSummary {
     deliveryFee: restaurant.deliveryFee,
     time: restaurant.time,
     isOpen: restaurant.isOpen,
+    distanceKm: restaurant.distanceKm,
   };
 }
 
@@ -67,8 +67,14 @@ function toNewDish(
   const fullPrice = Number(product.salePrice || 0);
   const promo = Number(extra.promotionalPrice);
   const hasPromo = Number.isFinite(promo) && promo > 0 && promo < fullPrice;
-  const delivery = withDeliveryDefaults(store);
-  const deliveryFeeLabel = formatDeliveryFee(delivery.deliveryFee);
+  // Frete do back quando vier; senão, estimativa pela distância ou "a partir
+  // de". Tempo só quando a API mandar - não existe tempo antes do pedido
+  // (LDMF-534).
+  const deliveryFee = resolveStoreDeliveryFee({
+    deliveryFee: store.deliveryFee,
+    distanceKm: store.distanceKm,
+  });
+  const deliveryTime = store.time?.trim() || null;
 
   return {
     id: product.id,
@@ -85,10 +91,10 @@ function toNewDish(
       id: store.id,
       name: store.tradeName,
       logoUrl: store.logo_url || null,
-      deliveryFeeLabel,
-      isFreeDelivery: deliveryFeeLabel === "Grátis",
-      deliveryTimeLabel: delivery.time || null,
-      deliveryMaxMinutes: parseDeliveryMaxMinutes(delivery.time),
+      deliveryFeeLabel: deliveryFee.label,
+      isFreeDelivery: deliveryFee.isFree,
+      deliveryTimeLabel: deliveryTime,
+      deliveryMaxMinutes: parseDeliveryMaxMinutes(deliveryTime),
     },
   };
 }

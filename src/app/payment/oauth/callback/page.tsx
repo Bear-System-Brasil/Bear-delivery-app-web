@@ -11,6 +11,10 @@ function CallbackContent() {
   const searchParams = useSearchParams();
   const code = searchParams.get("code");
   const state = searchParams.get("state");
+  const connected = searchParams.get("connected");
+  const statusParam = searchParams.get("status");
+  const errorParam = searchParams.get("error");
+  const errorDesc = searchParams.get("error_description");
 
   const [status, setStatus] = useState<"loading" | "success" | "error">(
     "loading",
@@ -18,47 +22,63 @@ function CallbackContent() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!code || !state) {
+    // Caso 1: O backend já processou o callback e redirecionou o browser para o frontend com sucesso
+    if (connected === "true" || statusParam === "success") {
+      setStatus("success");
+      return;
+    }
+
+    // Caso 2: O Mercado Pago ou o backend redirecionou com erro
+    if (errorParam) {
       setStatus("error");
       setErrorMessage(
-        "Código de autorização ou estado ausentes na URL de retorno.",
+        errorDesc || errorParam || "Erro no fluxo de autorização.",
       );
       return;
     }
 
-    let isMounted = true;
+    // Caso 3: O Mercado Pago redirecionou para o frontend com code e state
+    if (code && state) {
+      let isMounted = true;
 
-    async function processCallback() {
-      try {
-        const response = await apiService.payments.oauthCallback(code!, state!);
-        if (!isMounted) return;
+      async function processCallback() {
+        try {
+          const response = await apiService.payments.oauthCallback(code!, state!);
+          if (!isMounted) return;
 
-        if (response.success && response.data?.connected) {
-          setStatus("success");
-        } else {
+          if (response.success && response.data?.connected) {
+            setStatus("success");
+          } else {
+            setStatus("error");
+            setErrorMessage(
+              response.message ||
+                "Não foi possível concluir a vinculação da conta Mercado Pago.",
+            );
+          }
+        } catch (err) {
+          if (!isMounted) return;
           setStatus("error");
           setErrorMessage(
-            response.message ||
-              "Não foi possível concluir a vinculação da conta Mercado Pago.",
+            err instanceof Error
+              ? err.message
+              : "Erro inesperado ao conectar com Mercado Pago.",
           );
         }
-      } catch (err) {
-        if (!isMounted) return;
-        setStatus("error");
-        setErrorMessage(
-          err instanceof Error
-            ? err.message
-            : "Erro inesperado ao conectar com Mercado Pago.",
-        );
       }
+
+      processCallback();
+
+      return () => {
+        isMounted = false;
+      };
     }
 
-    processCallback();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [code, state]);
+    // Caso 4: Parâmetros ausentes
+    setStatus("error");
+    setErrorMessage(
+      "Código de autorização ou estado ausentes na URL de retorno.",
+    );
+  }, [code, state, connected, statusParam, errorParam, errorDesc]);
 
   return (
     <div className="flex min-h-[60vh] flex-col items-center justify-center p-6 text-center">

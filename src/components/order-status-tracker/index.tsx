@@ -17,7 +17,7 @@ import { ORDER_STEPS, getOrderStep } from "@/lib/order-status";
 import { Socket, io } from "socket.io-client";
 
 const DELIVERY_TRACKING_URL = process.env.NEXT_PUBLIC_API_URL
-  ? `${process.env.NEXT_PUBLIC_API_URL}/delivery-tracking`
+  ? `${process.env.NEXT_PUBLIC_API_URL.replace(/\/+$/, "")}/delivery-tracking`
   : "";
 const DEBUG_DELIVERY_TRACKING =
   process.env.NEXT_PUBLIC_DELIVERY_TRACKING_DEBUG === "true";

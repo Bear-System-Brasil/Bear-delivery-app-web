@@ -26,6 +26,7 @@ import { MAX_SPECIALTIES, useCompanyProfileManagement } from "@/hooks/use-compan
 import { useCompanyAcceptedPaymentMethods } from "@/hooks/use-company-accepted-payment-methods";
 import { useCompanyOpeningHours } from "@/hooks/use-opening-hours";
 import { useSpecialties } from "@/hooks/use-specialties";
+import { dedupeSpecialties } from "@/lib/specialty-dedupe";
 import {
   ACCEPTED_PAYMENT_METHODS,
   ACCEPTED_PAYMENT_METHOD_LABELS,
@@ -266,7 +267,13 @@ function CompanyProfileContent() {
   // Só a lista do servidor é escolhível: salvar um id da lista local (fallback
   // antigo) falharia no back, que não conhece esses ids (LDMF-395).
   const { data: specialties } = useSpecialties();
-  const availableSpecialties = specialties ?? [];
+  // O back tem o mesmo tipo cadastrado mais de uma vez ("Bebidas"/"BeBidas"):
+  // cada nome aparece uma vez, representado pelo id que a loja já escolheu
+  // (LDMF-497).
+  const availableSpecialties = dedupeSpecialties(
+    specialties ?? [],
+    specialtyDraft,
+  );
 
   if (!isMounted || !user) {
     return null;

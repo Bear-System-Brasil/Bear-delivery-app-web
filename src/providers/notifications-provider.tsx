@@ -35,7 +35,9 @@ import { io, type Socket } from "socket.io-client";
 import { toast } from "sonner";
 
 function getSocketUrl(): string {
-  const base = process.env.NEXT_PUBLIC_API_URL || "https://bearsystem.tech";
+  const base = (
+    process.env.NEXT_PUBLIC_API_URL || "https://bearsystem.tech"
+  ).replace(/\/+$/, "");
   return `${base}${KITCHEN_SOCKET_NAMESPACE}`;
 }
 
