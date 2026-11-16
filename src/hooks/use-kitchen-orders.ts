@@ -52,8 +52,9 @@ interface PeriodRange {
   endDate?: string;
 }
 
-const KITCHEN_SOCKET_URL = process.env.NEXT_PUBLIC_API_URL
-  ? `${process.env.NEXT_PUBLIC_API_URL}${KITCHEN_SOCKET_NAMESPACE}`
+const rawApiUrl = process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, "");
+const KITCHEN_SOCKET_URL = rawApiUrl
+  ? `${rawApiUrl}${KITCHEN_SOCKET_NAMESPACE}`
   : "";
 
 /** Quanto tempo o card recém-chegado fica destacado. */
