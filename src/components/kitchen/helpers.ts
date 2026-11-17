@@ -289,3 +289,14 @@ export function getPeriodRange(
 export function isSameLocalDay(a: Date, b: Date): boolean {
   return toDateInputValue(a) === toDateInputValue(b);
 }
+
+/**
+ * Quem pode cancelar pedido pela cozinha: `owner` e `manager`, igual ao
+ * `PATCH /order/:id/cancel` (order.md). `cook` recebe 403 do back, entao
+ * o botao nao aparece para ele.
+ */
+const CANCEL_ORDER_ROLES = ["owner", "manager"];
+
+export function canCancelKitchenOrder(role?: string | null): boolean {
+  return !!role && CANCEL_ORDER_ROLES.includes(role);
+}
