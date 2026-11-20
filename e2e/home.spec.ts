@@ -4,7 +4,7 @@ test.describe("Home", () => {
   test("carrega o cabeçalho com logo e busca", async ({ page }) => {
     await page.goto("/");
 
-    await expect(page.getByText("BearDelivery")).toBeVisible();
+    await expect(page.getByText("BearaDelivery")).toBeVisible();
     await expect(page.getByPlaceholder("Buscar...")).toBeVisible();
   });
 

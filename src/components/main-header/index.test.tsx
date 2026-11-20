@@ -42,14 +42,14 @@ describe("MainHeader - menu superior enxuto (LDMF-499)", () => {
   it("no celular, com o endereço à mostra, o logo sai do topo", () => {
     render(<MainHeader showSearch showLocation />);
     expect(
-      screen.getByRole("link", { name: "Bear Delivery - início" }),
+      screen.getByRole("link", { name: "Beara Delivery - início" }),
     ).toHaveClass("max-sm:hidden");
   });
 
   it("sem o endereço, o logo continua no celular", () => {
     render(<MainHeader showSearch showLocation={false} />);
     expect(
-      screen.getByRole("link", { name: "Bear Delivery - início" }),
+      screen.getByRole("link", { name: "Beara Delivery - início" }),
     ).not.toHaveClass("max-sm:hidden");
   });
 

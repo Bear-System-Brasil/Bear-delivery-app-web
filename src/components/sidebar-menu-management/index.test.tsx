@@ -29,7 +29,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("../ui/bear-delivery-logo", () => ({
-  BearDeliveryLogo: () => <span>Bear Delivery</span>,
+  BearDeliveryLogo: () => <span>Beara Delivery</span>,
 }));
 
 const { default: Sidebar } = await import("./index");

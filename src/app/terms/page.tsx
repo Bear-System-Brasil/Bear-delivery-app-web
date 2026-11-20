@@ -13,14 +13,14 @@ import {
 export const metadata: Metadata = {
   title: "Termos de uso",
   description:
-    "Regras de uso do Bear Delivery para clientes, restaurantes e entregadores.",
+    "Regras de uso do Beara Delivery para clientes, restaurantes e entregadores.",
 };
 
 export default function TermsPage() {
   return (
     <LegalPage title="Termos de uso" updatedAt={TERMS_UPDATED_AT}>
       <p>
-        Estes termos são as regras para usar o Bear Delivery. Ao criar uma
+        Estes termos são as regras para usar o Beara Delivery. Ao criar uma
         conta, você declara que leu e concorda com eles e com a nossa{" "}
         <Link
           href="/privacy"
@@ -33,7 +33,7 @@ export default function TermsPage() {
 
       <LegalSection title="1. Quem somos">
         <p>
-          O Bear Delivery é uma plataforma que conecta clientes, restaurantes e
+          O Beara Delivery é uma plataforma que conecta clientes, restaurantes e
           entregadores. Ainda não temos empresa constituída: a plataforma é
           mantida por <strong>{LEGAL_RESPONSIBLES}</strong>. Contato:{" "}
           <a
@@ -45,7 +45,7 @@ export default function TermsPage() {
           .
         </p>
         <p>
-          O Bear Delivery não prepara os pedidos. Cada restaurante é
+          O Beara Delivery não prepara os pedidos. Cada restaurante é
           responsável pelos produtos que vende, pelos preços, pela qualidade e
           pelas informações do seu cardápio.
         </p>
@@ -142,7 +142,7 @@ export default function TermsPage() {
       <LegalSection title="7. Disponibilidade e responsabilidade">
         <p>
           Trabalhamos para manter o app funcionando, mas ele pode ficar fora
-          do ar por manutenção ou falhas técnicas. O Bear Delivery não se
+          do ar por manutenção ou falhas técnicas. O Beara Delivery não se
           responsabiliza por produtos vendidos pelos restaurantes nem por
           problemas causados por informações erradas no cadastro.
         </p>
