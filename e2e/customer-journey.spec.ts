@@ -34,7 +34,7 @@ test.describe("Jornada do cliente", () => {
     await test.step("home lista restaurantes", async () => {
       await page.goto("/");
       await expect(
-        page.getByRole("banner").getByText("BearDelivery"),
+        page.getByRole("banner").getByText("BearaDelivery"),
       ).toBeVisible();
     });
 
@@ -93,6 +93,8 @@ test.describe("Jornada do cliente", () => {
       await addButton.click();
       // O modal fecha e o carrinho passa a ter item (botão flutuante aparece).
       await expect(page.getByRole("dialog")).toBeHidden({ timeout: 15_000 });
+      // Aguarda o POST em background do carrinho (use-cart-actions) persistir antes do full navigation
+      await page.waitForTimeout(2500);
     });
 
     await test.step("carrinho com o item", async () => {
@@ -102,7 +104,7 @@ test.describe("Jornada do cliente", () => {
       ).toBeVisible({ timeout: 15_000 });
       await expect(
         page.getByRole("heading", { name: "Seu carrinho está vazio" }),
-      ).toHaveCount(0);
+      ).toHaveCount(0, { timeout: 20_000 });
     });
 
     await test.step("ir pro checkout (sem finalizar)", async () => {

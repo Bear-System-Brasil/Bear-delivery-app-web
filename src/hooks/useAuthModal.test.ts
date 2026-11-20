@@ -113,7 +113,7 @@ describe("useAuthModal", () => {
       expect(result.current.isFormValid()).toBeTruthy();
     });
 
-    it("sucesso grava o usuário no store e fecha depois de 2s", async () => {
+    it("sucesso grava o usuário no store e fecha o modal imediatamente", async () => {
       api.login.mockResolvedValue({
         success: true,
         data: { data: { user: { id: "u1", email: "ana@example.com", name: "Ana" } } },
@@ -127,12 +127,6 @@ describe("useAuthModal", () => {
 
       expect(api.login).toHaveBeenCalledWith({ email: "ana@example.com", password: "Senha@1" });
       expect(useAuthStore.getState().user).toMatchObject({ id: "u1", role: "client" });
-      expect(result.current.submitMessage?.type).toBe("success");
-
-      // A mensagem de boas-vindas fica 2s na tela antes de fechar.
-      act(() => vi.advanceTimersByTime(1999));
-      expect(onClose).not.toHaveBeenCalled();
-      act(() => vi.advanceTimersByTime(1));
 
       expect(onAuthSuccess).toHaveBeenCalledWith(
         expect.objectContaining({ id: "u1", role: "client", companyId: null }),

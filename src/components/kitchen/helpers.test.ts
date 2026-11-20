@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  canCancelKitchenOrder,
   getAddOnName,
   getCustomerName,
   getDayRange,
@@ -456,5 +457,21 @@ describe("getOrderValues", () => {
 
   it("sem total não há resumo", () => {
     expect(getOrderValues(order)).toBeNull();
+  });
+});
+
+describe("canCancelKitchenOrder", () => {
+  it("libera owner e manager, como o PATCH /order/:id/cancel", () => {
+    expect(canCancelKitchenOrder("owner")).toBe(true);
+    expect(canCancelKitchenOrder("manager")).toBe(true);
+  });
+
+  it("bloqueia cook, que recebe 403 do back", () => {
+    expect(canCancelKitchenOrder("cook")).toBe(false);
+  });
+
+  it("bloqueia sem role", () => {
+    expect(canCancelKitchenOrder(undefined)).toBe(false);
+    expect(canCancelKitchenOrder(null)).toBe(false);
   });
 });

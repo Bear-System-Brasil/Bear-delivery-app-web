@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
@@ -73,19 +73,10 @@ export default function AuthModal({
   onAuthSuccess,
   defaultTab = "login",
 }: AuthModalProps) {
-  const [isDevMode, setIsDevMode] = useState(false);
-
-  useEffect(() => {
-    if (
-      process.env.NODE_ENV !== "production" ||
-      window.location.hostname === "localhost" ||
-      window.location.hostname === "127.0.0.1" ||
-      window.location.hostname.includes("dev") ||
-      window.location.hostname.includes("vercel.app")
-    ) {
-      setIsDevMode(true);
-    }
-  }, []);
+  const isDevMode =
+    process.env.NEXT_PUBLIC_SHOW_DEV_LOGINS === "true" ||
+    (process.env.NODE_ENV !== "production" &&
+      process.env.NEXT_PUBLIC_SHOW_DEV_LOGINS !== "false");
   const {
     activeTab, setActiveTab,
     step, setStep,

@@ -12,7 +12,7 @@ import {
 export const metadata: Metadata = {
   title: "Política de privacidade",
   description:
-    "Como o Bear Delivery coleta, usa, compartilha e protege os seus dados pessoais.",
+    "Como o Beara Delivery coleta, usa, compartilha e protege os seus dados pessoais.",
 };
 
 // Conteúdo levantado do próprio app (LDMF-281): campos dos cadastros,
@@ -22,7 +22,7 @@ export default function PrivacyPage() {
   return (
     <LegalPage title="Política de privacidade" updatedAt={PRIVACY_UPDATED_AT}>
       <p>
-        Esta política explica quais dados pessoais o Bear Delivery coleta, para
+        Esta política explica quais dados pessoais o Beara Delivery coleta, para
         que usamos, com quem compartilhamos e quais são os seus direitos, de
         acordo com a Lei Geral de Proteção de Dados (Lei nº 13.709/2018 -
         LGPD).
@@ -30,7 +30,7 @@ export default function PrivacyPage() {
 
       <LegalSection title="1. Quem é responsável pelos seus dados">
         <p>
-          O Bear Delivery ainda não tem empresa constituída. Os responsáveis
+          O Beara Delivery ainda não tem empresa constituída. Os responsáveis
           pelo tratamento dos seus dados (controladores) são{" "}
           <strong>{LEGAL_RESPONSIBLES}</strong>.
         </p>
@@ -77,7 +77,7 @@ export default function PrivacyPage() {
         </p>
         <p>
           <strong>Pagamentos:</strong> hoje o pagamento é feito na entrega
-          (dinheiro, maquininha ou Pix). O Bear Delivery{" "}
+          (dinheiro, maquininha ou Pix). O Beara Delivery{" "}
           <strong>não recebe nem guarda dados de cartão</strong>.
         </p>
       </LegalSection>
@@ -191,7 +191,7 @@ export default function PrivacyPage() {
 
       <LegalSection title="9. Menores de idade">
         <p>
-          O Bear Delivery é destinado a maiores de 18 anos. Não coletamos
+          O Beara Delivery é destinado a maiores de 18 anos. Não coletamos
           intencionalmente dados de menores. Se soubermos que uma conta é de
           menor de idade, ela será excluída.
         </p>

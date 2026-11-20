@@ -147,7 +147,7 @@ export default function RestaurantLandingPage() {
           <div className="max-w-6xl mx-auto">
             <div className="text-center mb-16">
               <h2 className="text-4xl md:text-5xl font-bold mb-4">
-                Por que escolher o Bear Delivery?
+                Por que escolher o Beara Delivery?
               </h2>
               <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
                 Tudo que você precisa para crescer seu negócio
@@ -257,7 +257,7 @@ export default function RestaurantLandingPage() {
                 </a>
               </nav>
               <p className="text-sm text-muted-foreground">
-                © 2025 Bear Delivery. Todos os direitos reservados.
+                © 2025 Beara Delivery. Todos os direitos reservados.
               </p>
             </div>
           </div>

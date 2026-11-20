@@ -1,6 +1,6 @@
 "use client";
 /**
- * Identidade visual Bear Delivery - Mascote real
+ * Identidade visual Beara Delivery - Mascote real
  * Arquivo: /public/brand/bear_delivery_icon.png (PNG transparente 512x512)
  */
 import Image from "next/image";
@@ -9,7 +9,7 @@ export function BearMascot({ className = "w-6 h-6" }: { className?: string }) {
   return (
     <Image
       src="/brand/bear_delivery_icon.png"
-      alt="Bear Delivery"
+      alt="Beara Delivery"
       width={512}
       height={512}
       className={`${className} object-contain`}
@@ -57,7 +57,7 @@ export function BearDeliveryLogo({
         } ${dark ? "text-white" : "text-foreground"}`}
       >
         <span className={`font-black ${small ? "text-[13px]" : "text-[17px]"}`}>
-          BEAR
+          BEARA
         </span>
         <span
           className={`ml-[3px] font-light ${
@@ -90,7 +90,7 @@ export function BearDeliveryLogoStacked({
       <div
         className={`flex flex-col items-center leading-[0.88] ${dark ? "text-white" : "text-foreground"}`}
       >
-        <span className="text-[34px] font-black tracking-[-0.04em]">BEAR</span>
+        <span className="text-[34px] font-black tracking-[-0.04em]">BEARA</span>
         <span className="mt-1 text-[13px] font-light tracking-[0.28em] opacity-70">
           -DELIVERY-
         </span>

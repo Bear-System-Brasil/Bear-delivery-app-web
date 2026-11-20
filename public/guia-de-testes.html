@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Guia de Testes dos Principais Fluxos - Beara Delivery</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    :root {
+      --primary: #f97316;
+      --primary-dark: #ea580c;
+      --primary-light: #fff7ed;
+      --text: #1e293b;
+      --text-muted: #64748b;
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --border: #e2e8f0;
+      --success: #10b981;
+      --info: #3b82f6;
+      --purple: #8b5cf6;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 2rem 1rem;
+    }
+
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+    }
+
+    /* Header & Branding */
+    .header {
+      background: linear-gradient(135deg, #ea580c 0%, #f97316 100%);
+      color: white;
+      padding: 2.5rem 2rem;
+      border-radius: 1.25rem;
+      margin-bottom: 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 10px 25px -5px rgba(249, 115, 22, 0.3);
+    }
+
+    .header-info h1 {
+      font-size: 1.85rem;
+      font-weight: 800;
+      letter-spacing: -0.025em;
+    }
+
+    .header-info p {
+      opacity: 0.92;
+      font-size: 1rem;
+      margin-top: 0.25rem;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 0.75rem;
+    }
+
+    .btn-print {
+      background: white;
+      color: var(--primary-dark);
+      border: none;
+      padding: 0.75rem 1.25rem;
+      font-size: 0.95rem;
+      font-weight: 700;
+      border-radius: 0.75rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+      transition: all 0.2s ease;
+    }
+
+    .btn-print:hover {
+      background: #fff7ed;
+      transform: translateY(-1px);
+    }
+
+    /* Cards */
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 1rem;
+      padding: 1.75rem;
+      margin-bottom: 2rem;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+      page-break-inside: avoid;
+    }
+
+    .card-title {
+      font-size: 1.35rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+      color: var(--text);
+    }
+
+    .badge {
+      display: inline-block;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      padding: 0.25rem 0.6rem;
+      border-radius: 9999px;
+      letter-spacing: 0.05em;
+    }
+
+    .badge-orange { background: #ffedd5; color: #c2410c; }
+    .badge-blue { background: #dbeafe; color: #1d4ed8; }
+    .badge-green { background: #d1fae5; color: #047857; }
+    .badge-purple { background: #f3e8ff; color: #6b21a8; }
+
+    /* Tables */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+      font-size: 0.92rem;
+    }
+
+    th, td {
+      padding: 0.75rem 1rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+
+    th {
+      background: #f1f5f9;
+      font-weight: 700;
+      color: #475569;
+    }
+
+    /* Checklists */
+    .checklist {
+      list-style: none;
+      margin-top: 1rem;
+    }
+
+    .checklist-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      padding: 0.6rem 0;
+      border-bottom: 1px dashed var(--border);
+      font-size: 0.95rem;
+    }
+
+    .checklist-item:last-child {
+      border-bottom: none;
+    }
+
+    .check-box {
+      width: 1.25rem;
+      height: 1.25rem;
+      border: 2px solid #cbd5e1;
+      border-radius: 0.35rem;
+      margin-top: 0.15rem;
+      flex-shrink: 0;
+    }
+
+    .diagram-container {
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 0.75rem;
+      padding: 1.25rem;
+      margin: 1.25rem 0;
+      text-align: center;
+      overflow-x: auto;
+    }
+
+    .callout {
+      background: var(--primary-light);
+      border-left: 4px solid var(--primary);
+      padding: 1rem;
+      border-radius: 0.5rem;
+      margin: 1rem 0;
+      font-size: 0.9rem;
+      color: #9a3412;
+    }
+
+    /* Print Specific Styles */
+    @media print {
+      body {
+        padding: 0;
+        background: white;
+        color: black;
+      }
+
+      .btn-print {
+        display: none;
+      }
+
+      .header {
+        background: #f97316 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+        box-shadow: none;
+        border-radius: 0;
+      }
+
+      .card {
+        box-shadow: none;
+        border: 1px solid #ccc;
+        page-break-inside: avoid;
+        margin-bottom: 1.5rem;
+      }
+
+      .diagram-container {
+        border: 1px solid #ccc;
+        background: white;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    
+    <!-- Top Header -->
+    <div class="header">
+      <div class="header-info">
+        <h1>🐻 Beara Delivery - Manual & Roteiro de Testes</h1>
+        <p>Guia operacional completo com fluxos visuais de ponta a ponta para validação de produto.</p>
+      </div>
+      <div class="header-actions">
+        <button class="btn-print" onclick="window.print()">
+          🖨️ Imprimir / Salvar em PDF
+        </button>
+      </div>
+    </div>
+
+    <!-- Credentials Card -->
+    <div class="card">
+      <h2 class="card-title">🔑 Contas Pré-Configuradas para Testes (Ambiente Dev)</h2>
+      <p style="color: var(--text-muted); font-size: 0.95rem;">
+        Nos ambientes de desenvolvimento/preview, utilize o modal de login rápido clicando no botão correspondente a cada perfil:
+      </p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Perfil / Função</th>
+            <th>E-mail</th>
+            <th>Senha</th>
+            <th>Rotas Principais</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="badge badge-orange">Owner (Dono)</span></td>
+            <td><code>Teste+Owner@bear.com</code></td>
+            <td><code>Teste@123</code></td>
+            <td>/company-profile, /menu-management, /financial-management/*</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-blue">Client (Cliente)</span></td>
+            <td><code>Teste+Client@bear.com</code></td>
+            <td><code>Teste@123</code></td>
+            <td>/, /restaurant/[id], /cart, /checkout, /orders</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-green">Courier (Entregador)</span></td>
+            <td><code>Teste+Courier@bear.com</code></td>
+            <td><code>Teste@123</code></td>
+            <td>/delivery-dashboard, /delivery-dashboard/historico</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-purple">Second (Gerência)</span></td>
+            <td><code>Teste+Second@bear.com</code></td>
+            <td><code>Teste@123</code></td>
+            <td>/kitchen, /team-management, /menu-management</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Macro Architecture Diagram -->
+    <div class="card">
+      <h2 class="card-title">🗺️ Diagrama de Integração dos Fluxos em Tempo Real</h2>
+      <div class="diagram-container">
+        <pre class="mermaid">
+sequenceDiagram
+    autonumber
+    actor C as 👤 Cliente
+    participant App as 🖥️ Plataforma Web
+    actor K as 🍳 Cozinha (KDS)
+    actor E as 🛵 Entregador
+    actor F as 💰 Caixa / Dono
+
+    C->>App: 1. Realiza pedido no Checkout (/checkout)
+    App->>K: 2. Notificação sonora em tempo real (/kitchen)
+    K->>K: 3. Inicia preparo e imprime comanda
+    K->>App: 4. Marca como "Pronto para entrega"
+    App->>E: 5. Notifica entregador disponível (/delivery-dashboard)
+    E->>App: 6. Aceita a corrida e retira o pedido
+    E->>C: 7. Rota e entrega no endereço informado
+    E->>App: 8. Confirma entrega realizada
+    App->>F: 9. Valor computado no fluxo de caixa (/financial-management)
+        </pre>
+      </div>
+    </div>
+
+    <!-- Flow 1: Client -->
+    <div class="card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+        <h2 class="card-title" style="margin-bottom: 0;">🛒 Fluxo 1: Jornada de Compra do Cliente</h2>
+        <span class="badge badge-blue">Perfil: Cliente</span>
+      </div>
+      <p style="color: var(--text-muted); font-size: 0.95rem;">
+        Validação completa desde a definição de endereço até o acompanhamento do status do pedido.
+      </p>
+
+      <div class="diagram-container">
+        <pre class="mermaid">
+flowchart LR
+    A[1. Home /] --> B[2. Definir Endereço]
+    B --> C[3. Cardápio da Loja]
+    C --> D[4. Adicionar Itens / Variações]
+    D --> E[5. Carrinho /cart]
+    E --> F[6. Checkout & Pagamento]
+    F --> G[7. Acompanhamento /order-status]
+        </pre>
+      </div>
+
+      <ul class="checklist">
+        <li class="checklist-item">
+          <div class="check-box"></div>
+          <div><strong>1. Localização e CEP:</strong> Abra o modal no topo da página e digite o CEP ou rua. O pino do mapa deve se posicionar e filtrar lojas abertas na região.</div>
+        </li>
+        <li class="checklist-item">
+          <div class="check-box"></div>
+          <div><strong>2. Página do Restaurante:</strong> Acesse uma loja. Valide as abas <em>Cardápio</em>, <em>Informações</em> (endereço, telefone e horários da semana) e <em>Avaliações</em>.</div>
+        </li>
+        <li class="checklist-item">
+          <div class="check-box"></div>
+          <div><strong>3. Variações e Adicionais:</strong> Clique em um prato com adicionais obrigatórios e opcionais. Confirme que o botão só libera ao atingir a quantidade mínima exigida.</div>
+        </li>
+        <li class="checklist-item">
+          <div class="check-box"></div>
+          <div><strong>4. Checkout:</strong> Selecione Entrega ou Retirada. Teste o pagamento via Dinheiro (com troco), Cartão ou PIX e finalize.</div>
+        </li>
+        <li class="checklist-item">
+          <div class="check-box"></div>
+          <div><strong>5. Rastreio:</strong> Verifique se a tela <code>/order-status</code> exibe as etapas: Recebido → Em Preparo → Em Rota → Entregue.</div>
+        </li>
+      </ul>
+    </div>
+
+    <!-- Flow 2: Kitchen KDS -->
+    <div class="card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+        <h2 class="card-title" style="margin-bottom: 0;">🍳 Fluxo 2: Gestão da Cozinha (KDS & Comandas)</h2>
+        <span class="badge badge-purple">Perfil: Gerência / Cozinha</span>
+      </div>
+      <p style="color: var(--text-muted); font-size: 0.95rem;">
+        Monitoramento de novos pedidos em tempo real via WebSocket, impressão de comandas térmicas e avanço de status.
+      </p>
+
+      <div class="diagram-container">
+        <pre class="mermaid">
+stateDiagram-v2
+    [*] --> Recebido: Alerta Sonoro de Novo Pedido
+    Recebido --> EmPreparo: Mover para Preparação
+    EmPreparo --> Pronto: Prato Concluído
+    Pronto --> Despachado: Coletado pelo Entregador
+    Despachado --> [*]
+        </pre>
+      </div>
+
+      <ul class="checklist">
+        <li class="checklist-item">
+          <div class="check-box"></div>
+          <div><strong>1. Notificação Sonora:</strong> Mantenha a tela <code>/kitchen</code> aberta. Ao realizar um pedido na aba do cliente, deve soar um alarme sonoro contínuo.</div>
+        </li>
+        <li class="checklist-item">
+          <div class="check-box"></div>
+          <div><strong>2. Movimentação dos Pedidos:</strong> Mova os pedidos entre as colunas "Recebido", "Em Preparo" e "Pronto".</div>
+        </li>
+        <li class="checklist-item">
+          <div class="check-box"></div>
+          <div><strong>3. Impressão de Comanda:</strong> Clique no botão de imprimir para verificar o layout padronizado para impressoras térmicas (58mm/80mm).</div>
+        </li>
+      </ul>
+    </div>
+
+    <!-- Flow 3: Courier -->
+    <div class="card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+        <h2 class="card-title" style="margin-bottom: 0;">🛵 Fluxo 3: Painel do Entregador (Courier)</h2>
+        <span class="badge badge-green">Perfil: Entregador</span>
+      </div>
+      <p style="color: var(--text-muted); font-size: 0.95rem;">
+        Recepção de chamados, visualização de rotas com mapa e cálculo de distância estimada.
+      </p>
+
+      <ul class="checklist">
+        <li class="checklist-item">
+          <div class="check-box"></div>
+          <div><strong>1. Acesso Restrito:</strong> Logue como <code>Teste+Courier@bear.com</code> e acesse <code>/delivery-dashboard</code>.</div>
+        </li>
+        <li class="checklist-item">
+          <div class="check-box"></div>
+          <div><strong>2. Aceite de Corrida:</strong> Clique em "Aceitar Entrega" em um pedido disponível e verifique os dados de coleta e entrega.</div>
+        </li>
+        <li class="checklist-item">
+          <div class="check-box"></div>
+          <div><strong>3. Conclusão da Corrida:</strong> Confirme a entrega e valide se a corrida é salva no histórico (<code>/delivery-dashboard/historico</code>).</div>
+        </li>
+      </ul>
+    </div>
+
+    <!-- Flow 4: Store Management -->
+    <div class="card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+        <h2 class="card-title" style="margin-bottom: 0;">💼 Fluxo 4: Gestão do Restaurante & Cardápio</h2>
+        <span class="badge badge-orange">Perfil: Proprietário / Administrador</span>
+      </div>
+      <p style="color: var(--text-muted); font-size: 0.95rem;">
+        Configuração de horários, categorias, fotos de pratos e gestão de colaboradores.
+      </p>
+
+      <ul class="checklist">
+        <li class="checklist-item">
+          <div class="check-box"></div>
+          <div><strong>1. Perfil da Loja (<code>/company-profile</code>):</strong> Edite os horários de funcionamento e confirme se a etiqueta "Aberto agora / Fechado" se atualiza no cardápio público.</div>
+        </li>
+        <li class="checklist-item">
+          <div class="check-box"></div>
+          <div><strong>2. Gestão de Categorias (<code>/category-management</code>):</strong> Crie, reordene e teste a prévia das categorias.</div>
+        </li>
+        <li class="checklist-item">
+          <div class="check-box"></div>
+          <div><strong>3. Cardápio (<code>/menu-management</code>):</strong> Adicione um prato novo com complementos, faça upload de imagem e teste a função <strong>Duplicar Prato</strong>.</div>
+        </li>
+        <li class="checklist-item">
+          <div class="check-box"></div>
+          <div><strong>4. Gestão de Equipe (<code>/team-management</code>):</strong> Adicione membros da equipe e atribua permissões (cozinheiro, gerente, financeiro).</div>
+        </li>
+      </ul>
+    </div>
+
+    <!-- Flow 5: Cash Register & Finance -->
+    <div class="card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+        <h2 class="card-title" style="margin-bottom: 0;">💰 Fluxo 5: Frente de Caixa & Módulo Financeiro</h2>
+        <span class="badge badge-orange">Perfil: Dono / Financeiro</span>
+      </div>
+      <p style="color: var(--text-muted); font-size: 0.95rem;">
+        Controle de saldo inicial, suprimentos, sangrias e conciliação de faturamento diário.
+      </p>
+
+      <ul class="checklist">
+        <li class="checklist-item">
+          <div class="check-box"></div>
+          <div><strong>1. Abertura de Caixa (<code>/financial-management/cash-register</code>):</strong> Informe o saldo inicial de abertura do dia.</div>
+        </li>
+        <li class="checklist-item">
+          <div class="check-box"></div>
+          <div><strong>2. Movimentações Manuais:</strong> Registre uma Sangria (retirada com motivo) e um Suprimento (depósito).</div>
+        </li>
+        <li class="checklist-item">
+          <div class="check-box"></div>
+          <div><strong>3. Pedidos & Faturamento (<code>/financial-management/orders</code> e <code>/finance</code>):</strong> Confira a conciliação de pagamentos das vendas realizadas.</div>
+        </li>
+      </ul>
+    </div>
+
+    <!-- Flow 6: Security & Middleware -->
+    <div class="card">
+      <h2 class="card-title">🛡️ Fluxo 6: Segurança & Proteção de Permissões (Middleware)</h2>
+      <p style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 1rem;">
+        Teste as barreiras de acesso para garantir que cada perfil veja exclusivamente suas respectivas telas:
+      </p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Perfil Conectado</th>
+            <th>Tentativa de Acesso</th>
+            <th>Comportamento Esperado</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Cliente</td>
+            <td>Acessar <code>/kitchen</code> ou <code>/company-profile</code></td>
+            <td>Redirecionado para <code>/unauthorized</code> ou tela de login</td>
+          </tr>
+          <tr>
+            <td>Entregador</td>
+            <td>Acessar <code>/financial-management/dashboard</code></td>
+            <td>Redirecionado para <code>/unauthorized</code></td>
+          </tr>
+          <tr>
+            <td>Visitante (Deslogado)</td>
+            <td>Acessar <code>/orders</code> ou <code>/profile</code></td>
+            <td>Abertura automática do modal de autenticação</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+
+  <script>
+    mermaid.initialize({ startOnLoad: true, theme: 'default' });
+  </script>
+</body>
+</html>

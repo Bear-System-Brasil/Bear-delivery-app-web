@@ -84,4 +84,18 @@ describe("AuthModal - Logins Rápidos de Teste (Dev)", () => {
     expect(hookState.handleInputChange).toHaveBeenCalledWith("email", "Teste+Owner@bear.com");
     expect(hookState.handleInputChange).toHaveBeenCalledWith("password", "Teste@123");
   });
+
+  it("não exibe botões de teste quando NEXT_PUBLIC_SHOW_DEV_LOGINS é false", () => {
+    const originalEnv = process.env.NEXT_PUBLIC_SHOW_DEV_LOGINS;
+    process.env.NEXT_PUBLIC_SHOW_DEV_LOGINS = "false";
+
+    hookState.step = "form";
+    hookState.activeTab = "login";
+
+    render(<AuthModal isOpen onClose={noop} />);
+
+    expect(screen.queryByText("Logins Rápidos (Ambiente de Teste)")).not.toBeInTheDocument();
+
+    process.env.NEXT_PUBLIC_SHOW_DEV_LOGINS = originalEnv;
+  });
 });
