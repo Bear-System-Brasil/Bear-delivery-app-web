@@ -171,14 +171,10 @@ export function useAuthModal({
           const userWithRole = { ...user, role: userRole, companyId };
           zustandLogin(userForStore);
 
-          setSubmitMessage({ type: "success", text: "Login realizado com sucesso! Bem-vindo de volta!" });
-
-          setTimeout(() => {
-            if (userWithRole) onAuthSuccess?.(userWithRole);
-            else onAuthSuccess?.();
-            onClose();
-            resetForm();
-          }, 2000);
+          if (userWithRole) onAuthSuccess?.(userWithRole);
+          else onAuthSuccess?.();
+          onClose();
+          resetForm();
         } else {
           setSubmitMessage({ type: "error", text: loginResponse.message || "Email ou senha incorretos. Tente novamente." });
         }

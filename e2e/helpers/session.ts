@@ -343,10 +343,7 @@ export async function loginViaUI(
 
   await dialog.getByRole("button", { name: "Entrar" }).click();
 
-  // Sucesso: a mensagem aparece e, em seguida, o modal fecha sozinho.
-  await expect(dialog.getByText(/Login realizado com sucesso/i)).toBeVisible({
-    timeout: 15_000,
-  });
+  // Sucesso: o modal fecha imediatamente após autenticar.
   await expect(page.getByRole("dialog")).toBeHidden({ timeout: 15_000 });
 
   // Logado, o cabeçalho troca "Entrar" pelo menu de perfil.
