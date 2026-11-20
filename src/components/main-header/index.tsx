@@ -330,7 +330,7 @@ export function MainHeader({
                 // No celular, com o endereço à mostra, o logo sai para o topo
                 // ficar enxuto: "Início" já está na barra de baixo (LDMF-499).
                 className={clsx("shrink-0", showLocation && "max-sm:hidden")}
-                aria-label="Bear Delivery - início"
+                aria-label="Beara Delivery - início"
               >
                 <BearDeliveryLogo
                   small={logoSmall}

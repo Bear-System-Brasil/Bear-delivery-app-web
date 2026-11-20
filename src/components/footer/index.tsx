@@ -10,7 +10,7 @@ export function Footer() {
         <div className="grid grid-cols-1 gap-5 border-b border-zinc-700 dark:border-border py-5 md:grid-cols-[1.5fr_1fr_1fr] md:gap-10">
           <div className="space-y-3">
             <h3 className="bg-gradient-to-r from-brand-400 to-amber-500 bg-clip-text text-xl font-bold text-transparent">
-              Bear Delivery
+              Beara Delivery
             </h3>
             <p className="max-w-sm text-sm leading-normal text-muted-foreground">
               Encontre os melhores restaurantes e receba seu pedido com rapidez
@@ -131,7 +131,7 @@ export function Footer() {
 
         <div className="py-3">
           <p className="text-center text-sm text-muted-foreground">
-            © {currentYear} Bear Delivery. Todos os direitos reservados.
+            © {currentYear} Beara Delivery. Todos os direitos reservados.
           </p>
         </div>
       </div>
